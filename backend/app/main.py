@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -10,9 +11,37 @@ from app.api.qualitative import router as qualitative_router
 from app.api.kakao import router as kakao_router
 from app.api.v2_dashboard import router as dashboard_router
 from app.api.auth import router as auth_router
-from app.core.database import check_db
+from app.core.database import check_db, SessionLocal
+
+
+def init_db():
+    """DB 테이블 자동 생성 (IF NOT EXISTS)"""
+    from sqlalchemy import text
+    sql_path = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "init.sql")
+    if not os.path.exists(sql_path):
+        return
+    with open(sql_path, "r", encoding="utf-8") as f:
+        sql = f.read()
+    db = SessionLocal()
+    try:
+        db.execute(text(sql))
+        db.commit()
+        print("✅ DB 초기화 완료")
+    except Exception as e:
+        print(f"⚠️ DB 초기화 중 오류 (이미 존재할 수 있음): {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title="tenbagger API",
     description="Korean Stock Long-term Investment Analysis System",
     version="2.0.0",
