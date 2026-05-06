@@ -126,6 +126,12 @@
 <script>
   const API = 'http://localhost:8000';
 
+  /* ── 로그인 후 이동할 URL 결정 ────────────────────────────────── */
+  function getRedirectUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('redirect') || 'index.html';
+  }
+
   /* ── 카카오 콜백 토큰 처리 (URL 파라미터) ─────────────────────── */
   (function handleKakaoCallback() {
     const params = new URLSearchParams(window.location.search);
@@ -136,13 +142,19 @@
       localStorage.setItem('access_token', at);
       if (rt) localStorage.setItem('refresh_token', rt);
       if (name) localStorage.setItem('user_name', decodeURIComponent(name));
-      window.location.replace('index.html');
+      window.location.replace(getRedirectUrl());
     }
   })();
 
-  /* ── 이미 로그인돼 있으면 홈으로 ──────────────────────────────── */
+  /* ── 이미 로그인돼 있으면 redirect 또는 홈으로 ─────────────────── */
   if (localStorage.getItem('access_token')) {
-    window.location.replace('index.html');
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get('redirect');
+    if (redirect) {
+      window.location.replace(redirect);
+    } else {
+      window.location.replace('index.html');
+    }
   }
 
   /* ── 탭 전환 ───────────────────────────────────────────────────── */
@@ -194,7 +206,7 @@
       if (data.user?.name) localStorage.setItem('user_name', data.user.name);
 
       showMsg(`${data.user?.name || ''}님 환영합니다! 🎉`, 'success');
-      setTimeout(() => window.location.replace('index.html'), 800);
+      setTimeout(() => window.location.replace(getRedirectUrl()), 800);
 
     } catch (err) {
       showMsg('서버 연결에 실패했습니다. API 서버가 실행 중인지 확인해주세요.', 'error');
@@ -233,7 +245,7 @@
       if (data.user?.name) localStorage.setItem('user_name', data.user.name);
 
       showMsg('가입 완료! 잠시 후 이동합니다 🚀', 'success');
-      setTimeout(() => window.location.replace('index.html'), 900);
+      setTimeout(() => window.location.replace(getRedirectUrl()), 900);
 
     } catch (err) {
       showMsg('서버 연결에 실패했습니다. API 서버가 실행 중인지 확인해주세요.', 'error');
