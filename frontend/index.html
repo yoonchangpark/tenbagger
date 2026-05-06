@@ -170,6 +170,28 @@
       if (!btn || !token) return;
       btn.textContent = '👤 ' + (name || '내 정보');
       btn.href = '#';
+
+      // 구독 상태 배지 추가
+      fetch('/api/v2/auth/me', { headers: { Authorization: 'Bearer ' + token } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data) return;
+          const tier = data.subscription?.tier || 'free';
+          if (tier !== 'free') {
+            const badge = document.createElement('span');
+            badge.style.cssText = 'margin-left:4px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;vertical-align:middle;';
+            badge.textContent = tier.toUpperCase();
+            btn.appendChild(badge);
+          } else {
+            // Free 유저에게 업그레이드 버튼 노출
+            const upBtn = document.createElement('a');
+            upBtn.href = 'pricing.html';
+            upBtn.style.cssText = 'margin-left:6px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:white;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;text-decoration:none;vertical-align:middle;';
+            upBtn.textContent = '💎 업그레이드';
+            btn.parentElement.insertBefore(upBtn, btn.nextSibling);
+          }
+        }).catch(() => {});
+
       btn.onclick = function(e) {
         e.preventDefault();
         const existing = document.getElementById('authMenu');
@@ -179,7 +201,9 @@
         m.style.cssText = 'position:absolute;top:52px;right:24px;background:#111827;border:1px solid #374151;border-radius:10px;padding:8px 0;z-index:9999;min-width:150px;box-shadow:0 8px 24px rgba(0,0,0,.6);';
         m.innerHTML =
           '<div style="padding:8px 16px;font-size:12px;color:#9ca3af;border-bottom:1px solid #374151;">' + (name || '사용자') + '</div>' +
-          '<a href="#" id="logoutLink" style="display:block;padding:10px 16px;font-size:13px;color:#f9fafb;text-decoration:none;">로그아웃</a>';
+          '<a href="pricing.html" style="display:block;padding:10px 16px;font-size:13px;color:#c4b5fd;text-decoration:none;">💎 구독 업그레이드</a>' +
+          '<a href="dashboard.html" style="display:block;padding:10px 16px;font-size:13px;color:#f9fafb;text-decoration:none;">📡 내 대시보드</a>' +
+          '<a href="#" id="logoutLink" style="display:block;padding:10px 16px;font-size:13px;color:#ef4444;text-decoration:none;border-top:1px solid #374151;margin-top:4px;">로그아웃</a>';
         document.querySelector('header').appendChild(m);
         document.getElementById('logoutLink').onclick = function(ev) {
           ev.preventDefault();
