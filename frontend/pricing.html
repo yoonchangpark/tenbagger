@@ -159,23 +159,20 @@
 
   async function init() {
     const token = localStorage.getItem("access_token");
-    if (!token) {
-      showToast("로그인이 필요합니다.", "error");
-      setTimeout(() => { window.location.href = "/login.html"; }, 1500);
-      return;
-    }
 
-    // 현재 구독 상태 확인
-    try {
-      const res = await fetch(`${API}/api/v2/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        currentTier = data.subscription?.tier || "free";
-        updateButtons();
-      }
-    } catch (e) {}
+    // 로그인된 경우 구독 상태 확인
+    if (token) {
+      try {
+        const res = await fetch(`${API}/api/v2/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          currentTier = data.subscription?.tier || "free";
+          updateButtons();
+        }
+      } catch (e) {}
+    }
 
     // 토스 클라이언트 키 가져오기
     try {
@@ -203,7 +200,8 @@
   async function startPayment(tier) {
     const token = localStorage.getItem("access_token");
     if (!token) {
-      showToast("로그인이 필요합니다.", "error");
+      showToast("로그인 후 이용 가능합니다.", "error");
+      setTimeout(() => { window.location.href = "/login.html?redirect=/pricing.html"; }, 1500);
       return;
     }
 
