@@ -1,0 +1,8 @@
+# 텐배거 헌터 자동 스케줄
+# 형식: 분 시 일 월 요일 명령어
+
+# 매일 새벽 2시 — 전종목 분석 + 이메일 리포트
+0 2 * * * cd /app && python -m app.agents.advisor >> /app/reports/advisor.log 2>&1
+
+# 매주 월요일 오전 8시 — 주간 전체 재분석 (skip 없이)
+0 8 * * 1 cd /app && python -m app.workers.etl --market ALL >> /app/reports/etl_weekly.log 2>&1

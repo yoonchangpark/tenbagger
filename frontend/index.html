@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>텐배거 헌터 🚀</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:#0a0f1e; --surface:#111827; --surface2:#1f2937;
+      --border:#374151; --text:#f9fafb; --muted:#9ca3af;
+      --green:#10b981; --blue:#3b82f6; --yellow:#f59e0b;
+      --red:#ef4444; --purple:#8b5cf6;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans KR',sans-serif;min-height:100vh;}
+    header{padding:16px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(17,24,39,.9);position:sticky;top:0;z-index:100;backdrop-filter:blur(10px);}
+    .logo{font-size:22px;font-weight:800;background:linear-gradient(135deg,#10b981,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .subtitle{font-size:12px;color:var(--muted);}
+    .nav-links{display:flex;gap:8px;}
+    .nav-link{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;font-weight:600;text-decoration:none;cursor:pointer;transition:all .15s;}
+    .nav-link:hover{border-color:var(--blue);color:#93c5fd;}
+    .search-wrap{max-width:640px;margin:48px auto 0;padding:0 24px;position:relative;}
+    .search-box{display:flex;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 10px 10px 20px;transition:border-color .2s;}
+    .search-box:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15);}
+    .search-box input{flex:1;background:none;border:none;color:var(--text);font-size:15px;outline:none;}
+    .search-box input::placeholder{color:var(--muted);}
+    .search-box button{background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:10px;padding:10px 22px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;}
+    .search-box button:disabled{opacity:.5;cursor:not-allowed;}
+    .autocomplete-dropdown{position:absolute;top:56px;left:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:12px;z-index:200;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.5);display:none;}
+    .autocomplete-dropdown.open{display:block;}
+    .ac-item{display:flex;align-items:center;gap:12px;padding:11px 18px;cursor:pointer;transition:background .1s;}
+    .ac-item:hover{background:var(--surface2);}
+    .ac-ticker{font-size:11px;color:var(--muted);font-family:monospace;min-width:52px;}
+    .ac-name{font-size:14px;font-weight:600;flex:1;}
+    .ac-market{font-size:10px;color:var(--blue);background:rgba(59,130,246,.12);border-radius:4px;padding:2px 6px;}
+    .examples{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+    .chip{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s;}
+    .chip:hover{border-color:var(--blue);color:#93c5fd;}
+    .chip.history{border-color:rgba(139,92,246,.4);color:#c4b5fd;}
+    .history-label{font-size:11px;color:var(--muted);margin-top:14px;margin-bottom:6px;opacity:.6;}
+    .cache-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:3px 10px;font-size:11px;color:#fbbf24;margin-left:8px;vertical-align:middle;}
+    .result{max-width:960px;margin:36px auto 60px;padding:0 24px;display:none;}
+    .result.visible{display:block;}
+    .company-card{background:linear-gradient(135deg,rgba(37,99,235,.1),rgba(124,58,237,.1));border:1px solid rgba(99,102,241,.25);border-radius:20px;padding:28px 32px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:24px;}
+    .company-info h2{font-size:26px;font-weight:800;margin-bottom:4px;}
+    .tags{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+    .tag{font-size:11px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:2px 8px;color:var(--muted);}
+    .total-score-wrap{text-align:center;}
+    .total-score{font-size:56px;font-weight:800;line-height:1;}
+    .grade-badge{display:inline-block;margin-top:6px;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;}
+    .grade-TENBAGGER{background:rgba(16,185,129,.2);color:#10b981;border:1px solid rgba(16,185,129,.4);}
+    .grade-COMPOUNDER{background:rgba(59,130,246,.2);color:#60a5fa;border:1px solid rgba(59,130,246,.4);}
+    .grade-WATCHLIST{background:rgba(245,158,11,.2);color:#fbbf24;border:1px solid rgba(245,158,11,.4);}
+    .grade-AVOID{background:rgba(239,68,68,.2);color:#f87171;border:1px solid rgba(239,68,68,.4);}
+    .score-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:24px;}
+    .score-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;}
+    .score-card .label{font-size:11px;color:var(--muted);margin-bottom:6px;}
+    .score-card .val{font-size:28px;font-weight:800;}
+    .score-card .bar{height:4px;border-radius:2px;background:var(--surface2);margin-top:8px;overflow:hidden;}
+    .score-card .bar-fill{height:100%;border-radius:2px;transition:width 1s cubic-bezier(.4,0,.2,1);}
+    .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+    .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;}
+    .chart-card h3{font-size:13px;color:var(--muted);margin-bottom:14px;font-weight:600;letter-spacing:.03em;}
+    .metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px;}
+    .metric-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;}
+    .metric-box .m-label{font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
+    .metric-box .m-val{font-size:20px;font-weight:700;}
+    .table-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:24px;}
+    .table-card h3{font-size:13px;color:var(--muted);padding:16px 20px;border-bottom:1px solid var(--border);font-weight:600;}
+    table{width:100%;border-collapse:collapse;font-size:12.5px;}
+    th{padding:10px 14px;text-align:right;color:var(--muted);font-weight:600;font-size:11px;border-bottom:1px solid var(--border);background:var(--surface2);}
+    th:first-child{text-align:left;}
+    td{padding:10px 14px;text-align:right;border-bottom:1px solid rgba(55,65,81,.5);}
+    td:first-child{text-align:left;font-weight:600;color:var(--muted);}
+    tr:last-child td{border-bottom:none;}
+    tr:hover td{background:rgba(255,255,255,.02);}
+    .pos{color:var(--green);} .neg{color:var(--red);}
+    .sim-card{background:linear-gradient(135deg,rgba(139,92,246,.08),rgba(16,185,129,.06));border:1px solid rgba(139,92,246,.25);border-radius:20px;padding:28px 32px;margin-bottom:24px;}
+    .sim-card h3{font-size:16px;font-weight:700;margin-bottom:22px;}
+    .sim-sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;}
+    .slider-group label{font-size:11px;color:var(--muted);display:block;margin-bottom:6px;}
+    .slider-group .slider-val{font-size:16px;font-weight:700;color:var(--purple);margin-bottom:4px;}
+    .slider-group input[type=range]{width:100%;accent-color:var(--purple);cursor:pointer;}
+    .sim-run-btn{background:linear-gradient(135deg,#7c3aed,#2563eb);border:none;border-radius:10px;padding:10px 28px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:24px;}
+    .sim-run-btn:hover{opacity:.85;}
+    .sim-scenarios{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;}
+    .sim-scenario{border-radius:14px;padding:20px;text-align:center;border:1px solid var(--border);background:var(--surface);}
+    .sim-scenario.bear{border-color:rgba(239,68,68,.3);}
+    .sim-scenario.base{border-color:rgba(59,130,246,.3);}
+    .sim-scenario.bull{border-color:rgba(16,185,129,.3);}
+    .sim-scenario .s-label{font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:700;letter-spacing:.05em;}
+    .sim-scenario .s-price{font-size:22px;font-weight:800;margin-bottom:4px;}
+    .sim-scenario .s-return{font-size:14px;font-weight:700;margin-bottom:6px;}
+    .sim-scenario .s-badge{font-size:11px;padding:3px 8px;border-radius:6px;display:inline-block;}
+    .tenbagger-badge{background:rgba(16,185,129,.2);color:#10b981;border:1px solid rgba(16,185,129,.4);}
+    .sim-required{background:var(--surface2);border-radius:12px;padding:14px 20px;font-size:13px;color:var(--muted);text-align:center;}
+    .sim-required strong{color:var(--purple);font-size:18px;}
+    /* ── AI 정성 분석 패널 (v2.0) ── */
+    .ai-panel{background:linear-gradient(135deg,rgba(16,185,129,.06),rgba(59,130,246,.06));border:1px solid rgba(16,185,129,.2);border-radius:20px;padding:28px 32px;margin-bottom:24px;}
+    .ai-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+    .ai-panel-title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;}
+    .ai-v2-badge{font-size:10px;font-weight:700;background:linear-gradient(135deg,#10b981,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;border:1px solid rgba(16,185,129,.4);border-radius:8px;padding:2px 8px;}
+    .ai-load-btn{background:linear-gradient(135deg,#059669,#2563eb);border:none;border-radius:10px;padding:8px 20px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;}
+    .ai-load-btn:hover{opacity:.85;}
+    .ai-load-btn:disabled{opacity:.4;cursor:not-allowed;}
+    .ai-content{display:none;}
+    .ai-content.visible{display:block;}
+    .ai-opinion{display:flex;align-items:center;gap:10px;padding:14px 18px;border-radius:12px;margin-bottom:20px;font-size:13px;font-weight:600;}
+    .ai-opinion.BUY{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#34d399;}
+    .ai-opinion.HOLD{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#fbbf24;}
+    .ai-opinion.AVOID{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#f87171;}
+    .ai-two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+    .ai-box{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:16px;}
+    .ai-box h4{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;}
+    .ai-box p{font-size:13px;line-height:1.6;color:#d1d5db;}
+    .swot-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+    .swot-item{border-radius:10px;padding:14px;}
+    .swot-item.s{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);}
+    .swot-item.w{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);}
+    .swot-item.o{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);}
+    .swot-item.t{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);}
+    .swot-item .swot-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;opacity:.7;}
+    .swot-item.s .swot-label{color:#10b981;}
+    .swot-item.w .swot-label{color:#ef4444;}
+    .swot-item.o .swot-label{color:#3b82f6;}
+    .swot-item.t .swot-label{color:#f59e0b;}
+    .swot-item p{font-size:12px;line-height:1.5;color:#d1d5db;}
+    .cagr-forecast{display:flex;align-items:center;gap:20px;padding:16px 20px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:12px;margin-bottom:16px;}
+    .cagr-forecast .big-num{font-size:36px;font-weight:800;color:#a78bfa;line-height:1;}
+    .cagr-forecast .label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+    .cagr-forecast .desc{font-size:12px;color:#d1d5db;line-height:1.5;}
+    .shareholder-list{display:flex;flex-direction:column;gap:6px;}
+    .shareholder-row{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,.03);border-radius:8px;font-size:12px;}
+    .shareholder-row .sh-name{font-weight:600;color:#e5e7eb;}
+    .shareholder-row .sh-ratio{color:#60a5fa;font-weight:700;}
+    .ai-spinner{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;padding:20px 0;}
+    .loading{text-align:center;padding:60px;display:none;}
+    .loading.visible{display:block;}
+    .spinner{width:36px;height:36px;border:3px solid rgba(99,102,241,.2);border-top-color:#818cf8;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+    .fade-up{animation:fadeUp .45s ease;}
+    .error-box{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:16px 20px;color:#fca5a5;font-size:13px;max-width:640px;margin:20px auto;display:none;}
+    .error-box.visible{display:block;}
+    @media(max-width:640px){.charts-row{grid-template-columns:1fr;}.company-card{flex-direction:column;}.sim-scenarios{grid-template-columns:1fr;}.nav-links{display:none;}}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="logo">🚀 텐배거 헌터</div>
+      <div class="subtitle">한국 주식 장기투자 분석 시스템 · DART + KRX</div>
+    </div>
+    <div class="nav-links">
+      <a class="nav-link" href="screener.html">📊 스크리너</a>
+      <a class="nav-link" href="backtest.html">🧪 백테스트</a>
+      <a class="nav-link" href="dashboard.html">📡 대시보드</a>
+      <!-- 인증 버튼: JS로 토큰 여부 판단 후 교체 -->
+      <a class="nav-link" id="authBtn" href="login.html" style="border-color:rgba(59,130,246,.4);color:#60a5fa;">로그인</a>
+    </div>
+  </header>
+  <script>
+    /* 헤더 인증 버튼 초기화 */
+    (function initAuthBtn() {
+      const token = localStorage.getItem('access_token');
+      const name  = localStorage.getItem('user_name');
+      const btn   = document.getElementById('authBtn');
+      if (!btn || !token) return;
+      btn.textContent = '👤 ' + (name || '내 정보');
+      btn.href = '#';
+      btn.onclick = function(e) {
+        e.preventDefault();
+        const existing = document.getElementById('authMenu');
+        if (existing) { existing.remove(); return; }
+        const m = document.createElement('div');
+        m.id = 'authMenu';
+        m.style.cssText = 'position:absolute;top:52px;right:24px;background:#111827;border:1px solid #374151;border-radius:10px;padding:8px 0;z-index:9999;min-width:150px;box-shadow:0 8px 24px rgba(0,0,0,.6);';
+        m.innerHTML =
+          '<div style="padding:8px 16px;font-size:12px;color:#9ca3af;border-bottom:1px solid #374151;">' + (name || '사용자') + '</div>' +
+          '<a href="#" id="logoutLink" style="display:block;padding:10px 16px;font-size:13px;color:#f9fafb;text-decoration:none;">로그아웃</a>';
+        document.querySelector('header').appendChild(m);
+        document.getElementById('logoutLink').onclick = function(ev) {
+          ev.preventDefault();
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user_name');
+          window.location.reload();
+        };
+        document.addEventListener('click', function handler(ev) {
+          if (!m.contains(ev.target) && ev.target !== btn) { m.remove(); document.removeEventListener('click', handler); }
+        });
+      };
+    })();
+  </script>
+
+  <div class="search-wrap" id="searchWrap">
+    <div class="search-box">
+      <span style="font-size:18px;opacity:.4;display:flex;align-items:center;">🔍</span>
+      <input id="tickerInput" placeholder="기업명 또는 종목코드 (예: 삼성전자, 005930)" maxlength="30" autocomplete="off" />
+      <button id="searchBtn" onclick="analyze()">분석하기</button>
+    </div>
+    <div class="autocomplete-dropdown" id="acDropdown"></div>
+    <div class="examples">
+      <span class="chip" onclick="selectTicker('005930')">삼성전자 005930</span>
+      <span class="chip" onclick="selectTicker('005490')">POSCO홀딩스</span>
+      <span class="chip" onclick="selectTicker('068270')">셀트리온 068270</span>
+      <span class="chip" onclick="selectTicker('034020')">두산에너빌리티</span>
+    </div>
+    <div id="historySection" style="display:none;">
+      <div class="history-label">🕐 최근 분석</div>
+      <div class="examples" id="historyRow"></div>
+    </div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div style="color:#a5b4fc;font-weight:600;margin-bottom:4px;">DART 재무데이터 수집 중...</div>
+    <div style="color:#6b7280;font-size:12px;">최근 7년치 재무제표를 분석합니다 (약 20~30초)</div>
+  </div>
+  <div class="result" id="result"></div>
+
+  <script>
+    const API = "";
+    const HISTORY_KEY = "tenbagger_history";
+
+    // ── 히스토리 ──
+    function getHistory(){try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]");}catch{return[];}}
+    function addHistory(ticker,name){let h=getHistory().filter(x=>x.ticker!==ticker);h.unshift({ticker,name});localStorage.setItem(HISTORY_KEY,JSON.stringify(h.slice(0,5)));renderHistory();}
+    function renderHistory(){
+      const h=getHistory(),sec=document.getElementById("historySection"),row=document.getElementById("historyRow");
+      if(!h.length){sec.style.display="none";return;}
+      sec.style.display="block";
+      row.innerHTML=h.map(x=>`<span class="chip history" onclick="selectTicker('${x.ticker}')">${x.name} <small style="opacity:.6">${x.ticker}</small></span>`).join("");
+    }
+
+    // ── 자동완성 ──
+    let acTimer=null;
+    const inp=document.getElementById("tickerInput");
+    const dd=document.getElementById("acDropdown");
+
+    inp.addEventListener("input",()=>{
+      clearTimeout(acTimer);
+      const q=inp.value.trim();
+      if(!q){dd.classList.remove("open");return;}
+      acTimer=setTimeout(()=>fetchAC(q),250);
+    });
+    inp.addEventListener("keydown",e=>{
+      if(e.key==="Enter"){dd.classList.remove("open");analyze();}
+      if(e.key==="Escape")dd.classList.remove("open");
+    });
+    document.addEventListener("click",e=>{
+      if(!document.getElementById("searchWrap").contains(e.target))dd.classList.remove("open");
+    });
+
+    async function fetchAC(q){
+      try{
+        const r=await fetch(API+"/api/search?q="+encodeURIComponent(q));
+        if(!r.ok)return;
+        const items=await r.json();
+        if(!items.length){dd.classList.remove("open");return;}
+        dd.innerHTML=items.map(it=>`<div class="ac-item" onclick="selectTicker('${it.ticker}')">
+          <span class="ac-ticker">${it.ticker}</span>
+          <span class="ac-name">${it.name}</span>
+          <span class="ac-market">${it.market}</span></div>`).join("");
+        dd.classList.add("open");
+      }catch{}
+    }
+
+    function selectTicker(t){inp.value=t;dd.classList.remove("open");analyze();}
+
+    // ── 유틸 ──
+    function fmt(n,unit){
+      if(n==null)return"-";
+      if(unit==="억")return(n/1e8).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,",")+"억";
+      if(unit==="%")return n.toFixed(1)+"%";
+      if(unit==="x")return n.toFixed(1)+"x";
+      return n.toLocaleString();
+    }
+    function scoreColor(s){return s>=7.5?"#10b981":s>=5.5?"#f59e0b":"#ef4444";}
+
+    // ── 분석 ──
+    let _last=null;
+    async function analyze(){
+      const ticker=inp.value.trim();
+      if(!ticker)return;
+      const btn=document.getElementById("searchBtn");
+      btn.disabled=true;
+      document.getElementById("loading").classList.add("visible");
+      document.getElementById("result").classList.remove("visible");
+      document.getElementById("errorBox").classList.remove("visible");
+      try{
+        const r=await fetch(API+"/api/company/"+encodeURIComponent(ticker));
+        if(!r.ok)throw new Error((await r.json()).detail||"HTTP "+r.status);
+        const d=await r.json();
+        _last=d;
+        addHistory(d.ticker,d.name);
+        renderResult(d);
+      }catch(e){
+        const box=document.getElementById("errorBox");
+        box.textContent="⚠️ "+e.message;
+        box.classList.add("visible");
+      }finally{
+        btn.disabled=false;
+        document.getElementById("loading").classList.remove("visible");
+      }
+    }
+
+    // ── 결과 렌더링 ──
+    function renderResult(d){
+      const sc=d.score;
+      const color=scoreColor(sc.total_score);
+      const gl={TENBAGGER:"⭐ 텐배거 후보",COMPOUNDER:"🟢 우량 성장주",WATCHLIST:"🟡 관심 종목",AVOID:"🔴 회피"};
+      const fins=[...d.financials].sort((a,b)=>a.year-b.year);
+      const years=fins.map(f=>f.year+"년");
+      const cats=[
+        {label:"성장성",key:"growth_score",color:"#10b981",icon:"🚀"},
+        {label:"재무안정성",key:"stability_score",color:"#3b82f6",icon:"🏦"},
+        {label:"현금흐름",key:"cashflow_score",color:"#8b5cf6",icon:"💧"},
+        {label:"배당정책",key:"dividend_score",color:"#f59e0b",icon:"💰"},
+        {label:"실적일관성",key:"consistency_score",color:"#ec4899",icon:"📊"},
+      ];
+      const cb=d.from_cache?'<span class="cache-badge">⚡ 캐시</span>':"";
+
+      let html='<div class="fade-up">';
+
+      // 회사 카드
+      html+='<div class="company-card"><div class="company-info">';
+      html+='<h2>'+d.name+' '+cb+'</h2>';
+      html+='<div class="tags"><span class="tag">'+d.ticker+'</span><span class="tag">'+d.market+'</span>';
+      if(d.close)html+='<span class="tag">₩'+d.close.toLocaleString()+'</span>';
+      if(d.market_cap)html+='<span class="tag">시총 '+fmt(d.market_cap,"억")+'</span>';
+      html+='</div>';
+      html+='<div style="margin-top:14px;display:flex;gap:20px;flex-wrap:wrap;">';
+      if(sc.per)html+='<div><div style="font-size:10px;color:#6b7280">PER</div><div style="font-weight:700">'+sc.per.toFixed(1)+'x</div></div>';
+      if(sc.pbr)html+='<div><div style="font-size:10px;color:#6b7280">PBR</div><div style="font-weight:700">'+sc.pbr.toFixed(1)+'x</div></div>';
+      if(sc.dividend_yield)html+='<div><div style="font-size:10px;color:#6b7280">배당수익률</div><div style="font-weight:700">'+sc.dividend_yield.toFixed(1)+'%</div></div>';
+      html+='</div>';
+      html+='<div style="margin-top:14px;display:flex;gap:8px;">';
+      html+='<a href="backtest.html?ticker='+d.ticker+'" style="font-size:12px;color:#a78bfa;text-decoration:none;border:1px solid rgba(167,139,250,.3);border-radius:6px;padding:4px 10px;">🧪 백테스트</a>';
+      html+='<a href="screener.html" style="font-size:12px;color:#60a5fa;text-decoration:none;border:1px solid rgba(96,165,250,.3);border-radius:6px;padding:4px 10px;">📊 스크리너</a>';
+      html+='</div></div>';
+      html+='<div class="total-score-wrap"><div class="total-score" style="color:'+color+'">'+sc.total_score+'</div>';
+      html+='<div style="font-size:11px;color:#6b7280;margin-top:2px;">/ 10점</div>';
+      html+='<div class="grade-badge grade-'+sc.grade+'">'+(gl[sc.grade]||sc.grade)+'</div></div></div>';
+
+      // 카테고리 점수
+      html+='<div class="score-grid">';
+      cats.forEach(c=>{
+        const v=(sc[c.key]||0);
+        html+='<div class="score-card"><div class="label">'+c.icon+' '+c.label+'</div>';
+        html+='<div class="val" style="color:'+c.color+'">'+(sc[c.key]!=null?sc[c.key].toFixed(1):"-")+'</div>';
+        html+='<div class="bar"><div class="bar-fill" style="width:'+(v*10)+'%;background:'+c.color+'"></div></div></div>';
+      });
+      html+='</div>';
+
+      // 핵심 지표
+      const metrics=[
+        {label:"매출 CAGR (5Y)",val:sc.revenue_cagr_5y,unit:"%"},
+        {label:"EPS CAGR (5Y)",val:sc.eps_cagr_5y,unit:"%"},
+        {label:"평균 ROE",val:sc.avg_roe_5y,unit:"%"},
+        {label:"영업이익률",val:sc.avg_operating_margin,unit:"%"},
+        {label:"FCF 마진 평균",val:sc.avg_fcf_margin,unit:"%"},
+        {label:"부채비율",val:sc.debt_ratio,unit:"%"},
+        {label:"유동비율",val:sc.current_ratio,unit:"x"},
+        {label:"배당성향 평균",val:sc.avg_payout_ratio,unit:"%"},
+      ];
+      html+='<div class="metrics-grid">';
+      metrics.forEach(m=>{
+        const cls=m.val>0?"pos":m.val<0?"neg":"";
+        html+='<div class="metric-box"><div class="m-label">'+m.label+'</div>';
+        html+='<div class="m-val '+cls+'">'+(m.val!=null?m.val.toFixed(1)+m.unit:"-")+'</div></div>';
+      });
+      html+='</div>';
+
+      // 차트
+      html+='<div class="charts-row">';
+      html+='<div class="chart-card"><h3>📈 매출 & 영업이익 추이 (억원)</h3><canvas id="revenueChart" height="180"></canvas></div>';
+      html+='<div class="chart-card"><h3>💧 FCF & 순이익 추이 (억원)</h3><canvas id="cashflowChart" height="180"></canvas></div>';
+      html+='</div>';
+
+      // 시뮬레이터
+      html+='<div class="sim-card"><h3>📊 5년 후 시나리오 시뮬레이터</h3>';
+      html+='<div class="sim-sliders">';
+      html+='<div class="slider-group"><label>🐻 Bear EPS 성장률 (%/년)</label><div class="slider-val" id="bearVal">5%</div><input type="range" id="bearSlider" min="-10" max="30" value="5" step="1" oninput="document.getElementById(\'bearVal\').textContent=this.value+\'%\'"></div>';
+      html+='<div class="slider-group"><label>📊 Base EPS 성장률 (%/년)</label><div class="slider-val" id="baseVal">15%</div><input type="range" id="baseSlider" min="0" max="50" value="15" step="1" oninput="document.getElementById(\'baseVal\').textContent=this.value+\'%\'"></div>';
+      html+='<div class="slider-group"><label>🐂 Bull EPS 성장률 (%/년)</label><div class="slider-val" id="bullVal">25%</div><input type="range" id="bullSlider" min="5" max="80" value="25" step="1" oninput="document.getElementById(\'bullVal\').textContent=this.value+\'%\'"></div>';
+      html+='<div class="slider-group"><label>목표 PER (Bear/Base/Bull)</label><div class="slider-val" id="perVal">10 / 15 / 20</div><input type="range" id="perSlider" min="5" max="40" value="15" step="1" oninput="document.getElementById(\'perVal\').textContent=(Math.max(5,parseInt(this.value)-5))+\' / \'+this.value+\' / \'+(parseInt(this.value)+5)"></div>';
+      html+='</div>';
+      html+='<button class="sim-run-btn" onclick="runSim()">🚀 시뮬레이션 실행</button>';
+      html+='<div id="simResult" style="display:none;"><div class="sim-scenarios" id="simScenarios"></div><div class="sim-required" id="simRequired"></div></div></div>';
+
+      // 재무제표 테이블
+      html+='<div class="table-card"><h3>📋 연간 재무 데이터</h3><table><thead><tr><th>항목</th>';
+      years.forEach(y=>{html+='<th>'+y+'</th>';});
+      html+='</tr></thead><tbody>';
+      [{label:"매출액",key:"revenue"},{label:"영업이익",key:"operating_profit"},{label:"당기순이익",key:"net_income"},{label:"잉여현금흐름",key:"fcf"},{label:"자본총계",key:"total_equity"},{label:"부채총계",key:"total_debt"}].forEach(row=>{
+        html+='<tr><td>'+row.label+'</td>';
+        fins.forEach(f=>{
+          const v=f[row.key];
+          if(v==null){html+='<td>-</td>';}
+          else{html+='<td class="'+(v<0?"neg":"")+'">'+fmt(v,"억")+'</td>';}
+        });
+        html+='</tr>';
+      });
+      html+='</tbody></table></div>';
+
+      // ── v2.0 AI 정성 분석 패널 ──
+      html+='<div class="ai-panel">';
+      html+='<div class="ai-panel-header">';
+      html+='<div class="ai-panel-title">🤖 AI 정성 분석 <span class="ai-v2-badge">v2.0</span></div>';
+      html+='<button class="ai-load-btn" id="aiLoadBtn" onclick="loadQualitative(\''+d.ticker+'\')">AI 분석 불러오기</button>';
+      html+='</div>';
+      html+='<div id="aiContent" class="ai-content">';
+      html+='</div>';
+      html+='</div>';
+
+      html+='</div>';
+
+      const el=document.getElementById("result");
+      el.innerHTML=html;
+      el.classList.add("visible");
+      el.scrollIntoView({behavior:"smooth",block:"start"});
+
+      // 차트
+      const opts={responsive:true,plugins:{legend:{labels:{color:"#9ca3af",font:{size:11}}}},scales:{x:{ticks:{color:"#6b7280"},grid:{color:"rgba(255,255,255,.05)"}},y:{ticks:{color:"#6b7280"},grid:{color:"rgba(255,255,255,.05)"}}}};
+      new Chart(document.getElementById("revenueChart"),{type:"bar",data:{labels:years,datasets:[
+        {label:"매출액",data:fins.map(f=>f.revenue?+(f.revenue/1e8).toFixed(0):null),backgroundColor:"rgba(59,130,246,.7)"},
+        {label:"영업이익",data:fins.map(f=>f.operating_profit?+(f.operating_profit/1e8).toFixed(0):null),backgroundColor:"rgba(16,185,129,.7)"},
+      ]},options:opts});
+      new Chart(document.getElementById("cashflowChart"),{type:"line",data:{labels:years,datasets:[
+        {label:"FCF",data:fins.map(f=>f.fcf?+(f.fcf/1e8).toFixed(0):null),borderColor:"#8b5cf6",backgroundColor:"rgba(139,92,246,.15)",tension:.3,fill:true},
+        {label:"순이익",data:fins.map(f=>f.net_income?+(f.net_income/1e8).toFixed(0):null),borderColor:"#f59e0b",tension:.3},
+      ]},options:opts});
+    }
+
+    // ── 시뮬레이터 ──
+    async function runSim(){
+      if(!_last)return;
+      const bear=document.getElementById("bearSlider").value;
+      const base=document.getElementById("baseSlider").value;
+      const bull=document.getElementById("bullSlider").value;
+      const bp=parseInt(document.getElementById("perSlider").value);
+      const btn=document.querySelector(".sim-run-btn");
+      btn.textContent="계산 중...";btn.disabled=true;
+      try{
+        const url=API+"/api/company/"+_last.ticker+"/simulate?bear_eps_cagr="+bear+"&base_eps_cagr="+base+"&bull_eps_cagr="+bull+"&bear_per="+Math.max(5,bp-5)+"&base_per="+bp+"&bull_per="+(bp+5);
+        const r=await fetch(url);
+        if(!r.ok)throw new Error((await r.json()).detail);
+        renderSim(await r.json());
+      }catch(e){alert("시뮬레이션 오류: "+e.message);}
+      finally{btn.textContent="🚀 시뮬레이션 실행";btn.disabled=false;}
+    }
+
+    function renderSim(data){
+      const sim=data.simulation,cur=data.current_price;
+      const cfg=[{key:"bear",label:"BEAR",cls:"bear",color:"#ef4444"},{key:"base",label:"BASE",cls:"base",color:"#3b82f6"},{key:"bull",label:"BULL",cls:"bull",color:"#10b981"}];
+      document.getElementById("simScenarios").innerHTML=cfg.map(c=>{
+        const s=sim[c.key];
+        const rs=(s.total_return>=0?"+":"")+s.total_return.toFixed(0)+"%";
+        const tb=s.is_tenbagger?'<span class="s-badge tenbagger-badge">⭐ 텐배거!</span>':"";
+        return '<div class="sim-scenario '+c.cls+'"><div class="s-label">'+c.label+' (EPS '+(s.eps_cagr>0?"+":"")+s.eps_cagr+'%/yr)</div>'
+          +'<div class="s-price" style="color:'+c.color+'">₩'+s.target_price.toLocaleString()+'</div>'
+          +'<div class="s-return" style="color:'+(s.total_return>=0?"#10b981":"#ef4444")+'">'+rs+'</div>'
+          +'<div style="font-size:11px;color:#6b7280;margin-bottom:6px;">CAGR '+(s.cagr>0?"+":"")+s.cagr+'%</div>'+tb+'</div>';
+      }).join("");
+      const req=sim.tenbagger_required_cagr;
+      document.getElementById("simRequired").innerHTML=req!=null
+        ?'⭐ 텐배거(10배) 달성을 위해 EPS <strong>'+(req>0?"+":"")+req+'% CAGR</strong> 이상 유지가 필요합니다.<br><span style="font-size:11px;opacity:.6">현재 주가 ₩'+cur.toLocaleString()+' · 현재 EPS ₩'+data.current_eps.toLocaleString()+'</span>'
+        :"현재 주가 기준 텐배거 달성 조건을 계산할 수 없습니다.";
+      document.getElementById("simResult").style.display="block";
+    }
+
+    // ── v2.0 AI 정성 분석 ──
+    async function loadQualitative(ticker){
+      const btn=document.getElementById("aiLoadBtn");
+      const content=document.getElementById("aiContent");
+      btn.disabled=true;
+      btn.textContent="분석 중…";
+      content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>GPT가 분석 중입니다… (10~20초 소요)</div>';
+      content.classList.add("visible");
+      try{
+        const r=await fetch(API+"/api/v2/company/"+ticker+"/qualitative");
+        if(!r.ok)throw new Error("HTTP "+r.status);
+        const q=await r.json();
+        renderQualitative(q);
+        btn.textContent="✅ 분석 완료 (새로고침)";
+        btn.disabled=false;
+        btn.onclick=()=>loadQualitative(ticker);
+      }catch(e){
+        content.innerHTML='<div style="color:#f87171;font-size:13px;">분석 실패: '+e.message+'</div>';
+        btn.disabled=false;
+        btn.textContent="다시 시도";
+      }
+    }
+
+    function renderQualitative(q){
+      const content=document.getElementById("aiContent");
+      const opinionWord=(q.ai_investment_opinion||"").includes("BUY")?"BUY":(q.ai_investment_opinion||"").includes("AVOID")?"AVOID":"HOLD";
+      const opinionIcon={BUY:"🟢",HOLD:"🟡",AVOID:"🔴"}[opinionWord];
+
+      let html="";
+
+      // AI 투자의견 배너
+      html+='<div class="ai-opinion '+opinionWord+'">'+opinionIcon+' '+escHtml(q.ai_investment_opinion||"-")+'</div>';
+
+      // 사업모델 + 경쟁우위
+      html+='<div class="ai-two-col">';
+      html+='<div class="ai-box"><h4>🏢 사업모델</h4><p>'+escHtml(q.business_model||"-")+'</p></div>';
+      html+='<div class="ai-box"><h4>🛡️ 경쟁우위 (해자)</h4><p>'+escHtml(q.competitive_advantage||"-")+'</p></div>';
+      html+='</div>';
+
+      // SWOT
+      const sw=q.swot||{};
+      html+='<div class="swot-grid">';
+      html+='<div class="swot-item s"><div class="swot-label">💪 Strength</div><p>'+escHtml(sw.strength||"-")+'</p></div>';
+      html+='<div class="swot-item w"><div class="swot-label">⚠️ Weakness</div><p>'+escHtml(sw.weakness||"-")+'</p></div>';
+      html+='<div class="swot-item o"><div class="swot-label">🚀 Opportunity</div><p>'+escHtml(sw.opportunity||"-")+'</p></div>';
+      html+='<div class="swot-item t"><div class="swot-label">🌪️ Threat</div><p>'+escHtml(sw.threat||"-")+'</p></div>';
+      html+='</div>';
+
+      // CAGR 전망
+      const cagr=q.estimated_forward_cagr;
+      html+='<div class="cagr-forecast">';
+      html+='<div><div class="label">AI 예상 EPS CAGR</div><div class="big-num">'+(cagr!=null&&cagr!==0?(cagr>0?"+":"")+cagr.toFixed(1)+"%":"?%")+'</div></div>';
+      html+='<div style="flex:1"><div class="label">추산 근거</div><div class="desc">'+escHtml(q.cagr_rationale||"-")+'</div></div>';
+      html+='</div>';
+
+      // 미래 전망 + 핵심 리스크
+      html+='<div class="ai-two-col">';
+      html+='<div class="ai-box"><h4>🔭 향후 사업 전망</h4><p>'+escHtml(q.future_outlook||"-")+'</p></div>';
+      html+='<div class="ai-box"><h4>🚨 핵심 리스크</h4><p>'+escHtml(q.key_risks||"-")+'</p></div>';
+      html+='</div>';
+
+      // 기업 기본정보
+      const ci=q.dart_company_info||{};
+      if(ci.ceo||ci.est_date||ci.homepage){
+        html+='<div class="ai-box" style="margin-bottom:16px"><h4>🏛️ 기업 기본정보 (DART)</h4>';
+        html+='<div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:#d1d5db;">';
+        if(ci.ceo)html+='<span>대표이사: <b>'+escHtml(ci.ceo)+'</b></span>';
+        if(ci.est_date)html+='<span>설립: <b>'+ci.est_date.slice(0,4)+'년</b></span>';
+        if(ci.homepage)html+='<span>홈페이지: <a href="https://'+ci.homepage+'" target="_blank" style="color:#60a5fa;">'+escHtml(ci.homepage)+'</a></span>';
+        html+='</div>';
+        if(q.major_shareholders_analysis&&q.major_shareholders_analysis!=="-"){
+          html+='<p style="margin-top:8px;font-size:12px;color:#d1d5db;">'+escHtml(q.major_shareholders_analysis)+'</p>';
+        }
+        html+='</div>';
+      }
+
+      // 주주 목록
+      if(q.shareholders&&q.shareholders.length&&q.shareholders[0].name){
+        html+='<div class="ai-box"><h4>👥 주요 주주</h4><div class="shareholder-list">';
+        q.shareholders.forEach(s=>{
+          if(!s.name)return;
+          html+='<div class="shareholder-row"><span class="sh-name">'+escHtml(s.name)+'</span>';
+          html+='<span style="font-size:11px;color:var(--muted)">'+escHtml(s.relation)+'</span>';
+          if(s.ratio)html+='<span class="sh-ratio">'+escHtml(s.ratio)+'%</span>';
+          html+='</div>';
+        });
+        html+='</div></div>';
+      }
+
+      const ts=q.generated_at?new Date(q.generated_at).toLocaleString("ko-KR"):"";
+      if(ts)html+='<div style="font-size:11px;color:#4b5563;margin-top:12px;text-align:right;">AI 분석 시각: '+ts+'</div>';
+
+      content.innerHTML=html;
+    }
+
+    function escHtml(s){
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    // ── 초기화 ──
+    renderHistory();
+    window.addEventListener("load",()=>{
+      const t=new URLSearchParams(location.search).get("ticker");
+      if(t){inp.value=t;analyze();}
+    });
+  </script>
+</body>
+</html>

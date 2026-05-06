@@ -1,0 +1,80 @@
+
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tenbagger_db
+    environment:
+      POSTGRES_USER: tenbagger
+      POSTGRES_PASSWORD: tenbagger123
+      POSTGRES_DB: tenbagger
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tenbagger"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: tenbagger_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tenbagger_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://tenbagger:tenbagger123@db:5432/tenbagger
+      REDIS_URL: redis://redis:6379/0
+      EMAIL_RECIPIENT: ${EMAIL_RECIPIENT:-yoonchang.park@gmail.com}
+      ENV: development
+    volumes:
+      - ./backend:/app
+      - ./frontend:/frontend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tenbagger_scheduler
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://tenbagger:tenbagger123@db:5432/tenbagger
+      EMAIL_RECIPIENT: ${EMAIL_RECIPIENT:-yoonchang.park@gmail.com}
+    volumes:
+      - ./backend:/app
+      - reports_data:/app/reports
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "mkdir -p /app/reports &&
+             crontab /app/crontab &&
+             cron -f"
+
+volumes:
+  pg_data:
+  reports_data:
