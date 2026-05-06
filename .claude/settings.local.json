@@ -19,7 +19,8 @@
       "Bash(python3 -m json.tool)",
       "mcp__Claude_in_Chrome__computer",
       "mcp__Claude_in_Chrome__list_connected_browsers",
-      "mcp__Claude_in_Chrome__select_browser"
+      "mcp__Claude_in_Chrome__select_browser",
+      "PowerShell(gh --version 2>&1)"
     ]
   }
 }

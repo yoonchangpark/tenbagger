@@ -110,9 +110,22 @@ CREATE TABLE IF NOT EXISTS watchlist (
     UNIQUE(user_id, ticker)
 );
 
+-- 결제 내역 테이블
+CREATE TABLE IF NOT EXISTS payments (
+    id          SERIAL PRIMARY KEY,
+    user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    order_id    VARCHAR(100) UNIQUE NOT NULL,
+    payment_key VARCHAR(255),
+    amount      INTEGER NOT NULL,
+    tier        VARCHAR(20) NOT NULL,
+    status      VARCHAR(20) NOT NULL DEFAULT 'done',
+    paid_at     TIMESTAMP DEFAULT NOW()
+);
+
 -- 인증 관련 인덱스
 CREATE INDEX IF NOT EXISTS idx_users_email          ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_kakao_id       ON users(kakao_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user   ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_user       ON watchlist(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_ticker     ON watchlist(ticker);
+CREATE INDEX IF NOT EXISTS idx_payments_user        ON payments(user_id);

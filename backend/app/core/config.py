@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     kakao_client_secret: str = ""
     kakao_redirect_uri: str = "http://localhost:8000/api/v2/auth/kakao/callback"
 
+    # 토스페이먼츠 설정
+    toss_client_key: str = ""   # 프론트엔드용 (공개)
+    toss_secret_key: str = ""   # 백엔드용 (비공개)
+
     class Config:
         env_file = ".env"
         extra = "ignore"

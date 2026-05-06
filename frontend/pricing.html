@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>구독 플랜 — 텐배거 헌터</title>
+  <script src="https://js.tosspayments.com/v1/payment"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Pretendard', -apple-system, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+    header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; border-bottom: 1px solid #1e2a3a; }
+    header a { color: #60a5fa; text-decoration: none; font-size: 1.4rem; font-weight: 700; }
+    nav a { color: #94a3b8; text-decoration: none; margin-left: 1.5rem; font-size: 0.9rem; }
+    nav a:hover { color: #e2e8f0; }
+
+    .hero { text-align: center; padding: 4rem 2rem 2rem; }
+    .hero h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 1rem; }
+    .hero h1 span { background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p { color: #94a3b8; font-size: 1.1rem; }
+
+    .plans { display: flex; justify-content: center; gap: 1.5rem; padding: 3rem 2rem; flex-wrap: wrap; max-width: 1100px; margin: 0 auto; }
+
+    .plan-card {
+      background: #1a2332; border: 1px solid #1e2a3a; border-radius: 1rem;
+      padding: 2rem; width: 320px; position: relative; transition: transform 0.2s, border-color 0.2s;
+    }
+    .plan-card:hover { transform: translateY(-4px); border-color: #60a5fa44; }
+    .plan-card.popular { border-color: #60a5fa; }
+    .popular-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, #60a5fa, #a78bfa); color: white;
+      font-size: 0.75rem; font-weight: 700; padding: 0.25rem 1rem; border-radius: 999px;
+    }
+    .plan-name { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .plan-price { font-size: 2.2rem; font-weight: 800; color: #60a5fa; margin-bottom: 0.25rem; }
+    .plan-price span { font-size: 1rem; color: #94a3b8; font-weight: 400; }
+    .plan-desc { color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .plan-features { list-style: none; margin-bottom: 2rem; }
+    .plan-features li { padding: 0.4rem 0; font-size: 0.9rem; color: #cbd5e1; }
+    .plan-features li::before { content: "✓ "; color: #34d399; font-weight: 700; }
+
+    .btn { width: 100%; padding: 0.85rem; border-radius: 0.5rem; font-size: 1rem; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.2s; }
+    .btn-primary { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-outline { background: transparent; color: #60a5fa; border: 1px solid #60a5fa; }
+    .btn-outline:hover { background: #60a5fa22; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .current-badge { background: #34d39922; color: #34d399; border: 1px solid #34d39944; border-radius: 0.5rem; padding: 0.6rem; text-align: center; font-size: 0.85rem; font-weight: 600; }
+
+    .faq { max-width: 700px; margin: 0 auto 4rem; padding: 0 2rem; }
+    .faq h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; text-align: center; }
+    .faq-item { margin-bottom: 1rem; background: #1a2332; border-radius: 0.5rem; padding: 1rem 1.5rem; }
+    .faq-item strong { display: block; margin-bottom: 0.5rem; color: #e2e8f0; }
+    .faq-item p { color: #94a3b8; font-size: 0.9rem; line-height: 1.6; }
+
+    #toast { position: fixed; bottom: 2rem; right: 2rem; background: #1e3a5f; border: 1px solid #3b82f6; color: #e2e8f0; padding: 1rem 1.5rem; border-radius: 0.5rem; font-size: 0.9rem; display: none; z-index: 999; max-width: 300px; }
+    #toast.error { background: #3f1515; border-color: #ef4444; }
+    #toast.success { background: #163d2a; border-color: #34d399; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="/index.html">📈 텐배거 헌터</a>
+  <nav>
+    <a href="/index.html">분석</a>
+    <a href="/screener.html">스크리너</a>
+    <a href="/dashboard.html">대시보드</a>
+    <a href="/pricing.html" style="color:#60a5fa">구독</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <h1>당신의 투자를 <span>10배</span> 성장시킬 플랜</h1>
+  <p>지금 바로 시작하세요. 언제든지 취소 가능합니다.</p>
+</div>
+
+<div class="plans">
+
+  <!-- Free -->
+  <div class="plan-card" id="card-free">
+    <div class="plan-name">Free</div>
+    <div class="plan-price">₩0 <span>/ 월</span></div>
+    <div class="plan-desc">기본 분석 무료 제공</div>
+    <ul class="plan-features">
+      <li>종목 분석 (기본)</li>
+      <li>스크리너 상위 10개</li>
+      <li>등급 조회</li>
+    </ul>
+    <div id="free-btn-area">
+      <button class="btn btn-outline" disabled>현재 플랜</button>
+    </div>
+  </div>
+
+  <!-- Pro -->
+  <div class="plan-card popular" id="card-pro">
+    <div class="popular-badge">⭐ 가장 인기</div>
+    <div class="plan-name">Pro</div>
+    <div class="plan-price">₩9,900 <span>/ 월</span></div>
+    <div class="plan-desc">투자자를 위한 전문 분석</div>
+    <ul class="plan-features">
+      <li>종목 분석 (전체)</li>
+      <li>스크리너 전체 무제한</li>
+      <li>AI 정성 분석</li>
+      <li>관심종목 20개</li>
+      <li>월간 투자 리포트</li>
+    </ul>
+    <div id="pro-btn-area">
+      <button class="btn btn-primary" onclick="startPayment('pro')">Pro 시작하기</button>
+    </div>
+  </div>
+
+  <!-- Premium -->
+  <div class="plan-card" id="card-premium">
+    <div class="plan-name">Premium</div>
+    <div class="plan-price">₩19,900 <span>/ 월</span></div>
+    <div class="plan-desc">기관급 분석 환경</div>
+    <ul class="plan-features">
+      <li>Pro 모든 기능</li>
+      <li>관심종목 무제한</li>
+      <li>카카오톡 알림</li>
+      <li>백테스트 무제한</li>
+      <li>API 접근</li>
+    </ul>
+    <div id="premium-btn-area">
+      <button class="btn btn-primary" onclick="startPayment('premium')">Premium 시작하기</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="faq">
+  <h2>자주 묻는 질문</h2>
+  <div class="faq-item">
+    <strong>언제든지 취소할 수 있나요?</strong>
+    <p>네, 구독은 언제든지 취소할 수 있습니다. 취소 후에도 남은 기간 동안 서비스를 이용할 수 있습니다.</p>
+  </div>
+  <div class="faq-item">
+    <strong>결제는 어떻게 이루어지나요?</strong>
+    <p>토스페이먼츠를 통해 신용카드, 체크카드, 계좌이체 등 다양한 결제 수단을 지원합니다.</p>
+  </div>
+  <div class="faq-item">
+    <strong>환불 정책은 어떻게 되나요?</strong>
+    <p>결제 후 7일 이내 미사용 시 전액 환불이 가능합니다. 고객센터(yoonchang.park@gmail.com)로 문의해주세요.</p>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  const API = "";
+  const PRICES = { pro: 9900, premium: 19900 };
+  const PLAN_NAMES = { pro: "Pro", premium: "Premium" };
+
+  let currentTier = "free";
+  let clientKey = "";
+
+  async function init() {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      showToast("로그인이 필요합니다.", "error");
+      setTimeout(() => { window.location.href = "/login.html"; }, 1500);
+      return;
+    }
+
+    // 현재 구독 상태 확인
+    try {
+      const res = await fetch(`${API}/api/v2/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentTier = data.subscription?.tier || "free";
+        updateButtons();
+      }
+    } catch (e) {}
+
+    // 토스 클라이언트 키 가져오기
+    try {
+      const res = await fetch(`${API}/api/v2/payment/toss-client-key`);
+      if (res.ok) {
+        const data = await res.json();
+        clientKey = data.client_key;
+      }
+    } catch (e) {}
+  }
+
+  function updateButtons() {
+    const tiers = ["free", "pro", "premium"];
+    tiers.forEach(tier => {
+      const area = document.getElementById(`${tier}-btn-area`);
+      if (!area) return;
+      if (tier === currentTier) {
+        area.innerHTML = `<div class="current-badge">✓ 현재 구독 중</div>`;
+      } else if (tier === "free") {
+        area.innerHTML = `<button class="btn btn-outline" onclick="cancelSub()">Free로 다운그레이드</button>`;
+      }
+    });
+  }
+
+  async function startPayment(tier) {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      showToast("로그인이 필요합니다.", "error");
+      return;
+    }
+
+    if (!clientKey) {
+      showToast("결제 시스템을 불러오는 중입니다. 잠시 후 다시 시도해주세요.", "error");
+      return;
+    }
+
+    const amount = PRICES[tier];
+    const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const orderName = `텐배거헌터 ${PLAN_NAMES[tier]} 구독`;
+
+    const tossPayments = TossPayments(clientKey);
+    tossPayments.requestPayment("카드", {
+      amount,
+      orderId,
+      orderName,
+      customerName: localStorage.getItem("user_name") || "고객",
+      successUrl: `${window.location.origin}/payment/success.html?tier=${tier}`,
+      failUrl: `${window.location.origin}/payment/fail.html`,
+    }).catch(err => {
+      if (err.code !== "USER_CANCEL") {
+        showToast("결제 중 오류가 발생했습니다: " + err.message, "error");
+      }
+    });
+  }
+
+  async function cancelSub() {
+    if (!confirm("구독을 취소하고 Free 플랜으로 전환하시겠습니까?")) return;
+    const token = localStorage.getItem("access_token");
+    const res = await fetch(`${API}/api/v2/payment/cancel`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ cancel_reason: "사용자 요청" }),
+    });
+    if (res.ok) {
+      showToast("구독이 취소됐습니다.", "success");
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      showToast("취소 중 오류가 발생했습니다.", "error");
+    }
+  }
+
+  function showToast(msg, type = "") {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = type;
+    t.style.display = "block";
+    setTimeout(() => { t.style.display = "none"; }, 3000);
+  }
+
+  init();
+</script>
+</body>
+</html>
