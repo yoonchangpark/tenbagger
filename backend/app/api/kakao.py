@@ -339,12 +339,14 @@ def _format_market_text_fallback(indices: dict, usdkrw: float | None,
 
 
 async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list) -> str:
+    """GPT는 시장 코멘트만 생성. 종목 섹션은 실제 DB 데이터로 직접 추가 (환각 방지)."""
     from app.core.config import settings
     openai_key = settings.openai_api_key or os.environ.get("OPENAI_API_KEY", "")
     if not openai_key:
         return _format_market_text_fallback(indices, None, disclosures, top_stocks)
 
     today = datetime.date.today().strftime("%Y년 %m월 %d일")
+    today_short = datetime.date.today().strftime("%Y.%m.%d")
 
     idx_lines = []
     for key, label in [("kospi","KOSPI"),("kosdaq","KOSDAQ"),("nasdaq","NASDAQ"),("sp500","S&P500")]:
@@ -357,22 +359,20 @@ async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list
         idx_lines.append(f"- USD/KRW: {usd['close']:,.1f}원")
 
     disc_str = "\n".join(f"• {d['corp']}: {d['title']}" for d in disclosures) or "없음"
-    stock_str = "\n".join(f"• {s['name']}({s['ticker']}) {s['total_score']:.1f}점" for s in top_stocks) or "없음"
 
+    # ★ GPT에게 종목 추천 절대 금지 — 실제 데이터만 표시
     prompt = (
-        f"오늘({today}) 시장 현황을 카카오톡 메시지로 요약해줘.\n\n"
+        f"오늘({today}) 주식시장 현황을 카카오톡 메시지로 요약해줘.\n\n"
         f"[지수]\n" + "\n".join(idx_lines) + "\n\n"
         f"[주요 공시]\n{disc_str}\n\n"
-        f"[텐배거 주목 종목]\n{stock_str}\n\n"
-        f"장기투자자 관점에서 핵심만 요약. 이모지 활용. 전체 400자 이내.\n\n"
+        f"장기투자자 관점에서 핵심만 요약. 이모지 활용. 전체 250자 이내.\n"
+        f"종목명은 절대 언급하지 마. 지수 흐름과 시장 코멘트만 작성.\n\n"
         f"형식 (정확히 따를 것):\n"
-        f"📊 {today[:10]} 시장\n"
-        f"🔵 KOSPI / 🟢 KOSDAQ / 🌐 NASDAQ 한줄\n"
-        f"💵 환율 한줄\n\n"
-        f"💡 주목 포인트\n"
-        f"핵심 2~3줄\n\n"
-        f"⭐ 오늘의 추천\n"
-        f"종목 1~2개"
+        f"📊 {today_short} 시장\n"
+        f"🔵 KOSPI: X,XXX (±X.XX%) / 🟢 KOSDAQ: X,XXX (±X.XX%) / 🌐 NASDAQ: XX,XXX (±X.XX%)\n"
+        f"💵 USD/KRW: X,XXX원\n\n"
+        f"💡 시장 코멘트\n"
+        f"2~3줄 흐름 해석"
     )
 
     try:
@@ -381,19 +381,29 @@ async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list
         resp = await asyncio.wait_for(
             client.chat.completions.create(
                 model="gpt-4o-mini",
-                max_tokens=500,
-                temperature=0.4,
+                max_tokens=350,
+                temperature=0.3,
                 messages=[
-                    {"role": "system", "content": "한국 주식 장기투자 전문가. 카카오톡 메시지 형식으로 답변."},
+                    {"role": "system", "content": "한국 주식 장기투자 전문가. 카카오톡 형식으로 간결하게 답변. 종목명 언급 금지."},
                     {"role": "user", "content": prompt},
                 ],
             ),
             timeout=10.0,
         )
-        return resp.choices[0].message.content.strip()
+        gpt_text = resp.choices[0].message.content.strip()
     except Exception as e:
         print(f"[GPT_MARKET] 오류: {e}")
-        return _format_market_text_fallback(indices, None, disclosures, top_stocks)
+        gpt_text = _format_market_text_fallback(indices, None, disclosures, [])
+
+    # ★ 종목 섹션은 실제 DB 데이터로만 직접 붙임 (GPT 환각 방지)
+    if top_stocks:
+        stock_lines = ["\n⭐ 주목 종목 (텐배거 스코어 TOP3)"]
+        for s in top_stocks:
+            score = f"{s['total_score']:.1f}점"
+            stock_lines.append(f"• {s['name']} ({s['ticker']}) {score}")
+        gpt_text = gpt_text + "\n" + "\n".join(stock_lines)
+
+    return gpt_text
 
 
 async def _handle_market_ai() -> dict:
