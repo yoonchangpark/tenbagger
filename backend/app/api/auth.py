@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -217,10 +217,10 @@ def logout():
 # ── 카카오 OAuth ─────────────────────────────────────────────────
 
 @router.get("/kakao", summary="카카오 OAuth 로그인 URL 반환")
-def kakao_login():
+def kakao_login(request: Request, redirect: str = "/index.html"):
     """
     카카오 OAuth 인증 시작 URL을 반환합니다.
-    KAKAO_CLIENT_ID 환경변수가 설정되어 있어야 합니다.
+    redirect 파라미터: 로그인 후 이동할 경로 (기본: /index.html)
     """
     if not settings.kakao_client_id:
         raise HTTPException(
@@ -228,18 +228,22 @@ def kakao_login():
             detail="KAKAO_CLIENT_ID가 설정되지 않았습니다. .env 파일에 추가해주세요.",
         )
 
+    import urllib.parse
     kakao_auth_url = (
         "https://kauth.kakao.com/oauth/authorize"
         f"?client_id={settings.kakao_client_id}"
-        f"&redirect_uri={settings.kakao_redirect_uri}"
+        f"&redirect_uri={urllib.parse.quote(settings.kakao_redirect_uri, safe=':/')}"
         "&response_type=code"
+        f"&state={urllib.parse.quote(redirect)}"
     )
     return {"url": kakao_auth_url}
 
 
 @router.get("/kakao/callback", summary="카카오 OAuth 콜백 처리")
 async def kakao_callback(
+    request: Request,
     code: str = Query(..., description="카카오 인가 코드"),
+    state: str = Query(default="/index.html", description="로그인 후 이동 경로"),
     db: Session = Depends(get_db),
 ):
     """
@@ -337,13 +341,15 @@ async def kakao_callback(
     access_token = create_access_token(user_id, email)
     refresh_token = create_refresh_token(user_id)
 
-    # 프론트엔드로 토큰을 전달하는 리다이렉트 (login.html이 파싱)
-    base = settings.kakao_redirect_uri.split("/api/")[0]  # http://localhost:8000
+    # 프론트엔드로 토큰 전달 — Request에서 실제 서버 base URL 자동 감지
+    import urllib.parse
+    base = str(request.base_url).rstrip("/")  # 실제 서버 origin (localhost or Railway)
     redirect_url = (
         f"{base}/login.html"
         f"?access_token={access_token}"
         f"&refresh_token={refresh_token}"
-        f"&name={user_name}"
+        f"&name={urllib.parse.quote(user_name)}"
+        f"&redirect={urllib.parse.quote(state)}"
     )
 
     from fastapi.responses import RedirectResponse

@@ -260,7 +260,9 @@
     btn.disabled = true; btn.querySelector('span + *') || (btn.lastChild.textContent = ' 연결 중…');
 
     try {
-      const res = await fetch(`${API}/api/v2/auth/kakao`);
+      // redirect 파라미터를 state로 전달해 카카오 OAuth 후 원래 페이지로 복귀
+      const redirectPath = getRedirectUrl();
+      const res = await fetch(`${API}/api/v2/auth/kakao?redirect=${encodeURIComponent(redirectPath)}`);
       const data = await res.json();
 
       if (!res.ok) {
