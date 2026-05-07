@@ -247,6 +247,7 @@
 <!-- Tabs -->
 <div class="tabs-bar">
   <button class="tab-btn active" onclick="switchTab('ranking',this)">🏆 텐배거 랭킹</button>
+  <button class="tab-btn" onclick="switchTab('watchlist',this)">⭐ 관심종목</button>
   <button class="tab-btn" onclick="switchTab('disclosures',this)">📡 신규 공시</button>
   <button class="tab-btn" onclick="switchTab('analysis',this)">🔬 종목 분석</button>
   <button class="tab-btn" onclick="switchTab('news',this)">📰 뉴스</button>
@@ -311,6 +312,31 @@
   </div>
 
   <!-- ── TAB 3: News ── -->
+  <!-- ── TAB: 관심종목 ── -->
+  <div class="tab-panel" id="tab-watchlist">
+    <div class="section-header">
+      <div>
+        <div class="section-title">⭐ 관심종목</div>
+        <div class="section-desc">내 포트폴리오 후보 · Pro 20개 / Premium 무제한</div>
+      </div>
+      <button class="refresh-btn" onclick="loadWatchlist()">새로고침</button>
+    </div>
+
+    <!-- 종목 추가 입력창 -->
+    <div style="display:flex;gap:8px;margin-bottom:20px;">
+      <input id="wlInput" placeholder="종목명 또는 티커 입력 (예: 삼성전자 또는 005930)"
+        style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 16px;color:var(--text);font-size:14px;outline:none;"
+        onkeydown="if(event.key==='Enter')addWatchlist()"
+        onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'" />
+      <button onclick="addWatchlist()"
+        style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:10px;padding:11px 20px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        + 추가
+      </button>
+    </div>
+    <div id="wlMsg" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:8px;font-size:13px;"></div>
+    <div id="watchlistContent"></div>
+  </div>
+
   <div class="tab-panel" id="tab-news">
     <div class="section-header">
       <div>
@@ -359,6 +385,182 @@
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
     document.getElementById("tab-" + id).classList.add("active");
     btn.classList.add("active");
+    if (id === 'watchlist') loadWatchlist();
+  }
+
+  // ── 관심종목 ──────────────────────────────────────────────────
+  function wlMsg(text, type) {
+    const el = document.getElementById('wlMsg');
+    el.textContent = text;
+    el.style.display = 'block';
+    el.style.background = type === 'error' ? 'rgba(239,68,68,.1)' : 'rgba(16,185,129,.1)';
+    el.style.border = type === 'error' ? '1px solid rgba(239,68,68,.3)' : '1px solid rgba(16,185,129,.3)';
+    el.style.color = type === 'error' ? '#f87171' : '#34d399';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  }
+
+  async function loadWatchlist() {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      document.getElementById('watchlistContent').innerHTML =
+        `<div style="text-align:center;padding:60px;color:var(--muted);">
+          <div style="font-size:3rem;margin-bottom:12px;">🔒</div>
+          <p>로그인 후 이용 가능합니다.</p>
+          <a href="/login.html?redirect=/dashboard.html" style="display:inline-block;margin-top:16px;padding:10px 24px;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border-radius:8px;font-weight:700;text-decoration:none;">로그인</a>
+        </div>`;
+      return;
+    }
+    try {
+      const res = await fetch(API + '/api/v2/watchlist', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        document.getElementById('watchlistContent').innerHTML =
+          `<p style="color:var(--red);">${data.detail}</p>`;
+        return;
+      }
+
+      const { items, tier, limit } = data;
+      const limitLabel = limit === -1 ? '무제한' : `${items.length}/${limit}개`;
+      const gradeColor = { TENBAGGER:'#f59e0b', COMPOUNDER:'#10b981', WATCHLIST:'#3b82f6', AVOID:'#ef4444' };
+      const gradeEmoji = { TENBAGGER:'⭐', COMPOUNDER:'🟢', WATCHLIST:'🟡', AVOID:'🔴' };
+
+      if (tier === 'free') {
+        document.getElementById('watchlistContent').innerHTML =
+          `<div style="text-align:center;padding:60px;color:var(--muted);">
+            <div style="font-size:3rem;margin-bottom:12px;">💎</div>
+            <p style="font-size:16px;font-weight:700;margin-bottom:8px;">Pro 구독 전용 기능입니다</p>
+            <p style="margin-bottom:20px;">Pro: 20개 / Premium: 무제한</p>
+            <a href="/pricing.html" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border-radius:10px;font-weight:700;text-decoration:none;">💎 구독 업그레이드</a>
+          </div>`;
+        return;
+      }
+
+      if (items.length === 0) {
+        document.getElementById('watchlistContent').innerHTML =
+          `<div style="text-align:center;padding:60px;color:var(--muted);">
+            <div style="font-size:3rem;margin-bottom:12px;">⭐</div>
+            <p>관심종목이 없습니다.</p>
+            <p style="font-size:12px;margin-top:8px;">위 검색창에서 종목을 추가해보세요.</p>
+          </div>`;
+        return;
+      }
+
+      let html = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <span style="font-size:12px;color:var(--muted);">관심종목 ${limitLabel} (${tier.toUpperCase()})</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">`;
+
+      for (const s of items) {
+        const grade = s.grade || '-';
+        const color = gradeColor[grade] || '#9ca3af';
+        const emoji = gradeEmoji[grade] || '';
+        const score = s.total_score ? s.total_score.toFixed(1) : '-';
+        const price = s.live_price ? '₩' + s.live_price.toLocaleString() : '-';
+        const chg = s.change_pct != null
+          ? `<span style="color:${s.change_pct >= 0 ? '#10b981' : '#ef4444'}">${s.change_pct >= 0 ? '▲' : '▼'}${Math.abs(s.change_pct).toFixed(2)}%</span>`
+          : '';
+        const cagr = s.revenue_cagr_5y ? `매출CAGR ${s.revenue_cagr_5y.toFixed(1)}%` : '';
+        const roe = s.avg_roe_5y ? `ROE ${s.avg_roe_5y.toFixed(1)}%` : '';
+
+        html += `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;position:relative;transition:border-color .2s;" onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='var(--border)'">
+          <button onclick="removeWatchlist('${s.ticker}','${s.name}')"
+            style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;"
+            title="삭제">✕</button>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;">${emoji} ${grade}</span>
+            <span style="font-size:11px;color:var(--muted);">${s.ticker}</span>
+          </div>
+          <div style="font-size:16px;font-weight:700;margin-bottom:4px;">${s.name || s.ticker}</div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;">
+            <span style="font-size:20px;font-weight:800;color:#60a5fa;">${price}</span>
+            <span style="font-size:13px;">${chg}</span>
+          </div>
+          <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);margin-bottom:12px;">
+            <span>📊 ${score}점</span>
+            ${cagr ? `<span>📈 ${cagr}</span>` : ''}
+            ${roe ? `<span>💰 ${roe}</span>` : ''}
+          </div>
+          <button onclick="analyzeFromWatchlist('${s.ticker}')"
+            style="width:100%;padding:8px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:8px;color:#93c5fd;font-size:12px;font-weight:600;cursor:pointer;">
+            🔬 상세 분석 보기
+          </button>
+        </div>`;
+      }
+      html += '</div>';
+      document.getElementById('watchlistContent').innerHTML = html;
+    } catch(e) {
+      document.getElementById('watchlistContent').innerHTML =
+        `<p style="color:var(--red);">서버 연결 오류: ${e.message}</p>`;
+    }
+  }
+
+  async function addWatchlist() {
+    const token = localStorage.getItem('access_token');
+    if (!token) { wlMsg('로그인이 필요합니다.', 'error'); return; }
+    const input = document.getElementById('wlInput').value.trim();
+    if (!input) { wlMsg('종목명 또는 티커를 입력해주세요.', 'error'); return; }
+
+    // 티커인지 종목명인지 판별 (6자리 숫자면 티커)
+    const isTicker = /^\d{6}$/.test(input);
+    const body = isTicker
+      ? { ticker: input }
+      : await resolveNameToTicker(input);
+
+    if (!body) { wlMsg(`'${input}' 종목을 찾을 수 없습니다.`, 'error'); return; }
+
+    const res = await fetch(API + '/api/v2/watchlist', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      wlMsg(`${data.name || data.ticker} 추가됐습니다!`, 'success');
+      document.getElementById('wlInput').value = '';
+      loadWatchlist();
+    } else {
+      wlMsg(data.detail || '추가 실패', 'error');
+    }
+  }
+
+  async function resolveNameToTicker(name) {
+    // DB에서 종목명으로 티커 검색
+    try {
+      const res = await fetch(API + '/api/search?q=' + encodeURIComponent(name));
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        const s = data.results[0];
+        return { ticker: s.ticker, name: s.name };
+      }
+    } catch(e) {}
+    return null;
+  }
+
+  async function removeWatchlist(ticker, name) {
+    if (!confirm(`${name || ticker}을(를) 관심종목에서 삭제할까요?`)) return;
+    const token = localStorage.getItem('access_token');
+    const res = await fetch(API + '/api/v2/watchlist/' + ticker, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (res.ok) {
+      wlMsg(`${name || ticker} 삭제됐습니다.`, 'success');
+      loadWatchlist();
+    } else {
+      const d = await res.json();
+      wlMsg(d.detail || '삭제 실패', 'error');
+    }
+  }
+
+  function analyzeFromWatchlist(ticker) {
+    const tabBtn = document.querySelectorAll(".tab-btn")[3]; // 종목 분석 탭
+    switchTab("analysis", tabBtn);
+    document.getElementById("analysisInput").value = ticker;
+    loadAnalysis();
   }
 
   // ────────────────────────────────────────────

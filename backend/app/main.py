@@ -13,6 +13,7 @@ from app.api.kakao import router as kakao_router
 from app.api.v2_dashboard import router as dashboard_router
 from app.api.auth import router as auth_router
 from app.api.payment import router as payment_router
+from app.api.watchlist import router as watchlist_router
 from app.core.database import check_db, SessionLocal
 
 
@@ -129,6 +130,7 @@ app.include_router(kakao_router, prefix="/api/kakao", tags=["kakao"])
 app.include_router(dashboard_router)
 app.include_router(auth_router)
 app.include_router(payment_router)
+app.include_router(watchlist_router)
 
 
 @app.get("/api/health")
