@@ -528,14 +528,22 @@
   }
 
   async function resolveNameToTicker(name) {
-    // DB에서 종목명으로 티커 검색 (/api/search는 배열 직접 반환)
+    // 1) DB 기반 검색 (v2: companies + scores 테이블)
+    try {
+      const res = await fetch(API + '/api/v2/search?q=' + encodeURIComponent(name));
+      if (res.ok) {
+        const data = await res.json();
+        const results = Array.isArray(data) ? data : (data.results || []);
+        if (results.length > 0) return { ticker: results[0].ticker, name: results[0].name };
+      }
+    } catch(e) {}
+    // 2) pykrx fallback
     try {
       const res = await fetch(API + '/api/search?q=' + encodeURIComponent(name));
-      const data = await res.json();
-      const results = Array.isArray(data) ? data : (data.results || []);
-      if (results.length > 0) {
-        const s = results[0];
-        return { ticker: s.ticker, name: s.name };
+      if (res.ok) {
+        const data = await res.json();
+        const results = Array.isArray(data) ? data : (data.results || []);
+        if (results.length > 0) return { ticker: results[0].ticker, name: results[0].name };
       }
     } catch(e) {}
     return null;

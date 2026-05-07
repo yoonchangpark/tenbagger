@@ -1,14 +1,62 @@
 """
 종목명 / 종목코드 검색 API
-GET /api/search?q=삼성전자
+GET /api/search?q=삼성전자        (pykrx 기반)
+GET /api/v2/search?q=삼성전자     (DB 기반, pykrx fallback)
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 from pykrx import stock
 import re
 
-router = APIRouter(prefix="/api/search", tags=["Search"])
+from app.core.auth import get_db
+
+router = APIRouter(tags=["Search"])
 
 _ticker_cache: dict[str, list[dict]] = {}  # 인메모리 캐시 (프로세스 재시작 시 초기화)
+
+# ── /api/v2/search — DB 기반 (pykrx fallback) ────────────────────
+@router.get("/api/v2/search")
+def search_companies_v2(
+    q: str = Query(..., min_length=1, max_length=30),
+    db: Session = Depends(get_db),
+):
+    """
+    DB(companies + scores)에서 종목명/코드 검색.
+    DB가 비어있으면 pykrx fallback.
+    최대 10개 반환.
+    """
+    q = q.strip()
+    q_lower = re.sub(r"\s+", "", q).lower()
+
+    # 1. DB 검색 (companies 테이블)
+    try:
+        rows = db.execute(text("""
+            SELECT DISTINCT c.ticker, COALESCE(s.name, c.name) AS name, c.market
+            FROM companies c
+            LEFT JOIN scores s ON s.ticker = c.ticker
+            WHERE REPLACE(LOWER(c.name), ' ', '') LIKE :q
+               OR REPLACE(LOWER(s.name), ' ', '') LIKE :q
+               OR c.ticker = :ticker
+            ORDER BY
+              CASE WHEN c.ticker = :ticker THEN 0
+                   WHEN LOWER(c.name) LIKE :starts THEN 1
+                   ELSE 2 END,
+              c.ticker
+            LIMIT 10
+        """), {
+            "q": f"%{q_lower}%",
+            "ticker": q.upper(),
+            "starts": f"{q_lower}%",
+        }).fetchall()
+
+        if rows:
+            return [{"ticker": r.ticker, "name": r.name, "market": r.market or ""} for r in rows]
+    except Exception:
+        pass
+
+    # 2. pykrx fallback (DB 비어있을 때)
+    return _pykrx_search(q, q_lower)
 
 
 def _load_all_tickers() -> list[dict]:
@@ -35,26 +83,14 @@ def _load_all_tickers() -> list[dict]:
     return result
 
 
-@router.get("")
-def search_companies(q: str = Query(..., min_length=1, max_length=30)):
-    """
-    종목명 또는 종목코드로 검색
-    - 최대 10개 반환
-    - 정확도 순: 코드 일치 > 이름 시작 > 이름 포함
-    """
-    q = q.strip()
+def _pykrx_search(q: str, q_clean: str) -> list[dict]:
+    """pykrx 기반 종목 검색 (내부 헬퍼)"""
     all_tickers = _load_all_tickers()
 
-    exact_code = []
-    name_starts = []
-    name_contains = []
-
-    q_clean = re.sub(r"\s+", "", q).lower()
-
+    exact_code, name_starts, name_contains = [], [], []
     for item in all_tickers:
         t = item["ticker"]
         n = re.sub(r"\s+", "", item["name"]).lower()
-
         if t == q or t == q.upper():
             exact_code.append(item)
         elif n.startswith(q_clean):
@@ -63,18 +99,27 @@ def search_companies(q: str = Query(..., min_length=1, max_length=30)):
             name_contains.append(item)
 
     combined = exact_code + name_starts + name_contains
-    # 중복 제거 (ticker 기준)
-    seen = set()
-    unique = []
+    seen, unique = set(), []
     for item in combined:
         if item["ticker"] not in seen:
             seen.add(item["ticker"])
             unique.append(item)
-
     return unique[:10]
 
 
-@router.post("/refresh")
+@router.get("/api/search")
+def search_companies(q: str = Query(..., min_length=1, max_length=30)):
+    """
+    종목명 또는 종목코드로 검색 (pykrx 기반)
+    - 최대 10개 반환
+    - 정확도 순: 코드 일치 > 이름 시작 > 이름 포함
+    """
+    q = q.strip()
+    q_clean = re.sub(r"\s+", "", q).lower()
+    return _pykrx_search(q, q_clean)
+
+
+@router.post("/api/search/refresh")
 def refresh_ticker_cache():
     """종목 캐시 강제 갱신"""
     _ticker_cache.clear()
