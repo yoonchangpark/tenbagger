@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     kakao_client_secret: str = ""
     kakao_redirect_uri: str = "http://localhost:8000/api/v2/auth/kakao/callback"
 
+    # 카카오 챗봇 Push 설정 (Open Builder)
+    kakao_bot_id: str = ""   # Open Builder > 봇 설정 > 봇 ID
+
     # 토스페이먼츠 설정
     toss_client_key: str = ""   # 프론트엔드용 (공개)
     toss_secret_key: str = ""   # 백엔드용 (비공개)

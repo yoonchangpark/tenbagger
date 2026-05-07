@@ -122,6 +122,16 @@ CREATE TABLE IF NOT EXISTS payments (
     paid_at     TIMESTAMP DEFAULT NOW()
 );
 
+-- 카카오 챗봇 채널 구독자 (Push 알림 대상)
+CREATE TABLE IF NOT EXISTS kakao_bot_subscribers (
+    id              SERIAL PRIMARY KEY,
+    bot_user_key    VARCHAR(255) UNIQUE NOT NULL,  -- userRequest.user.id
+    first_seen      TIMESTAMP DEFAULT NOW(),
+    last_seen       TIMESTAMP DEFAULT NOW(),
+    push_enabled    BOOLEAN DEFAULT TRUE
+);
+CREATE INDEX IF NOT EXISTS idx_kakao_sub_key ON kakao_bot_subscribers(bot_user_key);
+
 -- 인증 관련 인덱스
 CREATE INDEX IF NOT EXISTS idx_users_email          ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_kakao_id       ON users(kakao_id);

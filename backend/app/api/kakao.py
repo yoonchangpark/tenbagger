@@ -17,11 +17,120 @@ BASE_URL = os.environ.get("SERVICE_URL", "http://localhost:8000")
 _market_cache: dict = {}
 
 
+class KakaoUser(BaseModel):
+    id: str = ""
+    type: str = ""
+
 class KakaoUserRequest(BaseModel):
     utterance: str = ""
+    user: KakaoUser = KakaoUser()
 
 class KakaoRequest(BaseModel):
     userRequest: KakaoUserRequest = KakaoUserRequest()
+
+
+# ── 구독자 저장 ─────────────────────────────────────────────────────
+def _upsert_subscriber(bot_user_key: str):
+    """챗봇과 대화한 사용자 ID를 DB에 저장/갱신"""
+    if not bot_user_key:
+        return
+    try:
+        with SessionLocal() as session:
+            session.execute(text("""
+                INSERT INTO kakao_bot_subscribers (bot_user_key, last_seen)
+                VALUES (:key, NOW())
+                ON CONFLICT (bot_user_key)
+                DO UPDATE SET last_seen = NOW()
+            """), {"key": bot_user_key})
+            session.commit()
+    except Exception as e:
+        print(f"[KAKAO] 구독자 저장 오류: {e}")
+
+
+# ── Push 발송 ────────────────────────────────────────────────────────
+def _get_kakao_app_token() -> str | None:
+    """카카오 앱 액세스 토큰 발급 (24시간 유효)"""
+    try:
+        import requests
+        from app.core.config import settings
+        resp = requests.post(
+            "https://kauth.kakao.com/oauth/token",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": settings.kakao_client_id,
+                "client_secret": settings.kakao_client_secret,
+            },
+            timeout=5,
+        )
+        return resp.json().get("access_token")
+    except Exception as e:
+        print(f"[KAKAO_PUSH] 앱 토큰 발급 실패: {e}")
+        return None
+
+
+def send_kakao_push_to_all(message: str) -> dict:
+    """
+    Push 알림: DB의 모든 push_enabled 구독자에게 메시지 발송
+    Returns: {"sent": N, "failed": M}
+    """
+    import requests
+    from app.core.config import settings
+
+    bot_id = settings.kakao_bot_id
+    if not bot_id:
+        print("[KAKAO_PUSH] KAKAO_BOT_ID 미설정 — Push 건너뜀")
+        return {"sent": 0, "failed": 0, "error": "KAKAO_BOT_ID not set"}
+
+    token = _get_kakao_app_token()
+    if not token:
+        return {"sent": 0, "failed": 0, "error": "token_failed"}
+
+    # 구독자 목록 조회
+    with SessionLocal() as session:
+        rows = session.execute(text("""
+            SELECT bot_user_key FROM kakao_bot_subscribers
+            WHERE push_enabled = TRUE
+        """)).fetchall()
+    user_keys = [r[0] for r in rows]
+
+    if not user_keys:
+        print("[KAKAO_PUSH] 구독자 없음")
+        return {"sent": 0, "failed": 0}
+
+    # 카카오 i Open Builder Push API
+    url = f"https://kakao.com/v1/api/talk/bots/{bot_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    sent, failed = 0, 0
+    # 메시지 글자 제한 (simpleText 1000자)
+    msg = message[:990]
+
+    for key in user_keys:
+        try:
+            body = {
+                "userKey": key,
+                "response": {
+                    "version": "2.0",
+                    "template": {
+                        "outputs": [{"simpleText": {"text": msg}}]
+                    }
+                }
+            }
+            r = requests.post(url, json=body, headers=headers, timeout=5)
+            if r.status_code == 200:
+                sent += 1
+            else:
+                print(f"[KAKAO_PUSH] 발송 실패 {key[:8]}…: {r.status_code} {r.text[:100]}")
+                failed += 1
+        except Exception as e:
+            print(f"[KAKAO_PUSH] 오류 {key[:8]}…: {e}")
+            failed += 1
+
+    print(f"[KAKAO_PUSH] 발송 완료: 성공 {sent}건, 실패 {failed}건")
+    return {"sent": sent, "failed": failed}
 
 
 def find_stock_by_query(query: str) -> dict | None:
@@ -436,6 +545,11 @@ async def kakao_webhook(body: KakaoRequest):
         utterance = body.userRequest.utterance.strip()
         utt_lower = utterance.lower()
 
+        # 사용자 ID 저장 (Push 알림 구독자 관리)
+        bot_user_key = body.userRequest.user.id
+        if bot_user_key:
+            asyncio.create_task(asyncio.to_thread(_upsert_subscriber, bot_user_key))
+
         if utt_lower in ["종목분석", "종목 분석"]:
             return _handle_stock_analysis_prompt()
 
@@ -467,3 +581,20 @@ async def kakao_webhook(body: KakaoRequest):
             "일시적인 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
             _main_quick_replies()
         )
+
+
+@router.get("/subscribers/count")
+async def get_subscriber_count():
+    """채널 구독자 수 조회 (관리용)"""
+    with SessionLocal() as session:
+        row = session.execute(text(
+            "SELECT COUNT(*) FROM kakao_bot_subscribers WHERE push_enabled = TRUE"
+        )).fetchone()
+    return {"count": row[0]}
+
+
+@router.post("/push/test")
+async def push_test(msg: str = "📢 텐배거 헌터 Push 테스트 메시지입니다!"):
+    """Push 발송 테스트 (관리용)"""
+    result = await asyncio.to_thread(send_kakao_push_to_all, msg)
+    return result

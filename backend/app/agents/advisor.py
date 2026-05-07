@@ -326,6 +326,35 @@ def get_subscribers() -> list[str]:
     return [fallback]
 
 
+def _build_kakao_push_message(top_candidates: list, new_candidates: list, stats: dict) -> str:
+    """카카오 Push 알림용 요약 메시지 (990자 이내)"""
+    today_str = TODAY.strftime("%m/%d")
+    lines = [f"📊 [{today_str}] 텐배거 헌터 일일 리포트\n"]
+
+    tenbagger_cnt = stats["grades"].get("TENBAGGER", 0)
+    total = stats.get("total_analyzed", 0)
+    lines.append(f"분석 종목: {total}개 | TENBAGGER: {tenbagger_cnt}개\n")
+
+    if new_candidates:
+        lines.append(f"🆕 신규 발굴 {len(new_candidates)}개:")
+        for s in new_candidates[:3]:
+            lines.append(f"  ⭐ {s['name']} ({s['ticker']}) {s['total_score']:.1f}점")
+        lines.append("")
+
+    if top_candidates:
+        lines.append("🏆 TOP 3 종목:")
+        for s in top_candidates[:3]:
+            cagr = f"+{s['revenue_cagr_5y']:.1f}%" if s.get("revenue_cagr_5y") else "-"
+            lines.append(f"  • {s['name']} ({s['ticker']}) {s['total_score']:.1f}점 | 매출CAGR {cagr}")
+
+    lines.append(f"\n🔗 상세 분석 보기:")
+    base = os.environ.get("SERVICE_URL", "https://tenbagger-production.up.railway.app")
+    lines.append(f"{base}/screener.html")
+
+    msg = "\n".join(lines)
+    return msg[:990]
+
+
 def send_email(html_content: str, recipient: str, subject: str) -> bool:
     """Gmail SMTP로 HTML 이메일 발송"""
     sender = os.environ.get("EMAIL_SENDER", "")
@@ -425,18 +454,28 @@ async def main(dry_run: bool = False, skip_etl: bool = False):
     html = build_html_report(top_candidates, new_candidates, stats, ai_commentary, backtest_samples)
     save_report(html)
 
-    # 6. 이메일 발송
+    # 6. 이메일 + 카카오 Push 발송
     subject = f"[텐배거헌터] {TODAY.strftime('%m/%d')} 일일 리포트 — TENBAGGER {stats['grades']['TENBAGGER']}개 발굴"
     if new_candidates:
         subject = f"⭐ [텐배거헌터] {TODAY.strftime('%m/%d')} 신규 텐배거 {len(new_candidates)}개 발굴!"
 
     if not dry_run:
+        # 6-1. 이메일 발송
         result = send_to_all_subscribers(html, subject)
         if result["success"] == 0:
             print(f"[ADVISOR] 전체 발송 실패 → 리포트 파일 확인: {REPORT_PATH}")
+
+        # 6-2. 카카오 챗봇 Push 발송 (베타: 구독 등급 무관 전체)
+        kakao_msg = _build_kakao_push_message(top_candidates, new_candidates, stats)
+        try:
+            from app.api.kakao import send_kakao_push_to_all
+            push_result = await asyncio.to_thread(send_kakao_push_to_all, kakao_msg)
+            print(f"[ADVISOR] 카카오 Push: 성공 {push_result['sent']}건, 실패 {push_result.get('failed',0)}건")
+        except Exception as e:
+            print(f"[ADVISOR] 카카오 Push 오류 (무시): {e}")
     else:
         subscribers = get_subscribers()
-        print(f"[ADVISOR] dry-run 모드 → 이메일 발송 생략. 구독자 {len(subscribers)}명. 리포트: {REPORT_PATH}")
+        print(f"[ADVISOR] dry-run 모드 → 발송 생략. 이메일 구독자 {len(subscribers)}명. 리포트: {REPORT_PATH}")
 
     print(f"\n{'='*60}")
     print(f"  ✅ 어드바이저 완료!")
