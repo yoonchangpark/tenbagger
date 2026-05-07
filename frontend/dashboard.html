@@ -528,12 +528,13 @@
   }
 
   async function resolveNameToTicker(name) {
-    // DB에서 종목명으로 티커 검색
+    // DB에서 종목명으로 티커 검색 (/api/search는 배열 직접 반환)
     try {
       const res = await fetch(API + '/api/search?q=' + encodeURIComponent(name));
       const data = await res.json();
-      if (data.results && data.results.length > 0) {
-        const s = data.results[0];
+      const results = Array.isArray(data) ? data : (data.results || []);
+      if (results.length > 0) {
+        const s = results[0];
         return { ticker: s.ticker, name: s.name };
       }
     } catch(e) {}
@@ -559,8 +560,8 @@
   function analyzeFromWatchlist(ticker) {
     const tabBtn = document.querySelectorAll(".tab-btn")[3]; // 종목 분석 탭
     switchTab("analysis", tabBtn);
-    document.getElementById("analysisInput").value = ticker;
-    loadAnalysis();
+    document.getElementById("stockInput").value = ticker;
+    analyzeStock();
   }
 
   // ────────────────────────────────────────────
@@ -719,7 +720,7 @@
 
   function jumpToAnalysis(ticker) {
     // 종목 분석 탭으로 이동 후 자동 분석
-    const tabBtn = document.querySelectorAll(".tab-btn")[2]; // 종목 분석 탭
+    const tabBtn = document.querySelectorAll(".tab-btn")[3]; // 종목 분석 탭
     switchTab("analysis", tabBtn);
     document.getElementById("stockInput").value = ticker;
     analyzeStock();
