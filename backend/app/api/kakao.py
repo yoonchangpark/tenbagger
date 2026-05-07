@@ -60,6 +60,9 @@ def _main_quick_replies() -> list:
 
 
 def _simple_text(msg: str, quick_replies: list = None) -> dict:
+    # 카카오 simpleText 최대 1000자 제한
+    if len(msg) > 990:
+        msg = msg[:987] + "..."
     result = {
         "version": "2.0",
         "template": {"outputs": [{"simpleText": {"text": msg}}]},
@@ -151,13 +154,14 @@ def _handle_stock_query(utterance: str) -> dict:
     cagr = f"{stock['revenue_cagr_5y']:.1f}%" if stock.get("revenue_cagr_5y") else "-"
     roe = f"{stock['avg_roe_5y']:.1f}%" if stock.get("avg_roe_5y") else "-"
 
-    title = f"{stock['name']} ({stock['ticker']})"
+    # 카카오 basicCard 제한: title 35자, description 230자
+    title = f"{stock['name']} ({stock['ticker']})"[:35]
     desc = (
-        f"{emoji} {stock['grade']} | 점수: {stock['total_score']:.2f}/10\n"
-        f"성장성: {stock['growth_score']:.1f} | 안정성: {stock['stability_score']:.1f}\n"
-        f"매출CAGR(5Y): {cagr} | ROE: {roe}\n"
+        f"{emoji} {stock['grade']} | {stock['total_score']:.2f}점\n"
+        f"성장 {stock['growth_score']:.1f} | 안정 {stock['stability_score']:.1f}\n"
+        f"매출CAGR: {cagr} | ROE: {roe}\n"
         f"현재가: {close_str}"
-    )
+    )[:230]
     url = f"{BASE_URL}/?ticker={stock['ticker']}"
     return _basic_card(title, desc, "📊 상세 분석 보기", url, _main_quick_replies())
 
@@ -171,10 +175,13 @@ def _handle_tenbagger_list() -> dict:
     items = []
     for s in stocks:
         emoji = grade_emoji.get(s["grade"], "")
-        cagr = f"+{s['revenue_cagr_5y']:.1f}%" if s.get("revenue_cagr_5y") else ""
+        cagr = f"+{s['revenue_cagr_5y']:.1f}%" if s.get("revenue_cagr_5y") else "-"
+        # 카카오 listCard 제한: title 35자, description 16자
+        title = f"{emoji} {s['name']} ({s['ticker']})"[:35]
+        desc = f"{s['total_score']:.1f}점 | {cagr}"[:16]
         items.append({
-            "title": f"{emoji} {s['name']} ({s['ticker']})",
-            "description": f"점수 {s['total_score']:.2f}/10 | 매출CAGR {cagr}",
+            "title": title,
+            "description": desc,
         })
 
     return _list_card(
@@ -321,7 +328,7 @@ async def _gpt_market_summary(indices: dict, usdkrw: float | None,
         f"[최근 주요 공시 (주요사항보고)]\n"
         f"{disc_str}\n\n"
         f"장기투자자 관점에서 오늘의 시장을 간결하게 요약하고, 주목할 포인트 1~2개를 짧게 알려줘.\n"
-        f"이모지를 적절히 사용하고 카카오톡에서 읽기 좋게 작성해줘. 전체 200자 이내로.\n\n"
+        f"이모지를 적절히 사용하고 카카오톡에서 읽기 좋게 작성해줘. 전체 150자 이내로.\n\n"
         f"형식:\n"
         f"📊 [날짜] 시장 현황\n"
         f"[지표 한 줄 요약]\n\n"
