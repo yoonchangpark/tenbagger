@@ -193,52 +193,66 @@ def _handle_tenbagger_list() -> dict:
     )
 
 
-def _fetch_market_indices_sync() -> dict:
-    data = {}
-    try:
-        from pykrx import stock as pykrx_stock
-        today = datetime.date.today()
-        date_str = None
-        for i in range(5):
-            d = today - datetime.timedelta(days=i)
-            if d.weekday() < 5:
-                date_str = d.strftime("%Y%m%d")
-                break
-        if not date_str:
-            return data
-        for code, key in [("1001", "kospi"), ("2001", "kosdaq")]:
-            try:
-                df = pykrx_stock.get_index_ohlcv(date_str, date_str, code)
-                if df is not None and not df.empty:
-                    row = df.iloc[-1]
-                    close_val = row.get("종가", row.get("Close", 0))
-                    chg_val = row.get("등락률", row.get("Change", None))
-                    data[key] = {
-                        "close": int(close_val) if close_val else 0,
-                        "change_pct": round(float(chg_val), 2) if chg_val is not None else None,
-                    }
-            except Exception as e:
-                print(f"[MARKET] {key} 조회 오류: {e}")
-    except Exception as e:
-        print(f"[MARKET] pykrx import 오류: {e}")
-    return data
-
-
-def _fetch_usdkrw_sync() -> float | None:
+def _fetch_yahoo(symbol: str) -> dict | None:
+    """Yahoo Finance에서 지수/종목 현재가 + 등락률 조회"""
     try:
         import requests
         resp = requests.get(
-            "https://query1.finance.yahoo.com/v8/finance/chart/USDKRW=X",
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}",
             params={"interval": "1d", "range": "2d"},
             headers={"User-Agent": "Mozilla/5.0"},
             timeout=4,
         )
-        data = resp.json()
-        price = data["chart"]["result"][0]["meta"]["regularMarketPrice"]
-        return round(float(price), 1)
+        meta = resp.json()["chart"]["result"][0]["meta"]
+        price = meta.get("regularMarketPrice", 0)
+        prev  = meta.get("chartPreviousClose") or meta.get("previousClose", price)
+        chg   = round((price - prev) / prev * 100, 2) if prev else None
+        return {"close": price, "change_pct": chg}
     except Exception as e:
-        print(f"[MARKET] 환율 조회 오류: {e}")
+        print(f"[YAHOO] {symbol} 오류: {e}")
         return None
+
+
+def _fetch_market_indices_sync() -> dict:
+    """KOSPI, KOSDAQ, NASDAQ, S&P500, USD/KRW 한번에 조회"""
+    import concurrent.futures
+    symbols = {
+        "kospi":  "^KS11",
+        "kosdaq": "^KQ11",
+        "nasdaq": "^IXIC",
+        "sp500":  "^GSPC",
+        "usdkrw": "USDKRW=X",
+    }
+    result = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+        futures = {ex.submit(_fetch_yahoo, sym): key for key, sym in symbols.items()}
+        for f in concurrent.futures.as_completed(futures):
+            key = futures[f]
+            val = f.result()
+            if val:
+                result[key] = val
+    return result
+
+
+def _fetch_usdkrw_sync() -> float | None:
+    data = _fetch_yahoo("USDKRW=X")
+    return round(data["close"], 1) if data else None
+
+
+def _get_top_stocks_sync() -> list[dict]:
+    """DB에서 오늘 스코어 상위 3개 종목 조회"""
+    try:
+        with SessionLocal() as session:
+            rows = session.execute(text("""
+                SELECT name, ticker, total_score, grade
+                FROM scores
+                WHERE grade IN ('TENBAGGER','COMPOUNDER')
+                ORDER BY total_score DESC
+                LIMIT 3
+            """)).fetchall()
+            return [dict(r._mapping) for r in rows]
+    except Exception:
+        return []
 
 
 def _fetch_dart_disclosures_sync() -> list:
@@ -275,65 +289,90 @@ def _fetch_dart_disclosures_sync() -> list:
         return []
 
 
+def _fmt_idx(d: dict | None, is_price: bool = False) -> str:
+    if not d: return "N/A"
+    price = d["close"]
+    chg = d.get("change_pct")
+    arrow = ("▲" if chg >= 0 else "▼") if chg is not None else ""
+    chg_str = f" {arrow}{chg:+.2f}%" if chg is not None else ""
+    if is_price:
+        return f"{price:,.1f}{chg_str}"
+    return f"{int(price):,}{chg_str}"
+
+
 def _format_market_text_fallback(indices: dict, usdkrw: float | None,
-                                  disclosures: list) -> str:
+                                  disclosures: list, top_stocks: list) -> str:
     today = datetime.date.today().strftime("%Y.%m.%d")
-    lines = [f"📊 오늘의 시장 현황 ({today})\n"]
-    kospi = indices.get("kospi")
+    lines = [f"📊 {today} 시장 현황\n"]
+
+    # 국내 지수
+    kospi  = indices.get("kospi")
     kosdaq = indices.get("kosdaq")
-    if kospi:
-        chg = f" ({kospi['change_pct']:+.2f}%)" if kospi.get("change_pct") is not None else ""
-        lines.append(f"🔵 KOSPI: {kospi['close']:,}{chg}")
-    if kosdaq:
-        chg = f" ({kosdaq['change_pct']:+.2f}%)" if kosdaq.get("change_pct") is not None else ""
-        lines.append(f"🟢 KOSDAQ: {kosdaq['close']:,}{chg}")
-    if usdkrw:
-        lines.append(f"💵 USD/KRW: {usdkrw:,.1f}원")
+    if kospi:  lines.append(f"🔵 KOSPI  {_fmt_idx(kospi)}")
+    if kosdaq: lines.append(f"🟢 KOSDAQ {_fmt_idx(kosdaq)}")
+
+    # 해외 지수
+    nasdaq = indices.get("nasdaq")
+    sp500  = indices.get("sp500")
+    if nasdaq or sp500:
+        lines.append("")
+        if nasdaq: lines.append(f"🌐 NASDAQ {_fmt_idx(nasdaq)}")
+        if sp500:  lines.append(f"🌐 S&P500 {_fmt_idx(sp500)}")
+
+    # 환율
+    usd = indices.get("usdkrw") or ({"close": usdkrw} if usdkrw else None)
+    if usd: lines.append(f"💵 USD/KRW {_fmt_idx(usd, is_price=True)}원")
+
+    # 추천 종목 TOP3
+    if top_stocks:
+        lines.append("\n⭐ 주목 종목 TOP3")
+        for s in top_stocks:
+            lines.append(f"• {s['name']} ({s['ticker']}) {s['total_score']:.1f}점")
+
+    # 주요 공시
     if disclosures:
-        lines.append("\n📋 최근 주요 공시")
-        for d in disclosures[:4]:
-            lines.append(f"• {d['corp']}: {d['title']}")
+        lines.append("\n📋 주요 공시")
+        for d in disclosures[:3]:
+            lines.append(f"• {d['corp']}: {d['title'][:20]}")
+
     return "\n".join(lines)
 
 
-async def _gpt_market_summary(indices: dict, usdkrw: float | None,
-                               disclosures: list) -> str:
+async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list) -> str:
     from app.core.config import settings
     openai_key = settings.openai_api_key or os.environ.get("OPENAI_API_KEY", "")
     if not openai_key:
-        return _format_market_text_fallback(indices, usdkrw, disclosures)
+        return _format_market_text_fallback(indices, None, disclosures, top_stocks)
 
     today = datetime.date.today().strftime("%Y년 %m월 %d일")
-    kospi = indices.get("kospi", {})
-    kosdaq = indices.get("kosdaq", {})
 
-    def idx_str(d):
-        if not d:
-            return "N/A"
-        chg = f" ({d['change_pct']:+.2f}%)" if d.get("change_pct") is not None else ""
-        return f"{d['close']:,}{chg}"
+    idx_lines = []
+    for key, label in [("kospi","KOSPI"),("kosdaq","KOSDAQ"),("nasdaq","NASDAQ"),("sp500","S&P500")]:
+        d = indices.get(key)
+        if d:
+            chg = f"{d['change_pct']:+.2f}%" if d.get("change_pct") is not None else ""
+            idx_lines.append(f"- {label}: {int(d['close']):,} ({chg})")
+    usd = indices.get("usdkrw")
+    if usd:
+        idx_lines.append(f"- USD/KRW: {usd['close']:,.1f}원")
 
-    disc_str = "\n".join(
-        f"• [{d['date']}] {d['corp']}: {d['title']}" for d in disclosures
-    ) or "없음"
-
-    usdkrw_str = f"{usdkrw:,.1f}원" if usdkrw else "N/A"
+    disc_str = "\n".join(f"• {d['corp']}: {d['title']}" for d in disclosures) or "없음"
+    stock_str = "\n".join(f"• {s['name']}({s['ticker']}) {s['total_score']:.1f}점" for s in top_stocks) or "없음"
 
     prompt = (
-        f"오늘({today}) 한국 주식시장 현황을 카카오톡 메시지로 요약해줘.\n\n"
-        f"[시장 지표]\n"
-        f"- KOSPI: {idx_str(kospi)}\n"
-        f"- KOSDAQ: {idx_str(kosdaq)}\n"
-        f"- USD/KRW: {usdkrw_str}\n\n"
-        f"[최근 주요 공시 (주요사항보고)]\n"
-        f"{disc_str}\n\n"
-        f"장기투자자 관점에서 오늘의 시장을 간결하게 요약하고, 주목할 포인트 1~2개를 짧게 알려줘.\n"
-        f"이모지를 적절히 사용하고 카카오톡에서 읽기 좋게 작성해줘. 전체 150자 이내로.\n\n"
-        f"형식:\n"
-        f"📊 [날짜] 시장 현황\n"
-        f"[지표 한 줄 요약]\n\n"
+        f"오늘({today}) 시장 현황을 카카오톡 메시지로 요약해줘.\n\n"
+        f"[지수]\n" + "\n".join(idx_lines) + "\n\n"
+        f"[주요 공시]\n{disc_str}\n\n"
+        f"[텐배거 주목 종목]\n{stock_str}\n\n"
+        f"장기투자자 관점에서 핵심만 요약. 이모지 활용. 전체 400자 이내.\n\n"
+        f"형식 (정확히 따를 것):\n"
+        f"📊 {today[:10]} 시장\n"
+        f"🔵 KOSPI / 🟢 KOSDAQ / 🌐 NASDAQ 한줄\n"
+        f"💵 환율 한줄\n\n"
         f"💡 주목 포인트\n"
-        f"[핵심 내용]"
+        f"핵심 2~3줄\n\n"
+        f"⭐ 오늘의 추천\n"
+        f"종목 1~2개"
     )
 
     try:
@@ -342,19 +381,19 @@ async def _gpt_market_summary(indices: dict, usdkrw: float | None,
         resp = await asyncio.wait_for(
             client.chat.completions.create(
                 model="gpt-4o-mini",
-                max_tokens=350,
+                max_tokens=500,
                 temperature=0.4,
                 messages=[
-                    {"role": "system", "content": "한국 주식시장 장기투자 전문가. 카카오톡 메시지용으로 간결하게 답변."},
+                    {"role": "system", "content": "한국 주식 장기투자 전문가. 카카오톡 메시지 형식으로 답변."},
                     {"role": "user", "content": prompt},
                 ],
             ),
-            timeout=8.0,
+            timeout=10.0,
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
         print(f"[GPT_MARKET] 오류: {e}")
-        return _format_market_text_fallback(indices, usdkrw, disclosures)
+        return _format_market_text_fallback(indices, None, disclosures, top_stocks)
 
 
 async def _handle_market_ai() -> dict:
@@ -363,19 +402,19 @@ async def _handle_market_ai() -> dict:
         return _market_cache[cache_key]
 
     try:
-        indices, usdkrw, disclosures = await asyncio.wait_for(
+        indices, disclosures, top_stocks = await asyncio.wait_for(
             asyncio.gather(
                 asyncio.to_thread(_fetch_market_indices_sync),
-                asyncio.to_thread(_fetch_usdkrw_sync),
                 asyncio.to_thread(_fetch_dart_disclosures_sync),
+                asyncio.to_thread(_get_top_stocks_sync),
             ),
-            timeout=5.0,
+            timeout=8.0,
         )
     except asyncio.TimeoutError:
         print("[MARKET_AI] 데이터 수집 타임아웃, 폴백 사용")
-        indices, usdkrw, disclosures = {}, None, []
+        indices, disclosures, top_stocks = {}, [], []
 
-    analysis = await _gpt_market_summary(indices, usdkrw, disclosures)
+    analysis = await _gpt_market_summary(indices, disclosures, top_stocks)
     result = _simple_text(analysis, _main_quick_replies())
     _market_cache[cache_key] = result
     return result
