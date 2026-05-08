@@ -75,15 +75,15 @@ def _run_advisor_job():
 async def _run_news_job():
     """
     매일 새벽 4시(KST) 뉴스 감성 분석 실행 (ETL 완료 후)
-    비용 절약: TENBAGGER + COMPOUNDER 등급만 분석 (~150종목, $0.15/일)
+    비용 절약 ①: TENBAGGER + COMPOUNDER 등급만 분석 (~150종목, $0.15/일)
     AVOID/WATCHLIST 등급은 추천 안 하므로 뉴스 분석 무의미
     """
     print("📰 [SCHEDULER] 뉴스 감성 분석 자동 시작 (TENBAGGER+COMPOUNDER만)...")
     try:
         from app.workers.news_worker import run_news_analysis
-        # 1. 업종 분석 (10개 업종, $0.05)
+        # 1. 업종 분석 (10개 업종)
         await run_news_analysis(grade_filter=None, limit=None, sector_only=True)
-        # 2. 종목 분석: 추천 등급만 (~150종목, $0.10)
+        # 2. 종목 분석: 추천 등급만
         for grade in ["TENBAGGER", "COMPOUNDER"]:
             await run_news_analysis(grade_filter=grade, limit=None, sector_only=False)
         print("✅ [SCHEDULER] 뉴스 감성 분석 완료")
