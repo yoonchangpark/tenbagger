@@ -293,8 +293,26 @@
 
     try {
       if (currentTab === "single") {
-        const ticker = document.getElementById("btTicker").value.trim();
+        let ticker = document.getElementById("btTicker").value.trim();
         if (!ticker) throw new Error("종목코드 또는 기업명을 입력해 주세요.");
+
+        // 6자리 숫자가 아니면 이름으로 검색해서 티커 변환
+        if (!/^\d{6}$/.test(ticker)) {
+          const searchRes = await fetch(`${API}/api/v2/search?q=${encodeURIComponent(ticker)}`);
+          const searchData = await searchRes.json();
+          const results = Array.isArray(searchData) ? searchData : (searchData.results || []);
+          if (results.length === 0) {
+            // pykrx fallback
+            const fallback = await fetch(`${API}/api/search?q=${encodeURIComponent(ticker)}`);
+            const fbData = await fallback.json();
+            const fbResults = Array.isArray(fbData) ? fbData : [];
+            if (fbResults.length === 0) throw new Error(`'${ticker}' 종목을 찾을 수 없습니다. 종목코드(6자리)로 입력해보세요.`);
+            ticker = fbResults[0].ticker;
+          } else {
+            ticker = results[0].ticker;
+          }
+        }
+
         const holdYears = document.getElementById("btHoldYears").value;
         const res = await fetch(`${API}/api/backtest/${encodeURIComponent(ticker)}?base_year=${selectedYear}&hold_years=${holdYears}`);
         if (!res.ok) throw new Error((await res.json()).detail);
