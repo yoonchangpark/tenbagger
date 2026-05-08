@@ -398,6 +398,35 @@ def _fetch_dart_disclosures_sync() -> list:
         return []
 
 
+def _get_disclosure_highlight(title: str, corp: str) -> str | None:
+    """공시 제목을 분석해 주목 포인트 한 줄 생성. 관심 없는 공시는 None 반환."""
+    t = title.lower()
+    # 자기주식
+    if "자기주식" in t and "취득" in t:
+        return f"📈 {corp}, 자기주식 취득 결정! (주가 방어)"
+    if "자기주식" in t and "처분" in t:
+        return f"🔍 {corp}, 자기주식 처분 결정"
+    # 증자
+    if "유상증자" in t:
+        return f"💰 {corp}, 유상증자로 자금 확보"
+    if "무상증자" in t:
+        return f"🎁 {corp}, 무상증자 결정! (주주 환원)"
+    # 합병·분할
+    if "합병" in t:
+        return f"🔗 {corp}, 합병 추진"
+    if "분할" in t:
+        return f"✂️ {corp}, 분할 결정"
+    # 배당
+    if "배당" in t:
+        return f"💵 {corp}, 배당 결정"
+    # 전환사채·신주인수권
+    if "전환사채" in t or "cb" in t:
+        return f"⚠️ {corp}, 전환사채 발행"
+    if "신주인수권" in t or "bw" in t:
+        return f"⚠️ {corp}, BW 발행"
+    return None
+
+
 def _fmt_idx(d: dict | None, is_price: bool = False) -> str:
     if not d: return "N/A"
     price = d["close"]
@@ -438,11 +467,15 @@ def _format_market_text_fallback(indices: dict, usdkrw: float | None,
         for s in top_stocks:
             lines.append(f"• {s['name']} ({s['ticker']}) {s['total_score']:.1f}점")
 
-    # 주요 공시
-    if disclosures:
-        lines.append("\n📋 주요 공시")
-        for d in disclosures[:3]:
-            lines.append(f"• {d['corp']}: {d['title'][:20]}")
+    # 주목 포인트 (관심 공시만 필터링)
+    highlights = []
+    for d in disclosures:
+        h = _get_disclosure_highlight(d.get("title", ""), d.get("corp", ""))
+        if h:
+            highlights.append(f"• {h}")
+    if highlights:
+        lines.append("\n💡 주목 포인트")
+        lines.extend(highlights[:3])
 
     return "\n".join(lines)
 
@@ -504,13 +537,22 @@ async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list
         print(f"[GPT_MARKET] 오류: {e}")
         gpt_text = _format_market_text_fallback(indices, None, disclosures, [])
 
+    # ★ 주목 포인트 — 실제 공시 데이터로만 (GPT 환각 방지)
+    highlights = []
+    for d in disclosures:
+        h = _get_disclosure_highlight(d.get("title", ""), d.get("corp", ""))
+        if h:
+            highlights.append(f"• {h}")
+    if highlights:
+        gpt_text += "\n\n💡 주목 포인트\n" + "\n".join(highlights[:3])
+
     # ★ 종목 섹션은 실제 DB 데이터로만 직접 붙임 (GPT 환각 방지)
     if top_stocks:
         stock_lines = ["\n⭐ 주목 종목 (텐배거 스코어 TOP3)"]
         for s in top_stocks:
             score = f"{s['total_score']:.1f}점"
             stock_lines.append(f"• {s['name']} ({s['ticker']}) {score}")
-        gpt_text = gpt_text + "\n" + "\n".join(stock_lines)
+        gpt_text += "\n" + "\n".join(stock_lines)
 
     return gpt_text
 
