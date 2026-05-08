@@ -280,6 +280,19 @@ def _handle_tenbagger_list() -> dict:
     if not stocks:
         return _simple_text("현재 TENBAGGER 등급 종목이 없습니다.", _main_quick_replies())
 
+    # 카카오 listCard는 최소 2개 아이템 필수 — 1개면 simpleText로 대체
+    if len(stocks) == 1:
+        s = stocks[0]
+        emoji = "⭐" if s["grade"] == "TENBAGGER" else "🟢"
+        cagr = f"+{s['revenue_cagr_5y']:.1f}%" if s.get("revenue_cagr_5y") else "-"
+        msg = (
+            f"{emoji} 현재 최상위 종목\n\n"
+            f"{s['name']} ({s['ticker']})\n"
+            f"점수: {s['total_score']:.1f}점 | 매출CAGR: {cagr}\n\n"
+            f"ETL 분석 진행 중입니다.\n잠시 후 다시 확인해주세요."
+        )
+        return _simple_text(msg, _main_quick_replies())
+
     grade_emoji = {"TENBAGGER": "⭐", "COMPOUNDER": "🟢"}
     items = []
     for s in stocks:
@@ -657,9 +670,9 @@ async def _handle_market_ai() -> dict:
     if cache_key in _market_cache:
         return _market_cache[cache_key]
 
-    # 카카오 타임아웃 5초 → 전체 4초 안에 완료
+    # 카카오 타임아웃 5초 → 전체 3.5초 안에 완료 (Railway 네트워크 오버헤드 고려)
     try:
-        # 1단계: 데이터 수집 (3초 제한) — 지수/공시/수급 병렬 수집
+        # 1단계: 데이터 수집 (2초 제한) — 지수/공시/수급 병렬 수집
         try:
             indices, disclosures, top_stocks, supply = await asyncio.wait_for(
                 asyncio.gather(
@@ -668,24 +681,35 @@ async def _handle_market_ai() -> dict:
                     asyncio.to_thread(_get_top_stocks_sync),
                     asyncio.to_thread(_fetch_supply_demand_sync),
                 ),
-                timeout=3.0,
+                timeout=2.0,
             )
         except asyncio.TimeoutError:
             print("[MARKET_AI] 데이터 수집 타임아웃, 폴백 사용")
             indices, disclosures, top_stocks, supply = {}, [], [], {}
 
-        # 2단계: GPT 요약 (1.5초 제한) → 시간 초과 시 즉시 폴백
-        try:
-            analysis = await asyncio.wait_for(
-                _gpt_market_summary(indices, disclosures, top_stocks, supply),
-                timeout=1.5,
-            )
-        except asyncio.TimeoutError:
-            print("[MARKET_AI] GPT 타임아웃, 폴백 텍스트 사용")
+        # 2단계: 데이터가 있을 때만 GPT 요약 시도 (1.0초 제한)
+        if indices or top_stocks:
+            try:
+                analysis = await asyncio.wait_for(
+                    _gpt_market_summary(indices, disclosures, top_stocks, supply),
+                    timeout=1.0,
+                )
+            except asyncio.TimeoutError:
+                print("[MARKET_AI] GPT 타임아웃, 폴백 텍스트 사용")
+                analysis = _format_market_text_fallback(indices, None, disclosures, top_stocks, supply)
+        else:
+            # 데이터 수집 자체가 실패하면 GPT 건너뜀
             analysis = _format_market_text_fallback(indices, None, disclosures, top_stocks, supply)
 
     except Exception as e:
         print(f"[MARKET_AI] 오류: {e}")
+        analysis = "📊 시장 데이터를 불러오는 중입니다.\n잠시 후 다시 시도해주세요."
+
+    # simpleText 최대 990자 보장
+    if len(analysis) > 990:
+        analysis = analysis[:987] + "..."
+    # 빈 응답 방지
+    if not analysis.strip():
         analysis = "📊 시장 데이터를 불러오는 중입니다.\n잠시 후 다시 시도해주세요."
 
     result = _simple_text(analysis, _main_quick_replies())
