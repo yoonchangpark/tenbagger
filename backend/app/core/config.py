@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     toss_client_key: str = ""   # 프론트엔드용 (공개)
     toss_secret_key: str = ""   # 백엔드용 (비공개)
 
+    # 관리자 API 시크릿 키
+    admin_secret: str = ""      # ADMIN_SECRET 환경변수
+
     class Config:
         env_file = ".env"
         extra = "ignore"
