@@ -11,6 +11,7 @@ import asyncio
 import datetime
 import argparse
 import sys
+import gc
 from pykrx import stock
 
 from app.infra.clients.dart_client import (
@@ -20,6 +21,64 @@ from app.domain.scoring import calculate_tenbagger_score, calculate_score_from_i
 from app.infra.repositories.company_repo import (
     save_company, save_financials, save_score, get_score_cached
 )
+from app.core.database import SessionLocal
+from sqlalchemy import text
+
+
+# ── ETL 실행 상태 DB 관리 (재배포 후 이어받기) ──────────────────────────────
+
+def _etl_state_init(total: int) -> None:
+    """오늘 ETL 실행 레코드 생성 (이미 있으면 total만 업데이트)"""
+    today = datetime.date.today()
+    with SessionLocal() as session:
+        session.execute(text("""
+            INSERT INTO etl_run_state (run_date, status, processed, total, started_at)
+            VALUES (:d, 'running', 0, :total, NOW())
+            ON CONFLICT (run_date) DO UPDATE
+                SET status = 'running', total = :total, started_at = NOW()
+        """), {"d": today, "total": total})
+        session.commit()
+
+
+def _etl_state_get_resume_ticker() -> str | None:
+    """오늘 ETL가 중단된 경우 마지막으로 처리한 ticker 반환. 없으면 None(처음부터)."""
+    today = datetime.date.today()
+    with SessionLocal() as session:
+        row = session.execute(text("""
+            SELECT status, last_ticker, processed
+            FROM etl_run_state WHERE run_date = :d
+        """), {"d": today}).fetchone()
+    if row and row.status == 'running' and row.last_ticker and row.processed > 0:
+        print(f"[ETL] ⏩ 이전 실행 감지: {row.processed}개 완료, {row.last_ticker} 이후부터 재개")
+        return row.last_ticker
+    return None
+
+
+def _etl_state_update(ticker: str, processed: int) -> None:
+    """100개마다 진행 상태 저장"""
+    today = datetime.date.today()
+    try:
+        with SessionLocal() as session:
+            session.execute(text("""
+                UPDATE etl_run_state
+                SET last_ticker = :ticker, processed = :processed
+                WHERE run_date = :d
+            """), {"ticker": ticker, "processed": processed, "d": today})
+            session.commit()
+    except Exception as e:
+        print(f"[ETL] 상태 저장 오류 (무시): {e}")
+
+
+def _etl_state_done() -> None:
+    """ETL 완료 상태로 업데이트"""
+    today = datetime.date.today()
+    with SessionLocal() as session:
+        session.execute(text("""
+            UPDATE etl_run_state
+            SET status = 'done', finished_at = NOW()
+            WHERE run_date = :d
+        """), {"d": today})
+        session.commit()
 
 
 async def process_ticker(ticker: str, name: str, market: str, skip_existing: bool = False) -> dict:
@@ -185,12 +244,30 @@ async def run_etl(markets: list[str], limit: int = None, skip_existing: bool = F
         all_tickers = all_tickers[:limit]
 
     total = len(all_tickers)
-    print(f"[ETL] 총 {total}개 종목 분석 시작...\n")
+
+    # ── 재배포 후 이어받기: 오늘 실행 기록에서 마지막 처리 ticker 확인 ──────
+    resume_from = None if limit else _etl_state_get_resume_ticker()
+    start_idx = 0
+    if resume_from:
+        tickers_only = [t[0] for t in all_tickers]
+        if resume_from in tickers_only:
+            start_idx = tickers_only.index(resume_from) + 1
+            print(f"[ETL] {start_idx}번째 종목부터 재개 (건너뜀: {start_idx}개)\n")
+
+    if not limit:
+        _etl_state_init(total)
+
+    print(f"[ETL] 총 {total}개 종목 중 {total - start_idx}개 분석 시작...\n")
 
     success = skip = error = 0
     start_time = datetime.datetime.now()
 
     for i, (ticker, name, market) in enumerate(all_tickers, 1):
+        # 이어받기: 이미 처리한 종목 건너뜀
+        if i <= start_idx:
+            skip += 1
+            continue
+
         result = await process_ticker(ticker, name, market, skip_existing)
 
         status = result["status"]
@@ -211,12 +288,18 @@ async def run_etl(markets: list[str], limit: int = None, skip_existing: bool = F
         # DART rate limit 방지
         await asyncio.sleep(0.4)
 
-        # 진행률 표시 (100개마다)
+        # 100개마다 진행 상태 저장 + 메모리 정리
         if i % 100 == 0:
             elapsed = (datetime.datetime.now() - start_time).seconds
-            eta = int(elapsed / i * (total - i))
+            eta = int(elapsed / max(i - start_idx, 1) * (total - i))
             print(f"\n  ── 진행률: {i}/{total} | 성공:{success} 스킵:{skip} 실패:{error} | "
                   f"경과:{elapsed//60}분 | 예상 잔여:{eta//60}분 ──\n")
+            if not limit:
+                _etl_state_update(ticker, i)
+            gc.collect()  # 메모리 누수 방지
+
+    if not limit:
+        _etl_state_done()
 
     elapsed_total = (datetime.datetime.now() - start_time).seconds
     print(f"\n{'='*60}")

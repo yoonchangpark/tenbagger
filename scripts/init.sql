@@ -139,3 +139,66 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user   ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_user       ON watchlist(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_ticker     ON watchlist(ticker);
 CREATE INDEX IF NOT EXISTS idx_payments_user        ON payments(user_id);
+
+-- =============================================
+-- Phase 2: 구독 가치 강화 스키마 (v2.1 추가)
+-- =============================================
+
+-- ETL 실행 상태 (재배포 후 이어받기용)
+CREATE TABLE IF NOT EXISTS etl_run_state (
+    id          SERIAL PRIMARY KEY,
+    run_date    DATE UNIQUE NOT NULL,
+    status      VARCHAR(20) DEFAULT 'running',  -- running | done | failed
+    last_ticker VARCHAR(10),
+    processed   INTEGER DEFAULT 0,
+    total       INTEGER DEFAULT 0,
+    started_at  TIMESTAMPTZ DEFAULT NOW(),
+    finished_at TIMESTAMPTZ
+);
+
+-- 등급 이력 스냅샷 (가상 포트폴리오 시뮬레이터 기반 데이터)
+-- ETL 실행마다 당일 1건씩 누적 → 날짜별 TENBAGGER 등급 이력 추적
+CREATE TABLE IF NOT EXISTS score_history (
+    id            SERIAL PRIMARY KEY,
+    ticker        VARCHAR(10) NOT NULL,
+    name          VARCHAR(100),
+    market        VARCHAR(20),
+    grade         VARCHAR(20) NOT NULL,
+    total_score   FLOAT,
+    growth_score  FLOAT,
+    close_price   BIGINT,         -- ETL 실행 당일 종가 (매수 기준가)
+    snapshot_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(ticker, snapshot_date)
+);
+CREATE INDEX IF NOT EXISTS idx_score_history_grade  ON score_history(grade, snapshot_date DESC);
+CREATE INDEX IF NOT EXISTS idx_score_history_ticker ON score_history(ticker, snapshot_date DESC);
+CREATE INDEX IF NOT EXISTS idx_score_history_date   ON score_history(snapshot_date DESC);
+
+-- 주가 일간 캐시 (pykrx 반복 호출 방지 — 차트·스파크라인·포트폴리오 공유)
+CREATE TABLE IF NOT EXISTS price_daily_cache (
+    id          SERIAL PRIMARY KEY,
+    ticker      VARCHAR(10) NOT NULL,
+    trade_date  DATE NOT NULL,
+    open_price  INTEGER,
+    close_price INTEGER,
+    high_price  INTEGER,
+    low_price   INTEGER,
+    volume      BIGINT,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(ticker, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_price_cache ON price_daily_cache(ticker, trade_date DESC);
+
+-- 가상 포트폴리오 설정 (사용자별 저장)
+CREATE TABLE IF NOT EXISTS virtual_portfolios (
+    id             SERIAL PRIMARY KEY,
+    user_id        INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name           VARCHAR(100) DEFAULT '내 포트폴리오',
+    invest_amount  BIGINT DEFAULT 100000000,     -- 투자 원금 (원)
+    grade_filter   TEXT DEFAULT 'TENBAGGER',     -- 쉼표 구분 복수 가능
+    weight_method  VARCHAR(20) DEFAULT 'equal',  -- equal | score_weighted
+    start_date     DATE NOT NULL,
+    created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_virtual_portfolio_user ON virtual_portfolios(user_id);

@@ -125,6 +125,18 @@ def save_score(company_id: int, ticker: str, name: str, market: str,
             :close, :market_cap, NOW()
         )
     """)
+    hist_sql = text("""
+        INSERT INTO score_history
+            (ticker, name, market, grade, total_score, growth_score, close_price, snapshot_date)
+        VALUES
+            (:ticker, :name, :market, :grade, :total_score, :growth_score, :close, CURRENT_DATE)
+        ON CONFLICT (ticker, snapshot_date) DO UPDATE
+            SET grade       = EXCLUDED.grade,
+                total_score = EXCLUDED.total_score,
+                growth_score= EXCLUDED.growth_score,
+                close_price = EXCLUDED.close_price
+    """)
+
     with SessionLocal() as session:
         session.execute(del_sql, {"ticker": ticker})
         session.execute(ins_sql, {
@@ -153,6 +165,19 @@ def save_score(company_id: int, ticker: str, name: str, market: str,
             "close": close,
             "market_cap": market_cap,
         })
+        # score_history 스냅샷 저장 (날짜별 1건 — 포트폴리오 시뮬레이터 기반 데이터)
+        try:
+            session.execute(hist_sql, {
+                "ticker": ticker,
+                "name": name,
+                "market": market,
+                "grade": score.get("grade", "AVOID"),
+                "total_score": score.get("total_score"),
+                "growth_score": score.get("growth_score"),
+                "close": close,
+            })
+        except Exception as e:
+            print(f"[REPO] score_history 저장 오류 (무시): {e}")
         session.commit()
 
 
