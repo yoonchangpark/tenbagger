@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>백테스트 · 텐배거 헌터</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     :root {
       --bg: #0a0f1e; --surface: #111827; --surface2: #1f2937;
@@ -319,6 +320,7 @@
         const btData = await res.json();
         renderSingleResult(btData);
         loadBacktestExplanation(btData);
+        loadPriceChart(btData.ticker, btData.base_year, null, "3y");
       } else {
         const holdYears = document.getElementById("btMHoldYears").value;
         const limit = document.getElementById("btMLimit").value;
@@ -397,6 +399,23 @@
             </div>`).join("")}
         </div>
 
+        <!-- 주가 차트 -->
+        <div id="priceChartCard" style="margin-top:20px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px;display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:700">📈 주가 히스토리</div>
+            <div id="priceChartPeriodBtns" style="display:flex;gap:6px">
+              ${["3y","5y"].map(p => `<button onclick="loadPriceChart('${d.ticker}','${d.base_year}',this,'${p}')"
+                style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid var(--border);
+                background:${p==='3y'?'rgba(59,130,246,.15)':'transparent'};
+                color:${p==='3y'?'#93c5fd':'var(--muted)'};cursor:pointer">${p}</button>`).join("")}
+            </div>
+          </div>
+          <div id="priceChartContainer" style="height:220px;border-radius:8px;overflow:hidden"></div>
+          <div id="priceChartNote" style="font-size:10px;color:#6b7280;margin-top:8px">
+            📍 ${d.base_year}년 기준 분석 시점 표시
+          </div>
+        </div>
+
         <!-- AI 설명 박스 (비동기 로드) -->
         <div id="aiExplainBox" style="margin-top:20px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2);border-radius:12px;padding:18px;display:none">
           <div style="font-size:12px;color:#a78bfa;font-weight:700;margin-bottom:10px">🤖 AI 백테스트 분석</div>
@@ -431,6 +450,90 @@
       txt.textContent = data.explanation || "설명을 가져올 수 없습니다.";
     } catch(e) {
       txt.textContent = "AI 설명 로드 실패: " + e.message;
+    }
+  }
+
+  let _priceChart = null;  // Lightweight Charts 인스턴스
+
+  async function loadPriceChart(ticker, baseYear, btnEl, period = "3y") {
+    const card = document.getElementById("priceChartCard");
+    const container = document.getElementById("priceChartContainer");
+    if (!card || !container) return;
+
+    // 버튼 활성화 표시
+    document.querySelectorAll("#priceChartPeriodBtns button").forEach(b => {
+      b.style.background = "transparent"; b.style.color = "var(--muted)";
+    });
+    if (btnEl) { btnEl.style.background = "rgba(59,130,246,.15)"; btnEl.style.color = "#93c5fd"; }
+
+    card.style.display = "block";
+    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;font-size:12px">주가 로딩 중...</div>`;
+
+    try {
+      const res = await fetch(`${API}/api/v2/price/history/${ticker}?period=${period}`);
+      if (!res.ok) throw new Error("주가 데이터 없음");
+      const pd = await res.json();
+      const priceData = pd.data || [];
+      if (!priceData.length) throw new Error("주가 데이터 없음");
+
+      container.innerHTML = "";
+
+      // 기존 차트 제거
+      if (_priceChart) { try { _priceChart.remove(); } catch(e){} _priceChart = null; }
+
+      _priceChart = LightweightCharts.createChart(container, {
+        width: container.clientWidth,
+        height: 220,
+        layout: { background: { color: "transparent" }, textColor: "#9ca3af" },
+        grid: { vertLines: { color: "#1f2937" }, horzLines: { color: "#1f2937" } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        rightPriceScale: { borderColor: "#374151" },
+        timeScale: { borderColor: "#374151", timeVisible: false },
+      });
+
+      const lineSeries = _priceChart.addLineSeries({
+        color: "#3b82f6",
+        lineWidth: 2,
+        priceLineVisible: false,
+      });
+
+      const lineData = priceData
+        .filter(r => r.close > 0)
+        .map(r => ({ time: r.date, value: r.close }));
+      lineSeries.setData(lineData);
+
+      // 분석 기준년도 마커
+      const markerDate = `${baseYear}-12-31`;
+      const hasMarker = lineData.some(r => r.time <= markerDate && r.time >= `${baseYear}-01-01`);
+      if (hasMarker) {
+        const nearestPoint = lineData.filter(r => r.time <= markerDate).slice(-1)[0];
+        if (nearestPoint) {
+          lineSeries.setMarkers([{
+            time: nearestPoint.time,
+            position: "belowBar",
+            color: "#f59e0b",
+            shape: "arrowUp",
+            text: `📊 ${baseYear}년 분석`,
+            size: 1,
+          }]);
+        }
+      }
+
+      // 고가/저가 표시
+      const note = document.getElementById("priceChartNote");
+      if (note && pd["52w_high"]) {
+        note.textContent = `고가 ₩${pd["52w_high"].toLocaleString()} / 저가 ₩${pd["52w_low"].toLocaleString()} · 📍 ${baseYear}년 분석 시점 표시`;
+      }
+
+      // 반응형
+      const ro = new ResizeObserver(() => {
+        if (_priceChart && container.clientWidth > 0)
+          _priceChart.applyOptions({ width: container.clientWidth });
+      });
+      ro.observe(container);
+
+    } catch (e) {
+      container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;font-size:12px">주가 차트 로드 실패: ${e.message}</div>`;
     }
   }
 
