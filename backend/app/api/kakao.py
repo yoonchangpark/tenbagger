@@ -364,6 +364,74 @@ def _get_top_stocks_sync() -> list[dict]:
         return []
 
 
+def _last_trading_day() -> str:
+    """가장 최근 거래일 문자열 (주말 고려)"""
+    d = datetime.date.today()
+    # 토요일(5)→금요일, 일요일(6)→금요일
+    offset = {5: 1, 6: 2}.get(d.weekday(), 0)
+    return (d - datetime.timedelta(days=offset)).strftime("%Y%m%d")
+
+
+def _fetch_supply_demand_sync() -> dict:
+    """수급 신호: 외국인 순매수 TOP3 + 거래량 급증 TOP3 (pykrx)"""
+    result = {"foreign_buy": [], "volume_surge": []}
+    try:
+        from pykrx import stock
+        date = _last_trading_day()
+
+        # ── 외국인 순매수 TOP3 (KOSPI) ────────────────────────────
+        try:
+            df = stock.get_market_net_purchases_of_equities_by_ticker(
+                date, date, "KOSPI", "외국인"
+            )
+            if not df.empty:
+                # 순매수거래대금 컬럼 찾기
+                net_col = next((c for c in df.columns if "순매수" in c and "대금" in c), None)
+                if net_col:
+                    df = df[df[net_col] > 0].sort_values(net_col, ascending=False)
+                    for ticker in df.head(3).index:
+                        name = stock.get_market_ticker_name(ticker)
+                        amount = int(df.loc[ticker, net_col] / 1e8)  # 억원
+                        if name and amount > 0:
+                            result["foreign_buy"].append({"name": name, "amount": amount})
+        except Exception as e:
+            print(f"[SUPPLY] 외국인 순매수 오류: {e}")
+
+        # ── 거래량 급증 TOP3 (KOSPI) ──────────────────────────────
+        try:
+            # 오늘 vs 3거래일 전 비교 (주말 고려해 7일 전 날짜 사용)
+            prev_date = (datetime.date.today() - datetime.timedelta(days=7)).strftime("%Y%m%d")
+            today_df = stock.get_market_ohlcv_by_ticker(date, market="KOSPI")
+            prev_df  = stock.get_market_ohlcv_by_ticker(prev_date, market="KOSPI")
+
+            if not today_df.empty and not prev_df.empty:
+                vol_col  = next((c for c in today_df.columns if "거래량" in c), None)
+                close_col = next((c for c in today_df.columns if "종가" in c), None)
+                if vol_col:
+                    common    = today_df.index.intersection(prev_df.index)
+                    today_vol = today_df.loc[common, vol_col]
+                    prev_vol  = prev_df.loc[common, vol_col].replace(0, 1)
+                    ratio     = (today_vol / prev_vol).replace([float("inf")], 0)
+                    # 3배 이상, 거래량 10만주 이상인 종목만
+                    filtered  = ratio[(ratio >= 3) & (today_vol >= 100_000)]
+
+                    for ticker in filtered.nlargest(3).index:
+                        name  = stock.get_market_ticker_name(ticker)
+                        r     = round(ratio[ticker], 1)
+                        close = int(today_df.loc[ticker, close_col]) if close_col else 0
+                        if name:
+                            result["volume_surge"].append({
+                                "name": name, "ratio": r, "close": close
+                            })
+        except Exception as e:
+            print(f"[SUPPLY] 거래량 급증 오류: {e}")
+
+    except Exception as e:
+        print(f"[SUPPLY] pykrx 로드 오류: {e}")
+
+    return result
+
+
 def _fetch_dart_disclosures_sync() -> list:
     try:
         import requests
@@ -439,7 +507,8 @@ def _fmt_idx(d: dict | None, is_price: bool = False) -> str:
 
 
 def _format_market_text_fallback(indices: dict, usdkrw: float | None,
-                                  disclosures: list, top_stocks: list) -> str:
+                                  disclosures: list, top_stocks: list,
+                                  supply: dict = None) -> str:
     today = datetime.date.today().strftime("%Y.%m.%d")
     lines = [f"📊 {today} 시장 현황\n"]
 
@@ -477,10 +546,24 @@ def _format_market_text_fallback(indices: dict, usdkrw: float | None,
         lines.append("\n💡 주목 포인트")
         lines.extend(highlights[:3])
 
+    # 수급 신호
+    supply = supply or {}
+    foreign = supply.get("foreign_buy", [])
+    surge   = supply.get("volume_surge", [])
+    if foreign:
+        lines.append("\n🌍 외국인 순매수 TOP3")
+        for s in foreign:
+            lines.append(f"• {s['name']} +{s['amount']}억원")
+    if surge:
+        lines.append("\n⚡ 거래량 급증")
+        for s in surge:
+            lines.append(f"• {s['name']} ({s['ratio']}배↑)")
+
     return "\n".join(lines)
 
 
-async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list) -> str:
+async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list,
+                               supply: dict = None) -> str:
     """GPT는 시장 코멘트만 생성. 종목 섹션은 실제 DB 데이터로 직접 추가 (환각 방지)."""
     from app.core.config import settings
     openai_key = settings.openai_api_key or os.environ.get("OPENAI_API_KEY", "")
@@ -535,7 +618,9 @@ async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list
         gpt_text = resp.choices[0].message.content.strip()
     except Exception as e:
         print(f"[GPT_MARKET] 오류: {e}")
-        gpt_text = _format_market_text_fallback(indices, None, disclosures, [])
+        gpt_text = _format_market_text_fallback(indices, None, disclosures, [], supply)
+
+    supply = supply or {}
 
     # ★ 주목 포인트 — 실제 공시 데이터로만 (GPT 환각 방지)
     highlights = []
@@ -546,13 +631,23 @@ async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list
     if highlights:
         gpt_text += "\n\n💡 주목 포인트\n" + "\n".join(highlights[:3])
 
+    # ★ 수급 신호 — 실제 pykrx 데이터로만 (GPT 환각 방지)
+    foreign = supply.get("foreign_buy", [])
+    surge   = supply.get("volume_surge", [])
+    if foreign:
+        gpt_text += "\n\n🌍 외국인 순매수 TOP3\n"
+        gpt_text += "\n".join(f"• {s['name']} +{s['amount']}억원" for s in foreign)
+    if surge:
+        gpt_text += "\n\n⚡ 거래량 급증\n"
+        gpt_text += "\n".join(f"• {s['name']} ({s['ratio']}배↑)" for s in surge)
+
     # ★ 종목 섹션은 실제 DB 데이터로만 직접 붙임 (GPT 환각 방지)
     if top_stocks:
-        stock_lines = ["\n⭐ 주목 종목 (텐배거 스코어 TOP3)"]
+        stock_lines = ["\n\n⭐ 주목 종목 (텐배거 스코어 TOP3)"]
         for s in top_stocks:
             score = f"{s['total_score']:.1f}점"
             stock_lines.append(f"• {s['name']} ({s['ticker']}) {score}")
-        gpt_text += "\n" + "\n".join(stock_lines)
+        gpt_text += "\n".join(stock_lines)
 
     return gpt_text
 
@@ -564,29 +659,30 @@ async def _handle_market_ai() -> dict:
 
     # 카카오 타임아웃 5초 → 전체 4초 안에 완료
     try:
-        # 1단계: 데이터 수집 (2.5초 제한)
+        # 1단계: 데이터 수집 (3초 제한) — 지수/공시/수급 병렬 수집
         try:
-            indices, disclosures, top_stocks = await asyncio.wait_for(
+            indices, disclosures, top_stocks, supply = await asyncio.wait_for(
                 asyncio.gather(
                     asyncio.to_thread(_fetch_market_indices_sync),
                     asyncio.to_thread(_fetch_dart_disclosures_sync),
                     asyncio.to_thread(_get_top_stocks_sync),
+                    asyncio.to_thread(_fetch_supply_demand_sync),
                 ),
-                timeout=2.5,
+                timeout=3.0,
             )
         except asyncio.TimeoutError:
             print("[MARKET_AI] 데이터 수집 타임아웃, 폴백 사용")
-            indices, disclosures, top_stocks = {}, [], []
+            indices, disclosures, top_stocks, supply = {}, [], [], {}
 
         # 2단계: GPT 요약 (1.5초 제한) → 시간 초과 시 즉시 폴백
         try:
             analysis = await asyncio.wait_for(
-                _gpt_market_summary(indices, disclosures, top_stocks),
+                _gpt_market_summary(indices, disclosures, top_stocks, supply),
                 timeout=1.5,
             )
         except asyncio.TimeoutError:
             print("[MARKET_AI] GPT 타임아웃, 폴백 텍스트 사용")
-            analysis = _format_market_text_fallback(indices, None, disclosures, top_stocks)
+            analysis = _format_market_text_fallback(indices, None, disclosures, top_stocks, supply)
 
     except Exception as e:
         print(f"[MARKET_AI] 오류: {e}")
