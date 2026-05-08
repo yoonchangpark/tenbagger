@@ -113,6 +113,23 @@ def _flatten_topics(sentiments: list[dict], top_n: int = 5) -> list[str]:
 
 # ── 종목 뉴스 분석 ────────────────────────────────────────────────────────────
 
+# 투자 관련 키워드 (이게 제목에 없으면 GPT 호출 안 함 → 추가 30~50% 절약)
+INVESTMENT_KEYWORDS = [
+    "주가", "실적", "영업이익", "매출", "순이익", "적자", "흑자",
+    "상승", "하락", "급등", "급락", "신고가", "신저가",
+    "수주", "계약", "공급", "투자", "인수", "합병", "M&A",
+    "신제품", "출시", "특허", "임상", "승인", "허가",
+    "배당", "자사주", "유상증자", "무상증자", "분할",
+    "목표가", "투자의견", "리포트", "전망", "기대",
+    "리콜", "소송", "제재", "경고", "위반", "사고",
+]
+
+
+def _has_investment_keyword(title: str) -> bool:
+    """제목에 투자 관련 키워드가 있는지 체크"""
+    return any(kw in title for kw in INVESTMENT_KEYWORDS)
+
+
 async def analyze_ticker(
     ticker: str,
     name: str,
@@ -126,10 +143,13 @@ async def analyze_ticker(
         if not articles:
             return "no_news"
 
-        # Delta: 신규 기사만 필터
+        # Delta: 신규 기사만 + 투자 키워드 필터링 (비용 절약)
         new_articles = []
         with SessionLocal() as session:
             for art in articles:
+                # 투자 관련 키워드 없으면 스킵 (GPT 호출 없음)
+                if not _has_investment_keyword(art["title"]):
+                    continue
                 h = make_article_hash(art.get("url"), art["title"])
                 exists = session.execute(
                     text("SELECT 1 FROM news_articles WHERE article_hash = :h"),
@@ -139,7 +159,7 @@ async def analyze_ticker(
                     new_articles.append({**art, "hash": h})
 
         if not new_articles:
-            return "skip"  # 모두 기분석 → GPT 호출 없음
+            return "skip"  # 모두 기분석 or 키워드 미스 → GPT 호출 없음
 
         # GPT 배치 분석
         sentiments = await _analyze_articles_batch(new_articles, f"{name}({ticker})", client)
@@ -336,19 +356,31 @@ async def run_news_analysis(
         return
 
     # ── 2. 종목 뉴스 분석 ────────────────────────────────────────────────────
-    # score_cache에서 종목 목록 조회
+    # 비용 최적화: 등급 필터 종목 + 워치리스트 등록 종목 (UNION)
     with SessionLocal() as session:
-        query_parts = ["SELECT ticker, name FROM scores"]
-        params: dict = {}
         if grade_filter:
-            query_parts.append("WHERE grade = :grade")
-            params["grade"] = grade_filter
-        query_parts.append("ORDER BY total_score DESC")
-        if limit:
-            query_parts.append(f"LIMIT {limit}")
-        rows = session.execute(text(" ".join(query_parts)), params).fetchall()
+            # 등급 필터 + 워치리스트 종목 합집합 (워치리스트는 등급 무관 분석)
+            rows = session.execute(text("""
+                SELECT DISTINCT ticker, name FROM (
+                    SELECT s.ticker, s.name, s.total_score
+                    FROM scores s
+                    WHERE s.grade = :grade
+                    UNION
+                    SELECT w.ticker, w.name, COALESCE(s.total_score, 0) AS total_score
+                    FROM watchlist w
+                    LEFT JOIN scores s ON s.ticker = w.ticker
+                ) t
+                ORDER BY total_score DESC NULLS LAST
+            """), {"grade": grade_filter}).fetchall()
+        else:
+            query = "SELECT ticker, name FROM scores ORDER BY total_score DESC"
+            if limit:
+                query += f" LIMIT {limit}"
+            rows = session.execute(text(query)).fetchall()
 
     tickers = [(r.ticker, r.name) for r in rows]
+    if limit:
+        tickers = tickers[:limit]
     total = len(tickers)
     print(f"[NEWS] 종목 {total}개 뉴스 분석 시작...\n")
 
