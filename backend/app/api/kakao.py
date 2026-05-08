@@ -490,14 +490,14 @@ async def _gpt_market_summary(indices: dict, disclosures: list, top_stocks: list
         resp = await asyncio.wait_for(
             client.chat.completions.create(
                 model="gpt-4o-mini",
-                max_tokens=350,
+                max_tokens=200,
                 temperature=0.3,
                 messages=[
                     {"role": "system", "content": "한국 주식 장기투자 전문가. 카카오톡 형식으로 간결하게 답변. 종목명 언급 금지."},
                     {"role": "user", "content": prompt},
                 ],
             ),
-            timeout=10.0,
+            timeout=4.0,
         )
         gpt_text = resp.choices[0].message.content.strip()
     except Exception as e:
@@ -520,20 +520,36 @@ async def _handle_market_ai() -> dict:
     if cache_key in _market_cache:
         return _market_cache[cache_key]
 
+    # 카카오 타임아웃 5초 → 전체 4초 안에 완료
     try:
-        indices, disclosures, top_stocks = await asyncio.wait_for(
-            asyncio.gather(
-                asyncio.to_thread(_fetch_market_indices_sync),
-                asyncio.to_thread(_fetch_dart_disclosures_sync),
-                asyncio.to_thread(_get_top_stocks_sync),
-            ),
-            timeout=8.0,
-        )
-    except asyncio.TimeoutError:
-        print("[MARKET_AI] 데이터 수집 타임아웃, 폴백 사용")
-        indices, disclosures, top_stocks = {}, [], []
+        # 1단계: 데이터 수집 (2.5초 제한)
+        try:
+            indices, disclosures, top_stocks = await asyncio.wait_for(
+                asyncio.gather(
+                    asyncio.to_thread(_fetch_market_indices_sync),
+                    asyncio.to_thread(_fetch_dart_disclosures_sync),
+                    asyncio.to_thread(_get_top_stocks_sync),
+                ),
+                timeout=2.5,
+            )
+        except asyncio.TimeoutError:
+            print("[MARKET_AI] 데이터 수집 타임아웃, 폴백 사용")
+            indices, disclosures, top_stocks = {}, [], []
 
-    analysis = await _gpt_market_summary(indices, disclosures, top_stocks)
+        # 2단계: GPT 요약 (1.5초 제한) → 시간 초과 시 즉시 폴백
+        try:
+            analysis = await asyncio.wait_for(
+                _gpt_market_summary(indices, disclosures, top_stocks),
+                timeout=1.5,
+            )
+        except asyncio.TimeoutError:
+            print("[MARKET_AI] GPT 타임아웃, 폴백 텍스트 사용")
+            analysis = _format_market_text_fallback(indices, None, disclosures, top_stocks)
+
+    except Exception as e:
+        print(f"[MARKET_AI] 오류: {e}")
+        analysis = "📊 시장 데이터를 불러오는 중입니다.\n잠시 후 다시 시도해주세요."
+
     result = _simple_text(analysis, _main_quick_replies())
     _market_cache[cache_key] = result
     return result
