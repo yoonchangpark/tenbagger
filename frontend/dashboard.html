@@ -391,37 +391,48 @@
   </div>
 
   <div class="tab-panel" id="tab-news">
+    <!-- 업종 감성 히트맵 -->
     <div class="section-header">
       <div>
-        <div class="section-title">주식 뉴스 검색</div>
-        <div class="section-desc">네이버 뉴스에서 관심 종목·섹터 뉴스 검색</div>
+        <div class="section-title">📰 AI 뉴스 감성 분석</div>
+        <div class="section-desc">GPT-4o-mini가 매일 새벽 전종목·전업종 뉴스를 분석해 투자 시그널을 제공합니다</div>
+      </div>
+      <button class="refresh-btn" onclick="loadNewsDashboard()">새로고침</button>
+    </div>
+
+    <!-- 업종 히트맵 -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;">🏭 업종별 감성 현황</div>
+      <div id="sectorHeatmap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+        <div class="loading-row" style="grid-column:1/-1;padding:32px;"><div class="spinner"></div></div>
       </div>
     </div>
-    <div class="news-search-wrap">
-      <div class="news-search-box">
-        <input id="newsInput" placeholder="종목명·키워드 입력 (예: 삼성전자 실적, 반도체 수출)"
-               onkeydown="if(event.key==='Enter')openNaverNews()" />
-        <button onclick="openNaverNews()">검색</button>
-      </div>
+
+    <!-- 시그널 탭 -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <button class="filter-btn active" id="sigBtn-BUY_SIGNAL"  onclick="loadSignalStocks('BUY_SIGNAL',this)">🟢 매수 신호</button>
+      <button class="filter-btn"        id="sigBtn-POSITIVE"    onclick="loadSignalStocks('POSITIVE',this)">🟡 긍정적</button>
+      <button class="filter-btn"        id="sigBtn-NEUTRAL"     onclick="loadSignalStocks('NEUTRAL',this)">⚪ 중립</button>
+      <button class="filter-btn"        id="sigBtn-CAUTION"     onclick="loadSignalStocks('CAUTION',this)">🟠 주의</button>
+      <button class="filter-btn"        id="sigBtn-SELL_SIGNAL" onclick="loadSignalStocks('SELL_SIGNAL',this)">🔴 매도 신호</button>
     </div>
-    <div class="news-chips">
-      <span class="news-chip" onclick="setNewsQuery('삼성전자')">삼성전자</span>
-      <span class="news-chip" onclick="setNewsQuery('반도체 수출')">반도체 수출</span>
-      <span class="news-chip" onclick="setNewsQuery('코스피 상승')">코스피 상승</span>
-      <span class="news-chip" onclick="setNewsQuery('텐배거 주식')">텐배거 주식</span>
-      <span class="news-chip" onclick="setNewsQuery('DART 공시')">DART 공시</span>
-      <span class="news-chip" onclick="setNewsQuery('금리 인하')">금리 인하</span>
-      <span class="news-chip" onclick="setNewsQuery('2차전지 소재')">2차전지 소재</span>
-      <span class="news-chip" onclick="setNewsQuery('바이오 임상')">바이오 임상</span>
+
+    <!-- 시그널 종목 리스트 -->
+    <div id="signalStockList">
+      <div class="loading-row"><div class="spinner"></div></div>
     </div>
-    <div class="news-cta">
-      <div class="big-icon">📰</div>
-      <h3>네이버 뉴스로 검색</h3>
-      <p>위에서 키워드를 입력하거나 빠른 태그를 클릭하면<br>네이버 뉴스에서 관련 기사를 바로 확인할 수 있습니다.</p>
-      <div id="newsPreviewLink" style="margin-bottom:16px;display:none;">
-        <a id="newsLink" href="#" target="_blank" rel="noopener" class="open-btn">🔗 뉴스 검색 열기</a>
+
+    <!-- 종목 감성 조회 -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-top:24px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">🔍 종목별 뉴스 감성 조회</div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <input id="newsSentimentInput" placeholder="종목코드 (예: 005930)"
+               style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;"
+               onkeydown="if(event.key==='Enter')loadTickerSentiment()" />
+        <button onclick="loadTickerSentiment()"
+                style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:8px;padding:10px 22px;color:#fff;font-weight:700;cursor:pointer;">조회</button>
       </div>
-      <p style="font-size:11px;opacity:.5;">검색 결과는 새 탭에서 네이버 뉴스로 열립니다.</p>
+      <div id="tickerSentimentResult"></div>
     </div>
   </div>
 
@@ -440,6 +451,7 @@
     btn.classList.add("active");
     if (id === 'watchlist') loadWatchlist();
     if (id === 'portfolio') runPortfolioSimulation();
+    if (id === 'news') loadNewsDashboard();
   }
 
   // ── 관심종목 ──────────────────────────────────────────────────
@@ -1332,23 +1344,176 @@
   }
 
   // ────────────────────────────────────────────
-  // TAB 3: News
+  // TAB: News Sentiment Dashboard
   // ────────────────────────────────────────────
-  function setNewsQuery(q) {
-    document.getElementById("newsInput").value = q;
-    openNaverNews();
+
+  let _newsLoaded = false;
+  let _currentSignal = 'BUY_SIGNAL';
+
+  async function loadNewsDashboard() {
+    if (_newsLoaded) return;
+    _newsLoaded = true;
+    await Promise.all([loadSectorHeatmap(), loadSignalStocks('BUY_SIGNAL', document.getElementById('sigBtn-BUY_SIGNAL'))]);
   }
 
-  function openNaverNews() {
-    const q = document.getElementById("newsInput").value.trim();
-    if (!q) return;
-    const url = "https://search.naver.com/search.naver?where=news&query=" + encodeURIComponent(q);
-    const linkEl = document.getElementById("newsLink");
-    const previewDiv = document.getElementById("newsPreviewLink");
-    linkEl.href = url;
-    linkEl.textContent = "🔗 \"" + q + "\" 뉴스 검색 열기";
-    previewDiv.style.display = "block";
-    window.open(url, "_blank", "noopener");
+  async function loadSectorHeatmap() {
+    const el = document.getElementById('sectorHeatmap');
+    try {
+      const res = await fetch(API + '/api/v2/news/sector-overview');
+      const data = await res.json();
+      if (!data.sectors || !data.sectors.length) {
+        el.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--muted);font-size:13px;">
+          업종 감성 데이터가 없습니다.<br><small>뉴스 분석 워커 실행 후 확인하세요 (매일 새벽 4시 자동 실행)</small></div>`;
+        return;
+      }
+      el.innerHTML = data.sectors.map(s => `
+        <div onclick="loadSectorDetail('${esc(s.sector)}')" style="
+          background:var(--surface2);border:1px solid ${s.avg_score !== null ? s.signal_color + '40' : 'var(--border)'};
+          border-radius:12px;padding:14px 16px;cursor:pointer;transition:all .2s;
+        " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:22px;margin-bottom:6px;">${s.signal_emoji}</div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${esc(s.sector)}</div>
+          <div style="font-size:11px;color:${s.avg_score !== null ? s.signal_color : 'var(--muted)'}; font-weight:600;">${s.signal_label}</div>
+          ${s.avg_score !== null ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">감성: ${(s.avg_score >= 0 ? '+' : '') + s.avg_score.toFixed(2)}</div>` : ''}
+          ${s.key_topics && s.key_topics.length ? `<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">${s.key_topics.slice(0,2).map(t => `<span style="font-size:10px;background:rgba(255,255,255,.07);border-radius:4px;padding:2px 6px;color:var(--muted);">${esc(t)}</span>`).join('')}</div>` : ''}
+        </div>
+      `).join('');
+    } catch(e) {
+      el.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--muted);">업종 데이터 로드 실패</div>`;
+    }
+  }
+
+  async function loadSectorDetail(sector) {
+    try {
+      const res = await fetch(API + '/api/v2/news/sector/' + encodeURIComponent(sector));
+      const d = await res.json();
+      if (!d.has_data) {
+        alert(`${sector} 업종 데이터가 없습니다.`);
+        return;
+      }
+      const l = d.latest;
+      const articles = (d.recent_articles || []).slice(0, 5).map(a =>
+        `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+          <div style="font-size:13px;font-weight:600;color:${a.score > 0.1 ? '#34d399' : a.score < -0.1 ? '#f87171' : 'var(--text)'};">
+            ${a.score > 0.1 ? '🟢' : a.score < -0.1 ? '🔴' : '⚪'} ${esc(a.title)}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">${a.published_at ? a.published_at.slice(0,16) : ''}</div>
+        </div>`
+      ).join('');
+      const msg = `${l.signal_emoji} ${sector} — ${l.signal_label} (감성점수: ${(l.avg_score >= 0 ? '+' : '') + l.avg_score.toFixed(2)})\n\n주요 키워드: ${(l.key_topics || []).join(', ') || '없음'}\n기사 수: ${l.article_count}건`;
+      alert(msg);
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  async function loadSignalStocks(signal, btnEl) {
+    _currentSignal = signal;
+    document.querySelectorAll('[id^="sigBtn-"]').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+
+    const el = document.getElementById('signalStockList');
+    el.innerHTML = `<div class="loading-row"><div class="spinner"></div></div>`;
+    try {
+      const res = await fetch(API + `/api/v2/news/signals?signal=${signal}&days=2&limit=30`);
+      const data = await res.json();
+      if (!data.stocks || !data.stocks.length) {
+        el.innerHTML = `<div class="empty-row">
+          ${data.signal_emoji || '⬜'} <strong>${data.signal_label || signal}</strong> 시그널 종목이 없습니다.<br>
+          <small style="color:var(--muted);">뉴스 분석이 완료된 후 나타납니다</small>
+        </div>`;
+        return;
+      }
+      const gradeColors = {TENBAGGER:'#10b981',COMPOUNDER:'#3b82f6',WATCHLIST:'#f59e0b',AVOID:'#6b7280'};
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
+          ${data.stocks.map(s => `
+            <div onclick="jumpToAnalysis('${s.ticker}')" style="
+              background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;
+              cursor:pointer;transition:all .2s;
+            " onmouseover="this.style.borderColor='rgba(99,102,241,.5)'" onmouseout="this.style.borderColor='var(--border)'">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+                <div>
+                  <div style="font-size:14px;font-weight:700;">${esc(s.name)}</div>
+                  <div style="font-size:11px;color:var(--muted);">${s.ticker}</div>
+                </div>
+                <div style="text-align:right;">
+                  ${s.grade ? `<div style="font-size:11px;font-weight:700;color:${gradeColors[s.grade]||'var(--muted)'};">${s.grade}</div>` : ''}
+                  ${s.close ? `<div style="font-size:12px;color:var(--muted);">${Number(s.close).toLocaleString()}원</div>` : ''}
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <div style="font-size:20px;">${data.signal_emoji}</div>
+                <div>
+                  <div style="font-size:12px;font-weight:700;color:var(--text);">${data.signal_label}</div>
+                  <div style="font-size:11px;color:var(--muted);">감성: ${(s.avg_score >= 0 ? '+' : '') + s.avg_score.toFixed(2)} · ${s.article_count}건</div>
+                </div>
+              </div>
+              ${s.key_topics && s.key_topics.length ? `
+                <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                  ${s.key_topics.slice(0,4).map(t => `<span style="font-size:10px;background:rgba(255,255,255,.07);border-radius:4px;padding:2px 6px;color:var(--muted);">${esc(t)}</span>`).join('')}
+                </div>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } catch(e) {
+      el.innerHTML = `<div class="empty-row">데이터 로드 실패</div>`;
+    }
+  }
+
+  async function loadTickerSentiment() {
+    const ticker = document.getElementById('newsSentimentInput').value.trim();
+    if (!ticker) return;
+    const el = document.getElementById('tickerSentimentResult');
+    el.innerHTML = `<div class="loading-row"><div class="spinner"></div></div>`;
+    try {
+      const res = await fetch(API + `/api/v2/news/sentiment/${ticker}?days=30`);
+      const d = await res.json();
+      if (!d.has_data) {
+        el.innerHTML = `<div class="empty-row">${d.message || '데이터 없음'}</div>`;
+        return;
+      }
+      const l = d.latest;
+      el.innerHTML = `
+        <div style="background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <div style="font-size:36px;">${l.signal_emoji}</div>
+            <div>
+              <div style="font-size:16px;font-weight:700;">${esc(d.name || ticker)}</div>
+              <div style="font-size:13px;color:${l.signal_color};font-weight:600;">${l.signal_label}</div>
+              <div style="font-size:12px;color:var(--muted);">감성점수: ${(l.avg_score >= 0 ? '+' : '') + l.avg_score.toFixed(3)} · 분석기사 ${l.article_count}건 · ${l.date}</div>
+            </div>
+          </div>
+          ${l.key_topics && l.key_topics.length ? `
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${l.key_topics.map(t => `<span style="font-size:11px;background:rgba(255,255,255,.1);border-radius:6px;padding:3px 10px;color:var(--text);">#${esc(t)}</span>`).join('')}
+            </div>
+          ` : ''}
+        </div>
+        ${d.recent_articles && d.recent_articles.length ? `
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px;">최근 분석 기사</div>
+          ${d.recent_articles.map(a => `
+            <div style="padding:10px;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:flex-start;gap:8px;">
+                <span style="font-size:16px;flex-shrink:0;">${a.score > 0.1 ? '🟢' : a.score < -0.1 ? '🔴' : '⚪'}</span>
+                <div>
+                  <div style="font-size:13px;font-weight:600;line-height:1.4;">${esc(a.title)}</div>
+                  <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+                    감성 ${(a.score >= 0 ? '+' : '') + a.score.toFixed(2)}
+                    ${a.topics && a.topics.length ? ' · ' + a.topics.join(', ') : ''}
+                    ${a.published_at ? ' · ' + a.published_at.slice(0,10) : ''}
+                  </div>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        ` : ''}
+      `;
+    } catch(e) {
+      el.innerHTML = `<div class="empty-row">조회 실패: ${e.message}</div>`;
+    }
   }
 
   // ── Util ──

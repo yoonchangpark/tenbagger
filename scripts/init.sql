@@ -202,3 +202,66 @@ CREATE TABLE IF NOT EXISTS virtual_portfolios (
     created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_virtual_portfolio_user ON virtual_portfolios(user_id);
+
+-- =============================================
+-- Phase 5: 뉴스 감성 분석 스키마 (v2.2 추가)
+-- =============================================
+
+-- 수집된 뉴스 기사 (article_hash로 중복 방지 → Delta 업데이트)
+CREATE TABLE IF NOT EXISTS news_articles (
+    id              SERIAL PRIMARY KEY,
+    ticker          VARCHAR(10),          -- NULL이면 업종 뉴스
+    sector          VARCHAR(50),          -- 업종 뉴스일 때 사용
+    article_hash    VARCHAR(64) UNIQUE NOT NULL,  -- SHA256(url or title)
+    title           TEXT NOT NULL,
+    url             TEXT,
+    published_at    TIMESTAMPTZ,
+    source          VARCHAR(100),
+    sentiment_score FLOAT,               -- -1.0 ~ +1.0
+    sentiment_label VARCHAR(20),         -- positive | neutral | negative
+    key_topics      TEXT[],              -- GPT 추출 키워드 (배열)
+    analyzed_at     TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_news_ticker   ON news_articles(ticker, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_sector   ON news_articles(sector, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_hash     ON news_articles(article_hash);
+CREATE INDEX IF NOT EXISTS idx_news_analyzed ON news_articles(analyzed_at DESC);
+
+-- 종목별 일간 뉴스 감성 집계 (API 응답용)
+CREATE TABLE IF NOT EXISTS news_sentiment (
+    id              SERIAL PRIMARY KEY,
+    ticker          VARCHAR(10) NOT NULL,
+    name            VARCHAR(100),
+    sentiment_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+    avg_score       FLOAT,               -- 평균 감성 점수 (-1~+1)
+    signal          VARCHAR(20),         -- BUY_SIGNAL | SELL_SIGNAL | CAUTION | NEUTRAL
+    article_count   INTEGER DEFAULT 0,
+    positive_count  INTEGER DEFAULT 0,
+    negative_count  INTEGER DEFAULT 0,
+    neutral_count   INTEGER DEFAULT 0,
+    key_topics      TEXT[],              -- 주요 키워드 Top5
+    summary         TEXT,               -- GPT 요약 (1~2문장)
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(ticker, sentiment_date)
+);
+CREATE INDEX IF NOT EXISTS idx_sentiment_ticker ON news_sentiment(ticker, sentiment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_sentiment_signal ON news_sentiment(signal, sentiment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_sentiment_date   ON news_sentiment(sentiment_date DESC);
+
+-- 업종별 일간 뉴스 감성 집계
+CREATE TABLE IF NOT EXISTS sector_sentiment (
+    id              SERIAL PRIMARY KEY,
+    sector          VARCHAR(50) NOT NULL,
+    sentiment_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+    avg_score       FLOAT,
+    signal          VARCHAR(20),
+    article_count   INTEGER DEFAULT 0,
+    positive_count  INTEGER DEFAULT 0,
+    negative_count  INTEGER DEFAULT 0,
+    key_topics      TEXT[],
+    summary         TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(sector, sentiment_date)
+);
+CREATE INDEX IF NOT EXISTS idx_sector_sentiment      ON sector_sentiment(sector, sentiment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_sector_sentiment_date ON sector_sentiment(sentiment_date DESC);

@@ -16,6 +16,7 @@ from app.api.payment import router as payment_router
 from app.api.watchlist import router as watchlist_router
 from app.api.admin import router as admin_router
 from app.api.v2_portfolio import router as portfolio_router
+from app.api.v2_news import router as news_router
 from app.core.database import check_db, SessionLocal
 
 
@@ -71,6 +72,17 @@ def _run_advisor_job():
         print(f"❌ [SCHEDULER] 어드바이저 오류: {e}")
 
 
+async def _run_news_job():
+    """매일 새벽 4시(KST) 뉴스 감성 분석 실행 (ETL 완료 후)"""
+    print("📰 [SCHEDULER] 뉴스 감성 분석 자동 시작...")
+    try:
+        from app.workers.news_worker import run_news_analysis
+        await run_news_analysis(grade_filter=None, limit=None, sector_only=False)
+        print("✅ [SCHEDULER] 뉴스 감성 분석 완료")
+    except Exception as e:
+        print(f"❌ [SCHEDULER] 뉴스 분석 오류: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -91,6 +103,15 @@ async def lifespan(app: FastAPI):
             replace_existing=True,
         )
 
+        # 매일 새벽 4:00 KST — 뉴스 감성 분석 (ETL 완료 후)
+        scheduler.add_job(
+            _run_news_job,
+            CronTrigger(hour=4, minute=0, timezone="Asia/Seoul"),
+            id="news_daily",
+            name="Daily News Sentiment",
+            replace_existing=True,
+        )
+
         # 매일 새벽 7:00 KST — 일일 어드바이저 리포트
         scheduler.add_job(
             lambda: asyncio.get_event_loop().run_in_executor(None, _run_advisor_job),
@@ -101,7 +122,7 @@ async def lifespan(app: FastAPI):
         )
 
         scheduler.start()
-        print("✅ [SCHEDULER] 스케줄러 시작: ETL 02:00 KST, 리포트 07:00 KST")
+        print("✅ [SCHEDULER] 스케줄러 시작: ETL 02:00 | 뉴스 04:00 | 리포트 07:00 KST")
     except Exception as e:
         print(f"⚠️ [SCHEDULER] 스케줄러 시작 실패 (무시): {e}")
 
@@ -135,6 +156,7 @@ app.include_router(payment_router)
 app.include_router(watchlist_router)
 app.include_router(admin_router)
 app.include_router(portfolio_router)
+app.include_router(news_router)
 
 
 @app.get("/api/health")
