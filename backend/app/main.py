@@ -74,19 +74,18 @@ def _run_advisor_job():
 
 async def _run_news_job():
     """
-    매일 새벽 4시(KST) 뉴스 감성 분석 실행 (ETL 완료 후)
-    비용 절약 ①: TENBAGGER + COMPOUNDER 등급만 분석 (~150종목, $0.15/일)
-    AVOID/WATCHLIST 등급은 추천 안 하므로 뉴스 분석 무의미
+    매일 새벽 4시(KST) 뉴스 감성 분석 실행 (Lazy 모드)
+    구독자 0명 단계 비용 최소화:
+    - 업종 분석만 자동 실행 (10개, ~$0.05/일)
+    - 종목 분석은 사용자 조회 시 lazy 트리거 (v2_news.py에서 처리)
+    - 구독자 100명+ 모이면 추가 등급 분석 켤 것
     """
-    print("📰 [SCHEDULER] 뉴스 감성 분석 자동 시작 (TENBAGGER+COMPOUNDER만)...")
+    print("📰 [SCHEDULER] 뉴스 감성 분석 자동 시작 (Lazy 모드: 업종만)...")
     try:
         from app.workers.news_worker import run_news_analysis
-        # 1. 업종 분석 (10개 업종)
+        # 업종 분석만 (10개 업종)
         await run_news_analysis(grade_filter=None, limit=None, sector_only=True)
-        # 2. 종목 분석: 추천 등급만
-        for grade in ["TENBAGGER", "COMPOUNDER"]:
-            await run_news_analysis(grade_filter=grade, limit=None, sector_only=False)
-        print("✅ [SCHEDULER] 뉴스 감성 분석 완료")
+        print("✅ [SCHEDULER] 업종 감성 분석 완료 (종목은 사용자 조회 시 lazy 분석)")
     except Exception as e:
         print(f"❌ [SCHEDULER] 뉴스 분석 오류: {e}")
 

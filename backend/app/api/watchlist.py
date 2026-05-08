@@ -156,6 +156,20 @@ def add_watchlist(
     except Exception:
         raise HTTPException(status_code=409, detail="이미 관심종목에 추가된 종목입니다.")
 
+    # Lazy 뉴스 분석 트리거 (백그라운드, 비차단)
+    # 기존 데이터 있으면 24시간 룰에 따라 갱신, 없으면 신규 분석
+    try:
+        import asyncio
+        from app.api.v2_news import _lazy_analyze_ticker, _needs_refresh
+        existing = db.execute(text("""
+            SELECT sentiment_date FROM news_sentiment
+            WHERE ticker = :t ORDER BY sentiment_date DESC LIMIT 1
+        """), {"t": ticker}).fetchone()
+        if not existing or _needs_refresh(existing.sentiment_date):
+            asyncio.create_task(_lazy_analyze_ticker(ticker, name or ticker))
+    except Exception as e:
+        print(f"[WATCHLIST] lazy 트리거 실패 (무시): {e}")
+
     return {"success": True, "ticker": ticker, "name": name}
 
 

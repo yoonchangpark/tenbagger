@@ -15,6 +15,36 @@ from app.core.config import settings
 
 router = APIRouter(prefix="/api/v2/news", tags=["news-sentiment"])
 
+# Lazy 분석 시 동시 실행 방지용 (같은 ticker 중복 트리거 방지)
+_lazy_in_progress: set[str] = set()
+
+
+async def _lazy_analyze_ticker(ticker: str, name: str):
+    """단일 종목 백그라운드 분석 (lazy 모드 전용)"""
+    if ticker in _lazy_in_progress:
+        return  # 이미 분석 중
+    _lazy_in_progress.add(ticker)
+    try:
+        from openai import AsyncOpenAI
+        from app.workers.news_worker import analyze_ticker
+        client = AsyncOpenAI()
+        today = datetime.date.today()
+        await analyze_ticker(ticker, name, client, today)
+        print(f"[LAZY] {name}({ticker}) 뉴스 분석 완료")
+    except Exception as e:
+        print(f"[LAZY] {ticker} 분석 오류: {e}")
+    finally:
+        _lazy_in_progress.discard(ticker)
+
+
+def _needs_refresh(latest_date) -> bool:
+    """24시간 이상 오래된 데이터면 갱신 필요"""
+    if not latest_date:
+        return True
+    today = datetime.date.today()
+    delta = (today - latest_date).days
+    return delta >= 1
+
 
 # ── 시그널 → 색상/이모지 매핑 ────────────────────────────────────────────────
 SIGNAL_META = {
@@ -48,21 +78,33 @@ async def get_ticker_sentiment(
         """), {"ticker": ticker, "since": since}).fetchall()
 
         if not rows:
-            # DB에 없으면 종목명만 조회해서 "데이터 없음" 반환
+            # 데이터 없음 → Lazy 분석 백그라운드 트리거
             name_row = session.execute(text(
                 "SELECT name FROM scores WHERE ticker = :t LIMIT 1"
             ), {"t": ticker}).fetchone()
+            stock_name = name_row.name if name_row else ticker
+            # 백그라운드 분석 시작 (응답은 즉시)
+            asyncio.create_task(_lazy_analyze_ticker(ticker, stock_name))
             return {
                 "ticker": ticker,
-                "name": name_row.name if name_row else ticker,
+                "name": stock_name,
                 "has_data": False,
-                "message": "뉴스 감성 데이터가 없습니다. 뉴스 분석 워커 실행 후 조회하세요.",
+                "analyzing": True,
+                "message": "뉴스 분석을 시작했습니다. 30~60초 후 다시 조회하세요.",
             }
 
         # 최신 감성 정보
         latest = rows[0]
         signal = latest.signal or "NEUTRAL"
         meta = SIGNAL_META.get(signal, SIGNAL_META["NEUTRAL"])
+
+        # 24시간 이상 오래된 데이터면 백그라운드 갱신 트리거
+        if _needs_refresh(latest.sentiment_date):
+            name_row = session.execute(text(
+                "SELECT name FROM scores WHERE ticker = :t LIMIT 1"
+            ), {"t": ticker}).fetchone()
+            stock_name = name_row.name if name_row else ticker
+            asyncio.create_task(_lazy_analyze_ticker(ticker, stock_name))
 
         # 최근 10개 기사 (ticker 기준)
         recent_articles = session.execute(text("""

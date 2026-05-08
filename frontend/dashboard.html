@@ -1463,7 +1463,7 @@
     }
   }
 
-  async function loadTickerSentiment() {
+  async function loadTickerSentiment(autoRetry = true) {
     const ticker = document.getElementById('newsSentimentInput').value.trim();
     if (!ticker) return;
     const el = document.getElementById('tickerSentimentResult');
@@ -1472,7 +1472,17 @@
       const res = await fetch(API + `/api/v2/news/sentiment/${ticker}?days=30`);
       const d = await res.json();
       if (!d.has_data) {
-        el.innerHTML = `<div class="empty-row">${d.message || '데이터 없음'}</div>`;
+        // Lazy 분석 진행 중이면 자동 polling
+        if (d.analyzing && autoRetry) {
+          el.innerHTML = `<div class="loading-row"><div class="spinner"></div>
+            <div style="margin-top:12px;">🤖 AI가 ${esc(d.name || ticker)}의 뉴스를 분석 중입니다...</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px;">약 30~60초 소요 (자동 재조회)</div>
+          </div>`;
+          // 30초 후 자동 재조회 (1회만)
+          setTimeout(() => loadTickerSentiment(false), 30000);
+          return;
+        }
+        el.innerHTML = `<div class="empty-row">${esc(d.message || '데이터 없음')}</div>`;
         return;
       }
       const l = d.latest;
