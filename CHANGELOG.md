@@ -82,7 +82,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ### 향후 계획 (v2.x)
-- [ ] 이익수익률 (Earnings Yield) 지표 추가
+- [x] 이익수익률 (Earnings Yield) 지표 추가
 - [ ] 자사주 제외 시가총액 보정
 - [ ] 20년 배당 복리 시뮬레이터
 - [ ] 배당분리과세 필터

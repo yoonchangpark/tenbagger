@@ -360,6 +360,7 @@
       html+='<div style="margin-top:14px;display:flex;gap:20px;flex-wrap:wrap;">';
       if(sc.per)html+='<div><div style="font-size:10px;color:#6b7280">PER</div><div style="font-weight:700">'+sc.per.toFixed(1)+'x</div></div>';
       if(sc.pbr)html+='<div><div style="font-size:10px;color:#6b7280">PBR</div><div style="font-weight:700">'+sc.pbr.toFixed(1)+'x</div></div>';
+      if(sc.earnings_yield)html+='<div><div style="font-size:10px;color:#6b7280">이익수익률(EY)</div><div style="font-weight:700">'+sc.earnings_yield.toFixed(1)+'%</div></div>';
       if(sc.dividend_yield)html+='<div><div style="font-size:10px;color:#6b7280">배당수익률</div><div style="font-weight:700">'+sc.dividend_yield.toFixed(1)+'%</div></div>';
       html+='</div>';
       html+='<div style="margin-top:14px;display:flex;gap:8px;">';
@@ -390,6 +391,7 @@
         {label:"부채비율",val:sc.debt_ratio,unit:"%"},
         {label:"유동비율",val:sc.current_ratio,unit:"x"},
         {label:"배당성향 평균",val:sc.avg_payout_ratio,unit:"%"},
+        {label:"이익수익률 (EY)",val:sc.earnings_yield,unit:"%"},
       ];
       html+='<div class="metrics-grid">';
       metrics.forEach(m=>{

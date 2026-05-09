@@ -388,6 +388,7 @@ def calculate_score_from_indices(idx_list: list) -> dict:
         "op_profit_growth":  op_g,
         "net_income_growth": net_g,
         "equity_growth":     eq_g,
+        "earnings_yield":    _find_idx(idx_list, "이익수익률"),
     }
 
 
@@ -433,6 +434,8 @@ def calculate_tenbagger_score(
     else:
         grade = "AVOID"
 
+    earnings_yield = round(100.0 / per, 2) if per and per > 0 else None
+
     return {
         "total_score":    total,
         "grade":          grade,
@@ -443,5 +446,6 @@ def calculate_tenbagger_score(
         "consistency_score": con_score,
         "per": per,
         "pbr": pbr,
+        "earnings_yield": earnings_yield,
         **g_meta, **st_meta, **cf_meta, **div_meta, **con_meta,
     }
