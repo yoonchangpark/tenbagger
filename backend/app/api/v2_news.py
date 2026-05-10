@@ -140,6 +140,13 @@ async def get_ticker_sentiment(
         for a in recent_articles
     ]
 
+    # ── 주가 모멘텀 (price_daily_cache에서 1M/3M 수익률 계산) ─────────────
+    try:
+        from app.agents.committee import _gather_price_momentum
+        price_momentum = _gather_price_momentum(ticker)
+    except Exception:
+        price_momentum = {"has_price_data": False}
+
     return {
         "ticker": ticker,
         "has_data": True,
@@ -153,6 +160,7 @@ async def get_ticker_sentiment(
             "article_count": latest.article_count,
             "key_topics": latest.key_topics or [],
         },
+        "price_momentum": price_momentum,
         "history": history,
         "recent_articles": articles_list,
     }

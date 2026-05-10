@@ -533,6 +533,38 @@
         html += '<span class="news-score-meta">감성 점수 <strong style="color:' + scoreColor + ';font-size:14px;">' + scoreStr + '</strong> · 분석 기사 <strong>' + (latest.article_count || 0) + '</strong>개 · 기준일 ' + (latest.date || '-') + '</span>';
         html += '</div>';
 
+        // 주가 모멘텀 + 뉴스 상관관계
+        const pm = d.price_momentum || {};
+        if (pm.has_price_data) {
+          const r1m = pm.return_1m_pct;
+          const r3m = pm.return_3m_pct;
+          const mom = pm.momentum || 'UNKNOWN';
+          const fmt = v => v == null ? '-' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+          const rColor = v => v == null ? '#9ca3af' : v > 0 ? '#4ade80' : '#fca5a5';
+
+          // 뉴스↔주가 방향 일치 여부
+          const newsUp = ['BUY_SIGNAL','POSITIVE','MOMENTUM_UP'].includes(signal);
+          const newsDown = ['SELL_SIGNAL','CAUTION','MOMENTUM_DOWN'].includes(signal);
+          const priceUp = ['STRONG_UP','UP'].includes(mom);
+          const priceDown = ['STRONG_DOWN','DOWN'].includes(mom);
+          let alignMsg = '', alignColor = '#9ca3af';
+          if ((newsUp && priceUp) || (newsDown && priceDown)) {
+            alignMsg = '📌 뉴스 시그널과 주가 방향 일치'; alignColor = '#60a5fa';
+          } else if ((newsUp && priceDown)) {
+            alignMsg = '⚡ 주가 하락 중 긍정 뉴스 — 저평가 반등 가능성 주목'; alignColor = '#fbbf24';
+          } else if ((newsDown && priceUp)) {
+            alignMsg = '⚠️ 주가 상승 중 부정 뉴스 — 선행 하락 위험 주시'; alignColor = '#fb923c';
+          }
+
+          html += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0 6px;padding:10px 14px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);">';
+          html += '<span style="font-size:12px;color:#9ca3af;font-weight:600;letter-spacing:.05em;">📈 주가 모멘텀</span>';
+          html += '<span style="font-size:13px;">1개월 <strong style="color:' + rColor(r1m) + ';">' + fmt(r1m) + '</strong></span>';
+          html += '<span style="font-size:13px;">3개월 <strong style="color:' + rColor(r3m) + ';">' + fmt(r3m) + '</strong></span>';
+          if (pm.latest_price) html += '<span style="font-size:12px;color:#6b7280;">현재가 ' + pm.latest_price.toLocaleString() + '원</span>';
+          if (alignMsg) html += '<span style="font-size:11px;color:' + alignColor + ';margin-left:4px;">' + alignMsg + '</span>';
+          html += '</div>';
+        }
+
         // 키워드
         if (latest.key_topics && latest.key_topics.length) {
           html += '<div class="news-topics">';

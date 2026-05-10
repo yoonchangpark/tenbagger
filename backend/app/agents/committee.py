@@ -48,15 +48,17 @@ FINANCIAL_ANALYST_PROMPT = """당신은 한국 주식 재무분석 전문가입�
 
 
 NEWS_SENTIMENT_AGENT_PROMPT = """당신은 한국 주식 뉴스 심리 분석 전문가입니다.
-주어진 종목의 최근 14일 뉴스 감성 데이터(평균점수, 시그널, 키워드, 기사 제목들)를 분석하여
-시장 심리와 단기 모멘텀을 판단합니다.
+주어진 종목의 최근 14일 뉴스 감성 데이터(평균점수, 시그널, 키워드, 기사 제목들)와
+최근 주가 모멘텀(1개월/3개월 수익률)을 함께 분석하여 시장 심리와 단기 모멘텀을 판단합니다.
 
 반드시 JSON 형식으로 응답:
 {
   "verdict": "MOMENTUM_UP" | "POSITIVE" | "NEUTRAL" | "CAUTION" | "MOMENTUM_DOWN",
   "score": 1.0 ~ 10.0,
   "key_themes": ["테마1", "테마2"],
-  "rationale": "2-3 문장 (어떤 뉴스가 주가에 우호적/비우호적인지)",
+  "rationale": "2-3 문장 (뉴스 + 주가 움직임의 관계 설명)",
+  "price_news_alignment": "aligned" | "divergent" | "no_data",
+  "price_analysis": "주가 움직임 한 문장 해석 (예: 1개월 -12% 하락은 실적 우려 뉴스와 일치)",
   "sentiment_trend": "improving" | "stable" | "deteriorating",
   "risk_signals": ["위험 신호 (있으면)"]
 }
@@ -65,6 +67,10 @@ NEWS_SENTIMENT_AGENT_PROMPT = """당신은 한국 주식 뉴스 심리 분석 �
 - 평균점수 +0.4↑: 강한 긍정, +0.1~+0.4: 긍정, -0.1~+0.1: 중립
 - 키워드에 '수주'/'실적'/'성장'/'신제품' → 긍정 모멘텀
 - 키워드에 '리콜'/'소송'/'하락'/'적자' → 위험 신호
+- 주가 1M +10%↑ + 긍정 뉴스 → MOMENTUM_UP (aligned)
+- 주가 1M -10%↓ + 부정 뉴스 → MOMENTUM_DOWN (aligned)
+- 주가 하락인데 뉴스 긍정 → divergent (저평가 가능성 or 뉴스 선반영 실패)
+- 주가 상승인데 뉴스 부정 → divergent (거품 위험 or 뉴스 선행 하락 예고)
 - 데이터 없으면 verdict='NEUTRAL', rationale에 '뉴스 데이터 부족' 명시"""
 
 
@@ -89,7 +95,7 @@ SECTOR_RESEARCHER_PROMPT = """당신은 한국 산업 분석 전문가입니다.
 
 
 INVESTMENT_STRATEGIST_PROMPT = """당신은 한국 주식 투자전략가입니다. 3명의 전문가 의견(재무분석가, 뉴스감성가, 업종리서처)과
-종목의 가격 모멘텀(PER/PBR/시가총액)을 종합하여 최종 투자 판단을 내립니다.
+종목의 밸류에이션(PER/PBR/시가총액) 및 최근 주가 모멘텀(1개월/3개월 수익률)을 종합하여 최종 투자 판단을 내립니다.
 
 반드시 JSON 형식으로 응답:
 {
@@ -107,6 +113,9 @@ INVESTMENT_STRATEGIST_PROMPT = """당신은 한국 주식 투자전략가입니�
 - 재무 STRONG + 업종 TAILWIND + 뉴스 POSITIVE → STRONG_BUY (단 PER 50배 이상이면 BUY로 하향)
 - 재무 SOLID + 업종 STABLE → BUY 또는 HOLD
 - 어느 한 쪽이라도 WEAK/HEADWIND/MOMENTUM_DOWN → REDUCE 또는 AVOID
+- 주가 1M -15%↓ + 재무 STRONG → 저평가 반등 기회 (BUY 유리)
+- 주가 1M +20%↑ + 뉴스 CAUTION → 고점 경계 (HOLD/REDUCE)
+- 주가 모멘텀 STRONG_DOWN + 모든 요인 부정 → AVOID
 - 의견이 갈리면 confidence 낮춤 (0.4-0.6)"""
 
 
@@ -243,6 +252,75 @@ def _infer_sector(ticker: str, name: str) -> str:
     return "기타"
 
 
+def _gather_price_momentum(ticker: str) -> dict:
+    """최근 주가 모멘텀 계산 (price_daily_cache → 1M/3M/6M 수익률)"""
+    today = datetime.date.today()
+    six_months_ago = today - datetime.timedelta(days=186)
+
+    with SessionLocal() as session:
+        rows = session.execute(text("""
+            SELECT trade_date, close_price
+            FROM price_daily_cache
+            WHERE ticker = :t AND trade_date >= :since AND close_price > 0
+            ORDER BY trade_date ASC
+        """), {"t": ticker, "since": six_months_ago}).fetchall()
+
+    if not rows:
+        # 캐시 없으면 scores 테이블의 현재가만 반환
+        with SessionLocal() as session:
+            sc = session.execute(text(
+                "SELECT close FROM scores WHERE ticker = :t LIMIT 1"
+            ), {"t": ticker}).fetchone()
+        return {
+            "has_price_data": False,
+            "latest_price": sc.close if sc else None,
+            "note": "price_daily_cache 데이터 없음 (ETL 미실행)",
+        }
+
+    prices = [(r.trade_date, r.close_price) for r in rows]
+    latest_date, latest_price = prices[-1]
+
+    def _price_n_days_ago(n: int):
+        target = today - datetime.timedelta(days=n)
+        candidates = [(d, p) for d, p in prices if d <= target]
+        return candidates[-1][1] if candidates else None
+
+    def _ret(old, new):
+        if old and old > 0:
+            return round((new - old) / old * 100, 2)
+        return None
+
+    p1m = _price_n_days_ago(30)
+    p3m = _price_n_days_ago(90)
+    p6m = _price_n_days_ago(180)
+    r1m = _ret(p1m, latest_price)
+    r3m = _ret(p3m, latest_price)
+    r6m = _ret(p6m, latest_price)
+
+    # 단순 추세 분류
+    if r1m is not None:
+        if r1m > 15:      momentum = "STRONG_UP"
+        elif r1m > 5:     momentum = "UP"
+        elif r1m < -15:   momentum = "STRONG_DOWN"
+        elif r1m < -5:    momentum = "DOWN"
+        else:             momentum = "SIDEWAYS"
+    else:
+        momentum = "UNKNOWN"
+
+    return {
+        "has_price_data": True,
+        "latest_price": latest_price,
+        "latest_date": str(latest_date),
+        "return_1m_pct": r1m,
+        "return_3m_pct": r3m,
+        "return_6m_pct": r6m,
+        "momentum": momentum,
+        "price_1m_ago": p1m,
+        "price_3m_ago": p3m,
+        "data_points": len(prices),
+    }
+
+
 def _gather_sector_data(ticker: str, name: str) -> dict:
     """업종리서처용 데이터 수집"""
     sector = _infer_sector(ticker, name)
@@ -342,12 +420,18 @@ async def run_committee(ticker: str, name: str = "") -> dict:
 
     news_data = _gather_news_data(ticker)
     sector_data = _gather_sector_data(ticker, name)
+    price_data = _gather_price_momentum(ticker)   # ← 주가 모멘텀
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
     # ── 1단계: 3개 전문가 병렬 호출 ───────────────────────────────────────
     fa_payload = {"ticker": ticker, "name": name, **fin_data}
-    ns_payload = {"ticker": ticker, "name": name, **news_data}
+    # 뉴스감성가 페이로드에 주가 모멘텀 포함 (뉴스↔주가 상관 분석용)
+    ns_payload = {
+        "ticker": ticker, "name": name,
+        **news_data,
+        "price_momentum": price_data,
+    }
     sr_payload = {"ticker": ticker, "name": name, **sector_data}
 
     fa_task = _call_agent(client, FINANCIAL_ANALYST_PROMPT, fa_payload, "재무분석가")
@@ -356,11 +440,12 @@ async def run_committee(ticker: str, name: str = "") -> dict:
 
     fa_result, ns_result, sr_result = await asyncio.gather(fa_task, ns_task, sr_task)
 
-    # ── 2단계: 투자전략가 (위 3개 결과 + 가격 데이터) ──────────────────────
+    # ── 2단계: 투자전략가 (위 3개 결과 + 가격/밸류에이션 데이터) ────────────
     strategist_payload = {
         "ticker": ticker,
         "name": name,
         "valuation": fin_data.get("valuation", {}),
+        "price_momentum": price_data,       # ← 주가 모멘텀 추가
         "financial_analyst": fa_result,
         "news_sentiment_analyst": ns_result,
         "sector_researcher": sr_result,
@@ -389,5 +474,12 @@ async def run_committee(ticker: str, name: str = "") -> dict:
             "pbr": fin_data.get("valuation", {}).get("pbr"),
             "sector": sector_data.get("inferred_sector"),
             "has_news_data": news_data.get("has_data", False),
+            "price_momentum": {
+                "return_1m_pct": price_data.get("return_1m_pct"),
+                "return_3m_pct": price_data.get("return_3m_pct"),
+                "return_6m_pct": price_data.get("return_6m_pct"),
+                "momentum": price_data.get("momentum"),
+                "latest_price": price_data.get("latest_price"),
+            },
         },
     }
