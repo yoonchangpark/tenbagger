@@ -1424,8 +1424,9 @@
         const mktCls = item.corp_cls || "N";
         const mktLabel = { Y: "KOSPI", K: "KOSDAQ", N: "비상장", E: "ETC" }[mktCls] || mktCls;
         const dateStr = formatDate(item.rcept_dt || "");
+        const rcept_no = item.rcept_no || "";
         return `
-          <div class="disc-item">
+          <div class="disc-item" id="disc-${rcept_no}">
             <div class="disc-meta">
               <div class="disc-corp">${esc(item.corp_name || "-")}</div>
               <div class="disc-date">${dateStr}</div>
@@ -1433,9 +1434,16 @@
             </div>
             <div class="disc-main">
               <a class="disc-title" href="${dartUrl}" target="_blank" rel="noopener">${esc(item.report_nm || "-")}</a>
-              <div class="disc-type">제출인: ${esc(item.flr_nm || "-")}</div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
+                <div class="disc-type">제출인: ${esc(item.flr_nm || "-")}</div>
+                <button onclick="analyzeDisclosure('${rcept_no}','${esc(item.corp_name)}','${esc(item.report_nm)}','${esc(item.rcept_dt||'')}',this)"
+                  style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                  🤖 AI 분석
+                </button>
+              </div>
             </div>
-          </div>`;
+          </div>
+          <div id="ai-result-${rcept_no}" style="display:none;"></div>`;
       }).join("");
     } catch (e) {
       list.innerHTML = '<div class="empty-row" style="color:#f87171;">⚠️ 공시 데이터를 불러오지 못했습니다: ' + esc(e.message) + '</div>';
@@ -1448,6 +1456,71 @@
   function formatDate(s) {
     if (!s || s.length < 8) return s;
     return s.slice(0, 4) + "." + s.slice(4, 6) + "." + s.slice(6, 8);
+  }
+
+  async function analyzeDisclosure(rcept_no, corp_name, report_nm, rcept_dt, btn) {
+    const resultEl = document.getElementById("ai-result-" + rcept_no);
+    if (!resultEl) return;
+
+    // 토글: 이미 결과 있으면 닫기
+    if (resultEl.style.display !== "none" && resultEl.innerHTML) {
+      resultEl.style.display = "none";
+      btn.textContent = "🤖 AI 분석";
+      return;
+    }
+
+    btn.textContent = "분석 중…";
+    btn.disabled = true;
+    resultEl.style.display = "block";
+    resultEl.innerHTML = `<div style="padding:14px 20px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;">
+      <span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span> GPT-4o가 공시를 분석 중입니다…
+    </div>`;
+
+    try {
+      const res = await fetch(API + "/api/v2/disclosures/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rcept_no, corp_name, report_nm, rcept_dt }),
+      });
+      const d = await res.json();
+
+      if (d.error) {
+        resultEl.innerHTML = `<div style="padding:12px 20px;color:#f87171;font-size:13px;">⚠️ ${d.error}</div>`;
+        return;
+      }
+
+      const impactColor = { POSITIVE:"#10b981", NEGATIVE:"#ef4444", CAUTION:"#f59e0b", NEUTRAL:"#6b7280" };
+      const impactBg    = { POSITIVE:"rgba(16,185,129,.08)", NEGATIVE:"rgba(239,68,68,.08)", CAUTION:"rgba(245,158,11,.08)", NEUTRAL:"rgba(107,114,128,.08)" };
+      const impact = d.impact || "NEUTRAL";
+      const color  = impactColor[impact] || "#6b7280";
+      const bg     = impactBg[impact]    || "rgba(107,114,128,.08)";
+      const points = (d.key_points || []).map(p => `<li style="margin-bottom:4px;">• ${p}</li>`).join("");
+      const confLabel = { HIGH:"높음", MEDIUM:"보통", LOW:"낮음" }[d.confidence] || d.confidence;
+
+      resultEl.innerHTML = `
+        <div style="margin:0 0 8px 0;padding:16px 20px;background:${bg};border-left:3px solid ${color};border-radius:0 0 12px 12px;font-size:13px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+            <span style="font-size:18px;">${d.impact_emoji}</span>
+            <span style="font-weight:700;color:${color};">${impact}</span>
+            <span style="font-size:11px;color:var(--muted);background:rgba(255,255,255,.06);padding:2px 8px;border-radius:4px;">신뢰도: ${confLabel}</span>
+          </div>
+          <p style="color:var(--text);margin-bottom:8px;line-height:1.6;">${d.summary || ""}</p>
+          <p style="color:${color};margin-bottom:10px;font-weight:600;">${d.impact_reason || ""}</p>
+          <ul style="list-style:none;padding:0;margin:0 0 10px;color:var(--muted);">${points}</ul>
+          <div style="padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;color:#93c5fd;font-size:12px;">
+            💡 ${d.action || ""}
+          </div>
+          <div style="margin-top:10px;text-align:right;">
+            <a href="https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${rcept_no}" target="_blank"
+              style="font-size:11px;color:var(--muted);text-decoration:none;">원문 보기 →</a>
+          </div>
+        </div>`;
+    } catch(e) {
+      resultEl.innerHTML = `<div style="padding:12px 20px;color:#f87171;font-size:13px;">⚠️ 오류: ${e.message}</div>`;
+    } finally {
+      btn.textContent = "🤖 AI 분석 ▲";
+      btn.disabled = false;
+    }
   }
 
   // ────────────────────────────────────────────
