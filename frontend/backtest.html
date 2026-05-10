@@ -78,6 +78,30 @@
     .spinner { width: 32px; height: 32px; border: 3px solid rgba(139,92,246,.2); border-top-color: #a78bfa; border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 12px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── 트랙레코드 전용 ── */
+    .tr-hero {
+      display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+      gap: 16px; margin-bottom: 24px;
+    }
+    .tr-hero-card {
+      background: var(--surface2); border-radius: 14px; padding: 20px 18px;
+      border: 1px solid var(--border); text-align: center;
+    }
+    .tr-hero-card .th-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .tr-hero-card .th-val { font-size: 30px; font-weight: 900; line-height: 1; }
+    .tr-hero-card .th-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .alpha-badge {
+      display: inline-block; padding: 2px 10px; border-radius: 6px;
+      font-size: 12px; font-weight: 700; margin-top: 6px;
+    }
+    .tr-grade-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tr-grade-btn {
+      padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      border: 1px solid var(--border); background: transparent; color: var(--muted);
+      cursor: pointer; transition: all .15s;
+    }
+    .tr-grade-btn.active { background: rgba(16,185,129,.12); border-color: var(--green); color: #6ee7b7; }
+
     /* 요약 통계 */
     .summary-banner {
       background: linear-gradient(135deg,rgba(139,92,246,.1),rgba(59,130,246,.08));
@@ -171,6 +195,7 @@
     <div class="tabs">
       <button class="tab active" onclick="switchTab('single', this)">📌 개별 종목</button>
       <button class="tab" onclick="switchTab('market', this)">🌏 시장 전체</button>
+      <button class="tab" onclick="switchTab('track', this)">📈 포트폴리오 검증</button>
     </div>
 
     <div id="tabSingle">
@@ -240,6 +265,56 @@
       </div>
     </div>
 
+    <!-- ── 트랙레코드 탭 ── -->
+    <div id="tabTrack" style="display:none">
+      <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:14px 18px;margin-bottom:20px;font-size:12px;line-height:1.8;color:#9ca3af">
+        <strong style="color:#6ee7b7">📈 포트폴리오 트랙레코드란?</strong><br>
+        "이 시스템이 <em>기준 연도</em>에 TENBAGGER로 분류했을 종목들에 균등 투자했다면, <em>보유 기간</em> 후 실제 수익은?"<br>
+        DART 역방향 재무 수집으로 당시 스코어를 재계산 → 실제 주가 수익률 비교 → KOSPI 대비 알파 산출
+      </div>
+      <div class="config-row">
+        <div class="config-group">
+          <label>분석 기준 연도</label>
+          <div class="year-btns" id="trYearBtns">
+            <button class="year-btn" data-year="2015" onclick="selectTrYear(this)">2015</button>
+            <button class="year-btn" data-year="2016" onclick="selectTrYear(this)">2016</button>
+            <button class="year-btn" data-year="2017" onclick="selectTrYear(this)">2017</button>
+            <button class="year-btn" data-year="2018" onclick="selectTrYear(this)">2018</button>
+            <button class="year-btn active" data-year="2019" onclick="selectTrYear(this)">2019</button>
+            <button class="year-btn" data-year="2020" onclick="selectTrYear(this)">2020</button>
+            <button class="year-btn" data-year="2021" onclick="selectTrYear(this)">2021</button>
+          </div>
+        </div>
+        <div class="config-group">
+          <label>보유 기간</label>
+          <select id="trHoldYears">
+            <option value="1">1년</option>
+            <option value="2">2년</option>
+            <option value="3" selected>3년</option>
+            <option value="5">5년</option>
+          </select>
+        </div>
+        <div class="config-group">
+          <label>대상 등급</label>
+          <div class="tr-grade-btns" id="trGradeBtns">
+            <button class="tr-grade-btn active" data-grade="TENBAGGER" onclick="selectTrGrade(this)">⭐ TENBAGGER만</button>
+            <button class="tr-grade-btn" data-grade="TENBAGGER,COMPOUNDER" onclick="selectTrGrade(this)">⭐+💙 TENBAGGER+COMPOUNDER</button>
+          </div>
+        </div>
+        <div class="config-group">
+          <label>분석 종목 수 (DB 상위 기준)</label>
+          <select id="trLimit">
+            <option value="20">20개</option>
+            <option value="30" selected>30개</option>
+            <option value="50">50개</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#4b5563;margin-bottom:16px;line-height:1.7;">
+        ⏱️ 첫 실행은 DART 역방향 재무 수집으로 <strong style="color:#6b7280">1~3분</strong> 소요됩니다. 한 번 계산되면 캐시에 저장됩니다.
+      </div>
+    </div>
+
     <button class="run-btn" id="runBtn" onclick="runBacktest()">🧪 백테스트 실행</button>
   </div>
 
@@ -261,6 +336,8 @@
   let currentTab = "single";
   let selectedYear = 2015;
   let selectedMYear = 2014;
+  let selectedTrYear = 2019;
+  let selectedTrGrade = "TENBAGGER";
 
   function switchTab(tab, btn) {
     currentTab = tab;
@@ -268,6 +345,29 @@
     btn.classList.add("active");
     document.getElementById("tabSingle").style.display = tab === "single" ? "" : "none";
     document.getElementById("tabMarket").style.display = tab === "market" ? "" : "none";
+    document.getElementById("tabTrack").style.display  = tab === "track"  ? "" : "none";
+
+    // 트랙레코드 탭일 때 버튼 텍스트 변경
+    const runBtn = document.getElementById("runBtn");
+    if (tab === "track") {
+      runBtn.textContent = "📊 트랙레코드 계산";
+    } else if (tab === "market") {
+      runBtn.textContent = "🌏 시장 전체 백테스트";
+    } else {
+      runBtn.textContent = "🧪 백테스트 실행";
+    }
+  }
+
+  function selectTrYear(btn) {
+    document.querySelectorAll("#trYearBtns .year-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedTrYear = parseInt(btn.dataset.year);
+  }
+
+  function selectTrGrade(btn) {
+    document.querySelectorAll("#trGradeBtns .tr-grade-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedTrGrade = btn.dataset.grade;
   }
 
   function selectYear(btn) {
@@ -284,7 +384,16 @@
 
   async function runBacktest() {
     const btn = document.getElementById("runBtn");
-    btn.disabled = true; btn.textContent = "분석 중...";
+    btn.disabled = true;
+    const origText = btn.textContent;
+
+    if (currentTab === "track") {
+      await runTrackRecord();
+      btn.disabled = false; btn.textContent = origText;
+      return;
+    }
+
+    btn.textContent = "분석 중...";
     document.getElementById("resultArea").innerHTML = `
       <div class="loading-overlay">
         <div class="spinner"></div>
@@ -657,12 +766,249 @@
     }, 100);
   }
 
-  // ── URL 파라미터 처리 (index.html에서 링크로 올 때) ──
+  // ── 포트폴리오 트랙레코드 ──────────────────────────────────────────────────
+
+  async function runTrackRecord() {
+    const btn = document.getElementById("runBtn");
+    btn.disabled = true; btn.textContent = "계산 중...";
+
+    const holdYears = document.getElementById("trHoldYears").value;
+    const limit     = document.getElementById("trLimit").value;
+    const endYear   = selectedTrYear + parseInt(holdYears);
+
+    document.getElementById("resultArea").innerHTML = `
+      <div class="loading-overlay">
+        <div class="spinner"></div>
+        <div style="color:#6ee7b7;font-size:15px;font-weight:700;margin-bottom:8px">
+          📊 ${selectedTrYear}년 → ${endYear}년 트랙레코드 계산 중...
+        </div>
+        <div style="color:#6b7280;font-size:12px;line-height:1.9">
+          DB 상위 ${limit}개 종목의 ${selectedTrYear}년 당시 재무데이터를 DART에서 수집합니다.<br>
+          병렬 처리 중이지만 <strong style="color:#9ca3af">1~3분</strong> 소요될 수 있습니다.<br>
+          한 번 계산된 결과는 캐시에 저장되어 다음 조회는 즉시 반환됩니다.
+        </div>
+      </div>`;
+
+    try {
+      const url = `${API}/api/v2/portfolio/track-record?base_year=${selectedTrYear}&hold_years=${holdYears}&grade_filter=${encodeURIComponent(selectedTrGrade)}&limit=${limit}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "트랙레코드 계산 실패");
+      }
+      const data = await res.json();
+      renderTrackRecord(data);
+    } catch(e) {
+      document.getElementById("resultArea").innerHTML = `
+        <div class="empty-state"><div class="e-icon">⚠️</div><p style="color:#f87171">${e.message}</p></div>`;
+    } finally {
+      btn.disabled = false; btn.textContent = "📊 트랙레코드 계산";
+    }
+  }
+
+  let _trBarChart = null;
+
+  function renderTrackRecord(d) {
+    const ret      = d.portfolio_return_pct;
+    const kospi    = d.kospi_return_pct;
+    const alpha    = d.alpha_pct;
+    const winRate  = d.win_rate_pct;
+    const beatRate = d.beat_market_rate_pct;
+
+    const fmtPct = (v) => v == null ? "N/A" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+    const retColor   = ret   == null ? "#9ca3af" : ret   >= 0 ? "#10b981" : "#ef4444";
+    const alphaColor = alpha == null ? "#9ca3af" : alpha >= 0 ? "#10b981" : "#ef4444";
+
+    const gradeLabel = { TENBAGGER: "텐배거", COMPOUNDER: "컴파운더" };
+    const gradeUsed  = d.grade_filter.map(g => gradeLabel[g] || g).join("+");
+
+    const cachedBadge = d.cached
+      ? `<span style="font-size:10px;background:rgba(59,130,246,.15);color:#60a5fa;padding:2px 8px;border-radius:4px;border:1px solid rgba(59,130,246,.3);margin-left:8px">캐시됨</span>`
+      : "";
+
+    const heroHtml = `
+      <div class="tr-hero">
+        <div class="tr-hero-card">
+          <div class="th-label">📈 포트폴리오 수익률</div>
+          <div class="th-val" style="color:${retColor}">${fmtPct(ret)}</div>
+          <div class="th-sub">${d.with_price_data}개 종목 균등 비중</div>
+        </div>
+        <div class="tr-hero-card">
+          <div class="th-label">📊 KOSPI 수익률</div>
+          <div class="th-val" style="color:${kospi == null ? '#9ca3af' : kospi >= 0 ? '#60a5fa' : '#f87171'}">${fmtPct(kospi)}</div>
+          <div class="th-sub">같은 기간 KOSPI 지수</div>
+        </div>
+        <div class="tr-hero-card">
+          <div class="th-label">⚡ 초과 수익 (알파)</div>
+          <div class="th-val" style="color:${alphaColor}">${fmtPct(alpha)}</div>
+          <div class="th-sub">
+            ${alpha == null ? "" : alpha >= 5
+              ? `<span class="alpha-badge" style="background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3)">시장 초과 ✅</span>`
+              : alpha >= 0
+              ? `<span class="alpha-badge" style="background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.3)">소폭 초과</span>`
+              : `<span class="alpha-badge" style="background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.3)">시장 하회</span>`}
+          </div>
+        </div>
+        <div class="tr-hero-card">
+          <div class="th-label">🎯 적중률</div>
+          <div class="th-val" style="color:${winRate >= 60 ? '#10b981' : winRate >= 40 ? '#f59e0b' : '#ef4444'}">${winRate != null ? winRate.toFixed(0) + "%" : "N/A"}</div>
+          <div class="th-sub">양수 수익 종목 비율</div>
+        </div>
+        <div class="tr-hero-card">
+          <div class="th-label">📉 시장 초과 비율</div>
+          <div class="th-val" style="color:${beatRate >= 60 ? '#10b981' : '#f59e0b'}">${beatRate != null ? beatRate.toFixed(0) + "%" : "N/A"}</div>
+          <div class="th-sub">KOSPI 수익률 초과 종목</div>
+        </div>
+        <div class="tr-hero-card">
+          <div class="th-label">⭐ 텐배거 달성</div>
+          <div class="th-val" style="color:#f59e0b">${d.tenbagger_rate_pct != null ? d.tenbagger_rate_pct.toFixed(0) + "%" : "0%"}</div>
+          <div class="th-sub">+900% 이상 달성 종목</div>
+        </div>
+      </div>`;
+
+    const titleBanner = `
+      <div class="summary-banner" style="margin-bottom:20px">
+        <h3 style="font-size:15px;color:var(--text);font-weight:700;margin-bottom:4px">
+          📈 ${d.base_year}년 ${gradeUsed} 추천 포트폴리오 → ${d.end_year}년 (${d.hold_years}년 보유) ${cachedBadge}
+        </h3>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">
+          분석 대상 ${d.total_analyzed}개 종목 중 ${gradeUsed} ${d.total_in_grade}개 선정
+          · 주가 데이터 확보 ${d.with_price_data}개 기준
+        </p>
+      </div>`;
+
+    // 바 차트 데이터
+    const stocks    = d.stocks || [];
+    const barLabels = stocks.map(s => s.ticker);
+    const barData   = stocks.map(s => s.actual_return_pct);
+    const barColors = barData.map(v => v >= 0 ? "rgba(16,185,129,.7)" : "rgba(239,68,68,.7)");
+    const barBorder = barData.map(v => v >= 0 ? "#10b981" : "#ef4444");
+
+    const tableRows = stocks.map(s => {
+      const rv    = s.actual_return_pct;
+      const rvStr = rv == null ? "-" : `${rv >= 0 ? "+" : ""}${rv.toFixed(1)}%`;
+      const rvCls = rv == null ? "" : rv >= 0 ? "pos" : "neg";
+      const gc    = { TENBAGGER: "#10b981", COMPOUNDER: "#60a5fa" }[s.predicted_grade] || "#9ca3af";
+      return `<tr onclick="location.href='index.html?ticker=${s.ticker}'" style="cursor:pointer">
+        <td>
+          <span style="font-weight:700;font-size:13px">${s.name || s.ticker}</span>
+          <span style="font-size:10px;color:#6b7280;margin-left:6px">${s.ticker}</span>
+        </td>
+        <td><span style="color:${gc};font-weight:700;font-size:11px">${s.predicted_grade}</span></td>
+        <td>${s.total_score?.toFixed(1) ?? "-"}</td>
+        <td class="${rvCls}" style="font-weight:700">${rvStr}</td>
+        <td style="color:#6b7280">${s.price_base ? "₩" + s.price_base.toLocaleString() : "-"}</td>
+        <td style="color:#6b7280">${s.price_end  ? "₩" + s.price_end.toLocaleString()  : "-"}</td>
+        <td style="text-align:center">${s.is_tenbagger_actual ? "⭐" : "-"}</td>
+        <td style="text-align:center">${s.prediction_correct == null ? "-" : s.prediction_correct ? "✅" : "❌"}</td>
+      </tr>`;
+    }).join("");
+
+    document.getElementById("resultArea").innerHTML = titleBanner + heroHtml + `
+      <div class="chart-card">
+        <h3>📊 종목별 실제 수익률 (${d.base_year}년 매수 → ${d.end_year}년) · 파란 점선: KOSPI ${fmtPct(kospi)}</h3>
+        <canvas id="trBarChart" height="280"></canvas>
+      </div>
+      <div class="table-card">
+        <h3>📋 종목별 상세 결과 (클릭 → 개별 종목 분석)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left">종목명</th>
+              <th>예측 등급</th>
+              <th>${d.base_year}년 점수</th>
+              <th>실제 수익률</th>
+              <th>${d.base_year}년 주가</th>
+              <th>${d.end_year}년 주가</th>
+              <th>텐배거</th>
+              <th>적중</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>`;
+
+    setTimeout(() => {
+      const ctx = document.getElementById("trBarChart");
+      if (!ctx) return;
+      if (_trBarChart) { try { _trBarChart.destroy(); } catch(e){} }
+      _trBarChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: barLabels,
+          datasets: [{
+            label: "실제 수익률 (%)",
+            data: barData,
+            backgroundColor: barColors,
+            borderColor: barBorder,
+            borderWidth: 1.5,
+            borderRadius: 4,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => {
+                  const idx = items[0].dataIndex;
+                  return `${stocks[idx]?.name || barLabels[idx]} (${barLabels[idx]})`;
+                },
+                label: (item) => `수익률: ${item.raw >= 0 ? "+" : ""}${item.raw.toFixed(1)}%`,
+                afterLabel: (item) => {
+                  if (kospi == null) return "";
+                  const al = item.raw - kospi;
+                  return `KOSPI 대비: ${al >= 0 ? "+" : ""}${al.toFixed(1)}%`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: { ticks: { color: "#6b7280", font: { size: 10 } }, grid: { display: false } },
+            y: {
+              ticks: { color: "#6b7280", callback: (v) => `${v >= 0 ? "+" : ""}${v}%` },
+              grid: { color: "rgba(255,255,255,.05)" },
+            },
+          },
+        },
+        plugins: [{
+          id: "kospiLine",
+          afterDraw(chart) {
+            if (kospi == null) return;
+            const { ctx: c, scales: { y } } = chart;
+            const yPos = y.getPixelForValue(kospi);
+            c.save();
+            c.beginPath();
+            c.setLineDash([6, 3]);
+            c.strokeStyle = "#3b82f6";
+            c.lineWidth = 2;
+            c.moveTo(chart.chartArea.left, yPos);
+            c.lineTo(chart.chartArea.right, yPos);
+            c.stroke();
+            c.setLineDash([]);
+            c.fillStyle = "#60a5fa";
+            c.font = "bold 10px sans-serif";
+            c.fillText(`KOSPI ${fmtPct(kospi)}`, chart.chartArea.right - 100, yPos - 5);
+            c.restore();
+          },
+        }],
+      });
+    }, 100);
+  }
+
+  // ── URL 파라미터 처리 ──
   window.addEventListener("load", () => {
     const params = new URLSearchParams(location.search);
     const ticker = params.get("ticker");
     if (ticker) {
       document.getElementById("btTicker").value = ticker;
+    }
+    // ?tab=track → 포트폴리오 검증 탭 자동 활성화
+    const tab = params.get("tab");
+    if (tab === "track") {
+      const trackBtn = document.querySelector(".tab[onclick*=\"'track'\"]");
+      if (trackBtn) switchTab("track", trackBtn);
     }
   });
 </script>

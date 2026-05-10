@@ -347,6 +347,20 @@
       </div>
     </div>
 
+    <!-- ── 시스템 신뢰도 배너 ── -->
+    <div id="trustBanner" style="background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(59,130,246,.06));border:1px solid rgba(16,185,129,.25);border-radius:16px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <div>
+        <div style="font-size:11px;color:#6ee7b7;font-weight:700;letter-spacing:.08em;margin-bottom:6px;">📊 시스템 신뢰도 검증 (포트폴리오 트랙레코드)</div>
+        <div id="trustSummary" style="font-size:13px;color:#9ca3af;">2019년 TENBAGGER 추천 종목 3년 실적 로딩 중...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div id="trustStats" style="display:flex;gap:20px;flex-wrap:wrap;"></div>
+        <a href="backtest.html" onclick="openTrackRecord(event)" style="display:inline-block;padding:8px 18px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:10px;color:#6ee7b7;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">
+          📈 상세 검증 보기 →
+        </a>
+      </div>
+    </div>
+
     <!-- 설정 폼 -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:20px;">
@@ -463,7 +477,7 @@
     document.getElementById("tab-" + id).classList.add("active");
     btn.classList.add("active");
     if (id === 'watchlist') loadWatchlist();
-    if (id === 'portfolio') runPortfolioSimulation();
+    if (id === 'portfolio') { loadTrustBanner(); runPortfolioSimulation(); }
     if (id === 'news') loadNewsDashboard();
   }
 
@@ -677,6 +691,53 @@
         } catch (e) { /* 배지 오류 무시 */ }
       }));
     }
+  }
+
+  // ── 시스템 신뢰도 배너 (포트폴리오 탭 진입 시 로드) ─────────────────────
+  async function loadTrustBanner() {
+    const summaryEl = document.getElementById("trustSummary");
+    const statsEl   = document.getElementById("trustStats");
+    if (!summaryEl || !statsEl) return;
+    try {
+      // 2019년 TENBAGGER+COMPOUNDER 3년 트랙레코드 (캐시 있으면 즉시)
+      const res = await fetch("/api/v2/portfolio/track-record?base_year=2019&hold_years=3&grade_filter=TENBAGGER%2CCOMPOUNDER&limit=30");
+      if (!res.ok) throw new Error("track-record 실패");
+      const d = await res.json();
+
+      const fmtPct = (v) => v == null ? "N/A" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+      const retColor   = d.portfolio_return_pct == null ? "#9ca3af"
+                       : d.portfolio_return_pct >= 0 ? "#10b981" : "#ef4444";
+      const alphaColor = d.alpha_pct == null ? "#9ca3af"
+                       : d.alpha_pct >= 0 ? "#10b981" : "#ef4444";
+
+      summaryEl.innerHTML = `2019년 TENBAGGER+COMPOUNDER 추천 → 2022년 (3년 보유) · ${d.with_price_data}개 종목 기준`;
+
+      statsEl.innerHTML = `
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:900;color:${retColor};line-height:1">${fmtPct(d.portfolio_return_pct)}</div>
+          <div style="font-size:10px;color:#6b7280;margin-top:3px">포트폴리오 수익</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:900;color:#60a5fa;line-height:1">${fmtPct(d.kospi_return_pct)}</div>
+          <div style="font-size:10px;color:#6b7280;margin-top:3px">KOSPI</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:900;color:${alphaColor};line-height:1">${fmtPct(d.alpha_pct)}</div>
+          <div style="font-size:10px;color:#6b7280;margin-top:3px">알파</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:900;color:${d.win_rate_pct >= 60 ? '#10b981' : '#f59e0b'};line-height:1">${d.win_rate_pct != null ? d.win_rate_pct.toFixed(0) + "%" : "N/A"}</div>
+          <div style="font-size:10px;color:#6b7280;margin-top:3px">적중률</div>
+        </div>`;
+    } catch(e) {
+      summaryEl.textContent = "신뢰도 데이터 로드 실패 (트랙레코드 탭에서 직접 계산 가능)";
+    }
+  }
+
+  function openTrackRecord(e) {
+    e.preventDefault();
+    // backtest.html#track 탭으로 이동
+    window.location.href = "backtest.html?tab=track";
   }
 
   // ── 포트폴리오 시뮬레이터 ────────────────────────────────────────────────

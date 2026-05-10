@@ -3,15 +3,20 @@ backend/app/api/v2_portfolio.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 주가 히스토리 / 스파크라인 / 가상 포트폴리오 시뮬레이터 API
 
-GET /api/v2/price/history/{ticker}     주가 히스토리 (period: 1m|3m|6m|1y|3y|5y)
-GET /api/v2/price/sparkline/{ticker}   52주 스파크라인 (주간 종가 배열)
-GET /api/v2/portfolio/simulate         가상 포트폴리오 시뮬레이션
+GET /api/v2/price/history/{ticker}       주가 히스토리 (period: 1m|3m|6m|1y|3y|5y)
+GET /api/v2/price/sparkline/{ticker}     52주 스파크라인 (주간 종가 배열)
+GET /api/v2/portfolio/simulate           가상 포트폴리오 시뮬레이션
+GET /api/v2/portfolio/track-record       시스템 신뢰도 검증 — 포트폴리오 트랙레코드
 """
 
+import asyncio
 import datetime
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import text
 from app.core.database import SessionLocal
+
+# ── 트랙레코드 인메모리 캐시 (연산이 무거우므로 서버 재시작 전까지 유지) ──────
+_track_record_cache: dict = {}
 
 router = APIRouter(prefix="/api/v2", tags=["portfolio-v2"])
 
@@ -460,3 +465,169 @@ def _build_monthly_series(
     except Exception as e:
         print(f"[PORTFOLIO] monthly_series 오류: {e}")
         return []
+
+
+# ── 포트폴리오 트랙레코드 ────────────────────────────────────────────────────
+
+async def _get_kospi_return_yearly(base_year: int, end_year: int) -> float | None:
+    """KOSPI 지수 연간 수익률 (연말 종가 기준, pykrx asyncio.to_thread 래퍼)"""
+    def _sync_fetch():
+        try:
+            from pykrx import stock
+            base_df = stock.get_index_ohlcv_by_date(
+                f"{base_year}1201", f"{base_year}1231", "1001"
+            )
+            end_df  = stock.get_index_ohlcv_by_date(
+                f"{end_year}1201",  f"{end_year}1231",  "1001"
+            )
+            if base_df is None or base_df.empty or end_df is None or end_df.empty:
+                return None
+            p0 = float(base_df["종가"].dropna().iloc[-1])
+            p1 = float(end_df["종가"].dropna().iloc[-1])
+            if p0 <= 0:
+                return None
+            return round((p1 / p0 - 1) * 100, 1)
+        except Exception as e:
+            print(f"[KOSPI_YEARLY] {base_year}→{end_year} 조회 실패: {e}")
+            return None
+
+    return await asyncio.to_thread(_sync_fetch)
+
+
+@router.get("/portfolio/track-record")
+async def portfolio_track_record(
+    base_year:    int   = Query(2019, ge=2012, le=2023, description="분석 기준 연도"),
+    hold_years:   int   = Query(3,    ge=1,    le=7,    description="보유 기간 (년)"),
+    grade_filter: str   = Query("TENBAGGER,COMPOUNDER", description="포함할 등급 (쉼표 구분)"),
+    limit:        int   = Query(30,   ge=10,   le=60,   description="분석 종목 수"),
+):
+    """
+    시스템 신뢰도 검증 — 포트폴리오 트랙레코드
+
+    base_year 당시 재무데이터로 스코어링 → grade_filter 해당 종목만 추출
+    → hold_years 후 실제 주가 수익률 집계 → KOSPI 대비 알파 계산
+
+    ⚠️ 첫 요청은 DART 역방향 재무 수집으로 1~3분 소요.
+       캐시 히트 시 즉시 반환.
+    """
+    end_year     = base_year + hold_years
+    current_year = datetime.date.today().year
+
+    if end_year >= current_year:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"보유 기간 종료 시점({end_year}년)이 올해이거나 미래입니다. "
+                f"base_year + hold_years < {current_year} 조건을 만족해야 합니다."
+            ),
+        )
+
+    cache_key = f"tr:{base_year}:{hold_years}:{grade_filter}:{limit}"
+    if cache_key in _track_record_cache:
+        result = dict(_track_record_cache[cache_key])
+        result["cached"] = True
+        return result
+
+    # 1. DB에서 현재 상위 종목 (ETL 결과 기준 상위 limit개)
+    with SessionLocal() as session:
+        rows = session.execute(text("""
+            SELECT ticker, name, market FROM scores
+            ORDER BY total_score DESC LIMIT :limit
+        """), {"limit": limit}).fetchall()
+
+    if not rows:
+        raise HTTPException(
+            status_code=400,
+            detail="DB에 종목 데이터가 없습니다. ETL을 먼저 실행하세요.",
+        )
+
+    tickers_info = [(r.ticker, r.name, r.market) for r in rows]
+
+    # 2. 병렬 백테스트 (세마포어로 동시 5개 제한 → DART 과부하 방지)
+    from app.domain.backtest import run_backtest
+    sem = asyncio.Semaphore(5)
+
+    async def _limited(ticker: str, by: int, hy: int):
+        async with sem:
+            return await run_backtest(ticker, by, hy)
+
+    tasks      = [_limited(t, base_year, hold_years) for t, _, _ in tickers_info]
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # 3. 결과 정리
+    grades_to_include = [g.strip().upper() for g in grade_filter.split(",")]
+    name_map   = {t: n for t, n, m in tickers_info}
+    market_map = {t: m for t, n, m in tickers_info}
+
+    all_stocks:   list[dict] = []
+    grade_stocks: list[dict] = []
+
+    for r in raw_results:
+        if isinstance(r, Exception) or not isinstance(r, dict) or "error" in r:
+            continue
+        ticker   = r.get("ticker")
+        sc       = r.get("score_at_base_year", {})
+        grade    = r.get("predicted_grade")
+        actual   = r.get("actual_return_pct")
+
+        info = {
+            "ticker":             ticker,
+            "name":               name_map.get(ticker, ticker),
+            "market":             market_map.get(ticker, ""),
+            "predicted_grade":    grade,
+            "total_score":        sc.get("total_score"),
+            "growth_score":       sc.get("growth_score"),
+            "stability_score":    sc.get("stability_score"),
+            "actual_return_pct":  actual,
+            "price_base":         r.get("price_at_base_year"),
+            "price_end":          r.get("price_at_end_year"),
+            "prediction_correct": r.get("prediction_correct"),
+            "is_tenbagger_actual": r.get("is_tenbagger_actual", False),
+        }
+        all_stocks.append(info)
+        if grade in grades_to_include:
+            grade_stocks.append(info)
+
+    # 4. 포트폴리오 집계 (균등 비중)
+    returns = [s["actual_return_pct"] for s in grade_stocks
+               if s["actual_return_pct"] is not None]
+
+    avg_return    = round(sum(returns) / len(returns), 1) if returns else None
+    win_count     = sum(1 for r in returns if r > 0)
+    tb_count      = sum(1 for r in returns if r >= 900)
+
+    # 5. KOSPI 벤치마크
+    kospi_return = await _get_kospi_return_yearly(base_year, end_year)
+    beat_market_count = (
+        sum(1 for r in returns if r > kospi_return)
+        if (kospi_return is not None and returns) else 0
+    )
+    alpha = (
+        round(avg_return - kospi_return, 1)
+        if avg_return is not None and kospi_return is not None else None
+    )
+
+    result = {
+        "base_year":             base_year,
+        "end_year":              end_year,
+        "hold_years":            hold_years,
+        "grade_filter":          grades_to_include,
+        "total_analyzed":        len(all_stocks),
+        "total_in_grade":        len(grade_stocks),
+        "with_price_data":       len(returns),
+        "portfolio_return_pct":  avg_return,
+        "win_rate_pct":          round(win_count / len(returns) * 100, 1) if returns else None,
+        "beat_market_rate_pct":  round(beat_market_count / len(returns) * 100, 1) if returns else None,
+        "tenbagger_rate_pct":    round(tb_count / len(returns) * 100, 1) if returns else None,
+        "kospi_return_pct":      kospi_return,
+        "alpha_pct":             alpha,
+        "cached":                False,
+        "stocks": sorted(
+            [s for s in grade_stocks if s["actual_return_pct"] is not None],
+            key=lambda x: x["actual_return_pct"],
+            reverse=True,
+        ),
+    }
+
+    _track_record_cache[cache_key] = result
+    return result
