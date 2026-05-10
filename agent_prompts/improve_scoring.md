@@ -12,7 +12,8 @@
 
 ## 스코어링 파일 위치
 ```
-C:\Users\00LG00\Desktop\tenbagger\backend\app\domain\scoring.py
+/home/user/tenbagger/backend/app/domain/scoring.py
+# Docker 컨테이너 내부: /app/app/domain/scoring.py
 ```
 
 ## 현재 가중치 (기준값)
@@ -38,7 +39,7 @@ GRADE_THRESHOLDS = {
 
 ### Step 1: 현재 scoring.py 읽기
 ```bash
-cat /sessions/nice-admiring-euler/mnt/tenbagger/backend/app/domain/scoring.py
+cat /home/user/tenbagger/backend/app/domain/scoring.py
 ```
 현재 가중치, 계산 로직, 임계값을 파악한다.
 
@@ -70,8 +71,8 @@ GRADE_THRESHOLDS = {
 
 ### Step 4: 변경 전 백업
 ```bash
-cp /sessions/nice-admiring-euler/mnt/tenbagger/backend/app/domain/scoring.py \
-   /sessions/nice-admiring-euler/mnt/tenbagger/backend/app/domain/scoring.py.bak.$(date +%Y%m%d)
+cp /home/user/tenbagger/backend/app/domain/scoring.py \
+   /home/user/tenbagger/backend/app/domain/scoring.py.bak.$(date +%Y%m%d)
 ```
 
 ### Step 5: scoring.py 수정
@@ -104,7 +105,7 @@ docker exec -it tenbagger_api python -m app.workers.etl --market KOSPI --skip-ex
 ### Step 8: DB 결과 확인
 ```bash
 docker exec tenbagger_db psql -U tenbagger -d tenbagger -c \
-  "SELECT grade, COUNT(*), ROUND(AVG(total_score),2) FROM score_cache GROUP BY grade ORDER BY AVG(total_score) DESC;"
+  "SELECT grade, COUNT(*), ROUND(AVG(total_score),2) FROM scores GROUP BY grade ORDER BY AVG(total_score) DESC;"
 ```
 등급 분포가 크게 달라지면 (TENBAGGER 0개 또는 500개 이상) 기준 재검토.
 
