@@ -115,6 +115,36 @@ async def run_backtest_sample(tickers: list[str], base_year: int = 2020) -> list
     return results
 
 
+def _fmt_candidate_row(s: dict) -> str:
+    """후보 종목 데이터를 프롬프트용 텍스트로 포맷"""
+    valuation = []
+    if s.get("per") and float(s["per"]) > 0:
+        valuation.append(f"PER={s['per']:.1f}")
+    if s.get("pbr") and float(s["pbr"]) > 0:
+        valuation.append(f"PBR={s['pbr']:.1f}")
+    if s.get("dividend_yield") and float(s["dividend_yield"]) > 0:
+        valuation.append(f"배당수익률={s['dividend_yield']:.1f}%")
+    if s.get("market_cap"):
+        mc = float(s["market_cap"])
+        valuation.append(f"시총={mc/1e8:.0f}억" if mc < 1e12 else f"시총={mc/1e12:.1f}조")
+    val_str = " | ".join(valuation) if valuation else "밸류에이션 미집계"
+
+    sub = (
+        f"성장={s.get('growth_score', 'N/A'):.1f} "
+        f"안정={s.get('stability_score', 'N/A'):.1f} "
+        f"현금={s.get('cashflow_score', 'N/A'):.1f} "
+        f"배당={s.get('dividend_score', 'N/A'):.1f} "
+        f"일관={s.get('consistency_score', 'N/A'):.1f}"
+    )
+    return (
+        f"  [{s.get('grade')}] {s.get('name')}({s.get('ticker')}) — 총점 {s.get('total_score', 0):.1f}/10\n"
+        f"    서브점수: {sub}\n"
+        f"    재무: 매출CAGR={s.get('revenue_cagr_5y', 'N/A')}% | EPS CAGR={s.get('eps_cagr_5y', 'N/A')}% | "
+        f"ROE={s.get('avg_roe_5y', 'N/A')}% | FCF마진={s.get('avg_fcf_margin', 'N/A')}%\n"
+        f"    밸류에이션: {val_str}"
+    )
+
+
 async def generate_investment_report(
     top_candidates: list[dict],
     new_candidates: list[dict],
@@ -125,61 +155,111 @@ async def generate_investment_report(
     if not settings.openai_api_key:
         return "OpenAI API 키가 설정되지 않아 AI 분석을 생성할 수 없습니다."
 
-    today_str = TODAY.strftime("%Y년 %m월 %d일")
-    top_str = "\n".join([
-        f"- {s.get('name')}({s.get('ticker')}): {s.get('total_score')}점 [{s.get('grade')}] "
-        f"매출CAGR={s.get('revenue_cagr_5y', 'N/A')}% ROE={s.get('avg_roe_5y', 'N/A')}%"
-        for s in top_candidates[:8]
-    ])
-    new_str = "\n".join([
-        f"- {s.get('name')}({s.get('ticker')}): {s.get('total_score')}점"
-        for s in new_candidates
-    ]) or "신규 발굴 종목 없음"
-    bt_str = "\n".join([
-        f"- {r.get('ticker')}: {r.get('base_year')}년 매수 → 실제수익률 {r.get('actual_return', 'N/A')}%"
+    today_str = TODAY.strftime("%Y년 %m월 %d일 (%A)")
+    grades = stats["grades"]
+
+    # 시장 온도 계산 (TENBAGGER 비율로 판단)
+    tb_rate = stats["tenbagger_rate"]
+    if tb_rate >= 5:
+        market_temp = f"🔥 과열 구간 (TENBAGGER {tb_rate}% — 고밸류 주의)"
+    elif tb_rate >= 2:
+        market_temp = f"✅ 적정 구간 (TENBAGGER {tb_rate}%)"
+    else:
+        market_temp = f"❄️ 저평가 구간 (TENBAGGER {tb_rate}% — 기회 탐색)"
+
+    # 상위 후보 상세 데이터
+    top_detail = "\n\n".join([_fmt_candidate_row(s) for s in top_candidates[:6]])
+
+    # 신규 후보
+    if new_candidates:
+        new_detail = "\n\n".join([_fmt_candidate_row(s) for s in new_candidates[:4]])
+    else:
+        new_detail = "  (오늘 새로 발굴된 종목 없음)"
+
+    # 백테스트
+    bt_lines = [
+        f"  {r.get('ticker')}: {r.get('base_year')}년 매수 → "
+        f"현재 수익률 {r.get('actual_return', 'N/A')}%"
         for r in backtest_samples
-    ]) or "백테스트 샘플 없음"
+    ]
+    bt_str = "\n".join(bt_lines) if bt_lines else "  (백테스트 샘플 없음)"
 
-    prompt = f"""당신은 한국 주식 장기투자 전문 애널리스트입니다. {today_str} 기준 일일 투자 리포트를 작성해주세요.
+    system_msg = (
+        "당신은 한국 주식 장기투자 전문 AI 애널리스트입니다.\n"
+        "텐배거 헌터 스코어링 시스템(성장성 30%·안정성 20%·현금흐름 20%·배당 15%·일관성 15%)을 "
+        "깊이 이해하고, 데이터에 근거한 예리하고 실용적인 투자 인사이트를 제공합니다.\n"
+        "오너(yoonchang.park@gmail.com)는 KOSPI/KOSDAQ 장기투자자로 텐배거 발굴이 목표입니다.\n"
+        "구체적 수치를 인용하고, 막연한 표현은 사용하지 마세요."
+    )
 
-## 시스템 분석 현황
-- 총 분석 종목: {stats['total_analyzed']}개
-- TENBAGGER 후보: {stats['grades']['TENBAGGER']}개 ({stats['tenbagger_rate']}%)
-- COMPOUNDER: {stats['grades']['COMPOUNDER']}개
-- 평균 스코어: {stats['avg_score']}/10
+    prompt = f"""{today_str} 텐배거 헌터 일일 투자 리포트를 작성해주세요.
 
-## 오늘 신규 발굴 종목
-{new_str}
+━━━ 시스템 현황 ━━━
+분석 종목: {stats['total_analyzed']}개 | 평균 점수: {stats['avg_score']}/10 | 시장 온도: {market_temp}
+등급 분포: TENBAGGER {grades['TENBAGGER']}개 | COMPOUNDER {grades['COMPOUNDER']}개 | WATCHLIST {grades['WATCHLIST']}개 | AVOID {grades['AVOID']}개
 
-## 상위 후보 종목
-{top_str}
+━━━ 상위 후보 종목 (상세) ━━━
+{top_detail}
 
-## 백테스트 정확도 샘플
+━━━ 오늘 신규 발굴 ━━━
+{new_detail}
+
+━━━ 백테스트 실적 ━━━
 {bt_str}
 
-다음 형식으로 투자 리포트를 작성하세요 (한국어, 실용적이고 구체적으로):
+━━━ 리포트 작성 지침 ━━━
+아래 순서로 작성하되, **각 섹션 제목을 굵게** 표시하세요. 총 600~900자.
 
-1. **오늘의 핵심 인사이트** (2~3줄): 전체 시장 관점에서 오늘 주목할 포인트
-2. **신규 발굴 종목 분석** (신규 종목이 있을 경우): 왜 주목해야 하는지
-3. **Top 3 추천 종목**: 각각 투자 포인트 1~2줄
-4. **시스템 신뢰도 코멘트**: 백테스트 결과를 바탕으로 시스템 정확도 평가
-5. **주의사항**: 현재 시장 환경에서 주의할 점"""
+1. **오늘의 시장 온도** (3~4줄)
+   - TENBAGGER 비율과 평균 점수로 현재 시장이 과열·적정·저평가 중 어느 국면인지 판단
+   - 이 국면에서 장기투자자가 취해야 할 전략 1가지 제시
+
+2. **신규 발굴 종목 스포트라이트** (신규 있을 때만)
+   - 왜 오늘 새로 TENBAGGER/COMPOUNDER에 진입했는지 핵심 지표 근거로 설명
+   - 진입 고려 시 주의할 밸류에이션 포인트 1가지
+
+3. **Top 3 심층 분석**
+   - 각 종목마다: ① 핵심 강점 1줄 ② 잠재 리스크 1줄 ③ 장기 보유 thesis 1줄
+
+4. **시스템 신뢰도**
+   - 백테스트 결과 수치를 직접 인용해 시스템 예측 정확도 평가 (1~2줄)
+
+5. **오늘의 행동 제안**
+   - 오너가 오늘 실제로 확인해야 할 것 1~2가지 (구체적 종목코드 or 지표 포함)
+
+⚠️ 마지막에 면책 고지 1줄 추가: "이 분석은 시스템 데이터 기반 참고 정보이며, 최종 투자 결정은 본인 판단으로 하시기 바랍니다."
+"""
 
     try:
         from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=settings.openai_api_key)
         resp = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            max_tokens=1200,
-            temperature=0.4,
+            model="gpt-4o",
+            max_tokens=1800,
+            temperature=0.3,
             messages=[
-                {"role": "system", "content": "당신은 한국 주식 장기투자 전문 AI 애널리스트입니다. 데이터 기반의 실용적인 투자 인사이트를 제공합니다."},
+                {"role": "system", "content": system_msg},
                 {"role": "user", "content": prompt},
             ],
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
-        return f"AI 분석 생성 실패: {e}"
+        # gpt-4o 실패 시 mini로 폴백
+        try:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=settings.openai_api_key)
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                max_tokens=1800,
+                temperature=0.3,
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e2:
+            return f"AI 분석 생성 실패: {e2}"
 
 
 def build_html_report(
