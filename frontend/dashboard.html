@@ -232,15 +232,18 @@
 <body>
 
 <header>
-  <div>
+  <a href="index.html" style="text-decoration:none;">
     <div class="logo">🚀 텐배거 헌터</div>
     <div class="subtitle">한국 주식 장기투자 분석 시스템 · DART + KRX</div>
-  </div>
-  <div class="nav-links">
-    <a class="nav-link" href="index.html">🔍 종목검색</a>
-    <a class="nav-link" href="screener.html">📊 스크리너</a>
-    <a class="nav-link" href="backtest.html">🧪 백테스트</a>
-    <a class="nav-link active" href="dashboard.html">📡 대시보드</a>
+  </a>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <div class="nav-links">
+      <a class="nav-link" href="index.html">🔍 종목검색</a>
+      <a class="nav-link" href="screener.html">📊 스크리너</a>
+      <a class="nav-link" href="backtest.html">🧪 백테스트</a>
+      <a class="nav-link active" href="dashboard.html">📡 대시보드</a>
+    </div>
+    <div id="authBtn" style="display:flex;align-items:center;gap:8px;"></div>
   </div>
 </header>
 
@@ -533,6 +536,40 @@
     } finally {
       _isRefreshing = false;
     }
+  }
+
+  // ── 로그인 상태 버튼 렌더 ────────────────────────────────────────
+  function renderAuthBtn() {
+    const el = document.getElementById("authBtn");
+    if (!el) return;
+    const token = localStorage.getItem("access_token");
+    const name  = localStorage.getItem("user_name");
+    if (token) {
+      el.innerHTML = `
+        <span style="font-size:12px;color:#9ca3af;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="${name || ''}">👤 ${name || '로그인됨'}</span>
+        <button onclick="doLogout()"
+          style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:8px;
+                 padding:6px 12px;color:#f87171;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+          로그아웃
+        </button>`;
+    } else {
+      el.innerHTML = `
+        <a href="/login.html?redirect=/dashboard.html"
+          style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:8px;
+                 padding:7px 16px;color:#fff;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">
+          로그인
+        </a>`;
+    }
+  }
+
+  function doLogout() {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user_name");
+    renderAuthBtn();
+    const wl = document.getElementById("watchlistContent");
+    if (wl) loadWatchlist();
   }
 
   // ── Tab switching ──
@@ -1804,6 +1841,7 @@
   }
 
   // ── Init ──
+  renderAuthBtn();
   loadRanking();
   loadDisclosures();
 </script>
