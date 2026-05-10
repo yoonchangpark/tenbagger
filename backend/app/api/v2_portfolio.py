@@ -424,6 +424,8 @@ def _build_monthly_series(
         if len(months) < 2:
             return []
 
+        tickers = [h["ticker"] for h in holdings if h.get("close_price")]
+
         series = []
         for month_start in months:
             # 월말 날짜
@@ -433,27 +435,30 @@ def _build_monthly_series(
                 month_end = datetime.date(month_start.year, month_start.month + 1, 1) - datetime.timedelta(days=1)
             month_end = min(month_end, end)
 
+            # 배치 쿼리: 모든 종목의 월말 종가를 한 번에 조회 (N+1 → 1)
+            with SessionLocal() as session:
+                rows = session.execute(text("""
+                    SELECT DISTINCT ON (ticker) ticker, close_price
+                    FROM price_daily_cache
+                    WHERE ticker = ANY(:tickers) AND trade_date <= :me AND close_price > 0
+                    ORDER BY ticker, trade_date DESC
+                """), {"tickers": tickers, "me": month_end}).fetchall()
+            price_by_ticker = {r.ticker: r.close_price for r in rows}
+
             portfolio_val = 0
             valid = 0
             for h in holdings:
                 entry_price = h.get("close_price")
                 if not entry_price:
                     continue
+                close_price = price_by_ticker.get(h["ticker"])
+                if not close_price:
+                    continue
                 weight = h.get("weight", 100 / len(holdings))
                 invested = invest_amount * weight / 100
-
-                # 해당 월 종가
-                with SessionLocal() as session:
-                    row = session.execute(text("""
-                        SELECT close_price FROM price_daily_cache
-                        WHERE ticker = :t AND trade_date <= :me
-                        ORDER BY trade_date DESC LIMIT 1
-                    """), {"t": h["ticker"], "me": month_end}).fetchone()
-
-                if row and row.close_price:
-                    shares = invested / entry_price
-                    portfolio_val += int(shares * row.close_price)
-                    valid += 1
+                shares = invested / entry_price
+                portfolio_val += int(shares * close_price)
+                valid += 1
 
             if valid > 0:
                 series.append({
