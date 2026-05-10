@@ -23,6 +23,7 @@ from app.core.config import settings
 
 
 DART_BASE = "https://opendart.fss.or.kr/api"
+DART_KEY  = None  # settings에서 런타임에 로드
 
 # 추출할 섹션 키워드 (우선순위 순)
 TARGET_SECTIONS = [
@@ -39,21 +40,14 @@ MAX_SECTION_CHARS = 3000
 
 # ── DART API ────────────────────────────────────────────────────────────────
 
-def dart_get(endpoint: str, params: dict) -> httpx.Response:
-    params["crtfc_key"] = settings.dart_api_key
-    r = httpx.get(f"{DART_BASE}/{endpoint}", params=params, timeout=30)
-    r.raise_for_status()
-    return r
-
-
-def search_annual_reports(corp_code: str, count: int = 4) -> list[dict]:
+async def search_annual_reports(corp_code: str, count: int = 4) -> list[dict]:
     """최근 사업보고서 + 분기보고서 rcept_no 목록 반환"""
-    r = dart_get("list.json", {
+    from app.infra.clients.dart_client import _get
+    data = await _get("list.json", {
         "corp_code": corp_code,
-        "pblntf_ty": "A",      # 정기공시
-        "page_count": 40,
+        "pblntf_ty": "A",
+        "page_count": "40",
     })
-    data = r.json()
     results = []
     for item in data.get("list", []):
         nm = item.get("report_nm", "")
@@ -68,18 +62,21 @@ def search_annual_reports(corp_code: str, count: int = 4) -> list[dict]:
     return results
 
 
-def get_corp_code(ticker: str) -> Optional[str]:
-    """ticker → corp_code"""
-    r = dart_get("company.json", {"stock_code": ticker})
-    data = r.json()
-    return data.get("corp_code")
+async def get_corp_code(ticker: str) -> Optional[str]:
+    """ticker → corp_code (기존 dart_client 활용)"""
+    from app.infra.clients.dart_client import get_corp_code as _get_corp_code
+    corp_code, _ = await _get_corp_code(ticker)
+    return corp_code
 
 
 # ── 문서 다운로드 + 파싱 ─────────────────────────────────────────────────────
 
-def download_document(rcept_no: str) -> dict[str, bytes]:
+async def download_document(rcept_no: str) -> dict[str, bytes]:
     """DART 공시 ZIP 다운로드 → {파일명: bytes} 반환"""
-    r = dart_get("document.json", {"rcept_no": rcept_no})
+    params = {"crtfc_key": settings.dart_api_key, "rcept_no": rcept_no}
+    async with httpx.AsyncClient(timeout=60) as client:
+        r = await client.get(f"{DART_BASE}/document.json", params=params)
+    r.raise_for_status()
     zf = zipfile.ZipFile(io.BytesIO(r.content))
     return {name: zf.read(name) for name in zf.namelist()}
 
@@ -128,10 +125,10 @@ def extract_sections(text: str) -> dict[str, str]:
     return sections
 
 
-def parse_report(rcept_no: str) -> dict[str, str]:
+async def parse_report(rcept_no: str) -> dict[str, str]:
     """rcept_no → 섹션별 텍스트 추출"""
     print(f"  다운로드 중: {rcept_no} ...", flush=True)
-    files = download_document(rcept_no)
+    files = await download_document(rcept_no)
 
     all_text = ""
     # HTML 파일만, 크기 순 정렬 (본문이 큰 파일)
@@ -203,13 +200,13 @@ async def run(ticker: Optional[str], prev_rcept: Optional[str], curr_rcept: Opti
 
     if ticker:
         print(f"\n{ticker} corp_code 조회 중...")
-        corp_code = get_corp_code(ticker)
+        corp_code = await get_corp_code(ticker)
         if not corp_code:
             print("corp_code를 찾을 수 없습니다.")
             return
 
         print(f"최근 보고서 목록 조회 중 (corp_code: {corp_code})...")
-        reports = search_annual_reports(corp_code, count=4)
+        reports = await search_annual_reports(corp_code, count=4)
         if len(reports) < 2:
             print("비교할 보고서가 2개 미만입니다.")
             return
@@ -228,8 +225,8 @@ async def run(ticker: Optional[str], prev_rcept: Optional[str], curr_rcept: Opti
     print(f"최신: {curr_meta['report_nm']} ({curr_meta['rcept_no']})")
     print()
 
-    prev_sections = parse_report(prev_meta["rcept_no"])
-    curr_sections = parse_report(curr_meta["rcept_no"])
+    prev_sections = await parse_report(prev_meta["rcept_no"])
+    curr_sections = await parse_report(curr_meta["rcept_no"])
 
     if not prev_sections and not curr_sections:
         print("텍스트 섹션 추출 실패 — 보고서 구조를 확인하세요.")
