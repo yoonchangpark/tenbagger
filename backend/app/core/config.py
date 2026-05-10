@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # JWT_SECRET 환경변수 미설정 시 실행마다 랜덤 생성 (재시작 시 토큰 무효화됨)
     jwt_secret: str = secrets.token_hex(32)
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 480  # 8시간
     refresh_token_expire_days: int = 7
 
     # 카카오 OAuth 설정
