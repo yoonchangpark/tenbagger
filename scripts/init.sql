@@ -265,3 +265,20 @@ CREATE TABLE IF NOT EXISTS sector_sentiment (
 );
 CREATE INDEX IF NOT EXISTS idx_sector_sentiment      ON sector_sentiment(sector, sentiment_date DESC);
 CREATE INDEX IF NOT EXISTS idx_sector_sentiment_date ON sector_sentiment(sentiment_date DESC);
+
+-- ─────────────────────────────────────────────────────────────────────
+-- Phase 6: AI 투자위원회 캐시 (한 종목당 24시간 동일 결과 재사용)
+-- ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS committee_cache (
+    id              SERIAL PRIMARY KEY,
+    ticker          VARCHAR(10) NOT NULL,
+    name            VARCHAR(100),
+    decision        VARCHAR(20),
+    confidence      FLOAT,
+    consensus_score FLOAT,
+    result_json     JSONB NOT NULL,
+    analyzed_at     TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(ticker, analyzed_at)
+);
+CREATE INDEX IF NOT EXISTS idx_committee_ticker ON committee_cache(ticker, analyzed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_committee_decision ON committee_cache(decision, analyzed_at DESC);

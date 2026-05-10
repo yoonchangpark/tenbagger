@@ -462,6 +462,16 @@
       html+='</div>';
       html+='</div>';
 
+      // ── Phase 6: AI 투자위원회 ──
+      html+='<div class="ai-panel" style="background:linear-gradient(135deg,rgba(168,85,247,.06),rgba(236,72,153,.06));border-color:rgba(168,85,247,.25);">';
+      html+='<div class="ai-panel-header">';
+      html+='<div class="ai-panel-title">🏛️ AI 투자위원회 <span class="ai-v2-badge" style="border-color:rgba(168,85,247,.4);">v2.6</span></div>';
+      html+='<button class="ai-load-btn" id="committeeLoadBtn" onclick="loadCommittee(\''+d.ticker+'\',\''+(d.name||'')+'\')" style="background:linear-gradient(135deg,#9333ea,#ec4899);">위원회 분석 시작</button>';
+      html+='</div>';
+      html+='<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">재무분석가 · 뉴스감성가 · 업종리서처 · 투자전략가 4명의 AI 전문가가 독립 분석 후 종합 의견을 제시합니다 (15~20초 소요).</div>';
+      html+='<div id="committeeContent" class="ai-content"></div>';
+      html+='</div>';
+
       html+='</div>';
 
       const el=document.getElementById("result");
@@ -689,6 +699,166 @@
 
     function escHtml(s){
       return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    // ── Phase 6: AI 투자위원회 ──
+    async function loadCommittee(ticker, name){
+      const btn=document.getElementById("committeeLoadBtn");
+      const content=document.getElementById("committeeContent");
+      btn.disabled=true;
+      btn.textContent="위원회 소집 중…";
+      content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>4명의 AI 전문가가 독립 분석 중입니다… (15~20초 소요)</div>';
+      content.classList.add("visible");
+      try {
+        const r = await fetch(API + "/api/v2/committee/" + ticker);
+        if (!r.ok) {
+          const err = await r.json().catch(()=>({detail:"HTTP "+r.status}));
+          throw new Error(err.detail || "HTTP "+r.status);
+        }
+        const result = await r.json();
+        renderCommittee(result);
+        btn.textContent = result.from_cache ? "♻️ 캐시 결과 (재분석하려면 클릭)" : "✅ 분석 완료 (재분석)";
+        btn.disabled = false;
+        btn.onclick = () => loadCommitteeForce(ticker, name);
+      } catch(e) {
+        content.innerHTML = '<div style="color:#f87171;font-size:13px;">위원회 분석 실패: ' + e.message + '</div>';
+        btn.disabled = false;
+        btn.textContent = "다시 시도";
+      }
+    }
+
+    async function loadCommitteeForce(ticker, name){
+      const btn=document.getElementById("committeeLoadBtn");
+      btn.disabled=true; btn.textContent="재분석 중…";
+      const content=document.getElementById("committeeContent");
+      content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>위원회 재소집 중… (15~20초)</div>';
+      try {
+        const r = await fetch(API + "/api/v2/committee/" + ticker + "/run", {method: "POST"});
+        if (!r.ok) throw new Error("HTTP "+r.status);
+        const result = await r.json();
+        renderCommittee(result);
+        btn.textContent = "✅ 재분석 완료";
+        btn.disabled = false;
+      } catch(e) {
+        content.innerHTML = '<div style="color:#f87171;font-size:13px;">재분석 실패: ' + e.message + '</div>';
+        btn.disabled = false;
+        btn.textContent = "다시 시도";
+      }
+    }
+
+    function renderCommittee(d){
+      const content = document.getElementById("committeeContent");
+      const decision = d.committee_decision || "HOLD";
+      const conf = d.confidence || 0;
+      const score = d.consensus_score || 0;
+
+      const decisionMeta = {
+        STRONG_BUY: {emoji:"🟢", label:"강력 매수", bg:"linear-gradient(135deg,#16a34a,#22c55e)", color:"#fff"},
+        BUY:        {emoji:"🟢", label:"매수",     bg:"linear-gradient(135deg,#22c55e,#84cc16)", color:"#fff"},
+        HOLD:       {emoji:"🟡", label:"관망",     bg:"linear-gradient(135deg,#f59e0b,#eab308)", color:"#0a0f1e"},
+        REDUCE:     {emoji:"🟠", label:"비중축소", bg:"linear-gradient(135deg,#f97316,#ef4444)", color:"#fff"},
+        AVOID:      {emoji:"🔴", label:"회피",     bg:"linear-gradient(135deg,#ef4444,#b91c1c)", color:"#fff"},
+      }[decision] || {emoji:"⚪", label:decision, bg:"#374151", color:"#fff"};
+
+      const agents = d.agents || {};
+      const fa = agents.financial_analyst || {};
+      const ns = agents.news_sentiment_analyst || {};
+      const sr = agents.sector_researcher || {};
+      const st = agents.investment_strategist || {};
+
+      let html = '';
+
+      // 종합 결정 배너
+      html += '<div style="background:'+decisionMeta.bg+';color:'+decisionMeta.color+';border-radius:14px;padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">';
+      html += '<div><div style="font-size:11px;font-weight:700;opacity:.85;letter-spacing:1px;">위원회 종합 결정</div><div style="font-size:26px;font-weight:800;margin-top:2px;">'+decisionMeta.emoji+' '+decisionMeta.label+'</div></div>';
+      html += '<div style="text-align:right;"><div style="font-size:11px;opacity:.85;">신뢰도</div><div style="font-size:22px;font-weight:800;">'+(conf*100).toFixed(0)+'%</div></div>';
+      html += '<div style="text-align:right;"><div style="font-size:11px;opacity:.85;">종합 점수</div><div style="font-size:22px;font-weight:800;">'+score.toFixed(1)+'/10</div></div>';
+      html += '</div>';
+
+      // 투자전략가 종합 의견
+      if (st.summary) {
+        html += '<div class="ai-box" style="margin-bottom:20px;border-left:3px solid #a855f7;">';
+        html += '<h4>🎯 투자전략가 종합 의견</h4>';
+        html += '<p>'+escHtml(st.summary)+'</p>';
+        if (st.entry_strategy) html += '<div style="margin-top:8px;font-size:12px;color:#a78bfa;"><b>진입 전략:</b> '+escHtml(st.entry_strategy)+'</div>';
+        if (st.time_horizon) html += '<div style="font-size:12px;color:#a78bfa;"><b>투자 기간:</b> '+escHtml(st.time_horizon)+'</div>';
+        html += '</div>';
+      }
+
+      // 3명의 전문가 카드 (그리드)
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px;">';
+
+      // 재무분석가
+      html += renderAgentCard("🏦", "재무분석가", "#3b82f6", fa, [
+        ["강점", fa.key_strengths],
+        ["약점", fa.key_weaknesses],
+        ["성장 전망", fa.growth_outlook ? [fa.growth_outlook] : null],
+      ]);
+
+      // 뉴스감성가
+      html += renderAgentCard("📰", "뉴스감성가", "#8b5cf6", ns, [
+        ["주요 테마", ns.key_themes],
+        ["위험 신호", ns.risk_signals],
+        ["감성 추세", ns.sentiment_trend ? [ns.sentiment_trend] : null],
+      ]);
+
+      // 업종리서처
+      html += renderAgentCard("🌏", "업종리서처", "#ec4899", sr, [
+        ["호재 (Tailwind)", sr.tailwinds],
+        ["악재 (Headwind)", sr.headwinds],
+        ["사이클 / 위치", [sr.sector_cycle, sr.competitive_position].filter(Boolean)],
+      ]);
+
+      html += '</div>';
+
+      // 리스크 + 모니터링 포인트
+      if ((st.key_risks && st.key_risks.length) || (st.monitoring_points && st.monitoring_points.length)) {
+        html += '<div class="ai-two-col">';
+        if (st.key_risks && st.key_risks.length) {
+          html += '<div class="ai-box"><h4>🚨 핵심 리스크</h4><ul style="padding-left:18px;margin:0;">';
+          st.key_risks.forEach(k => html += '<li style="margin-bottom:4px;font-size:13px;color:#d1d5db;">'+escHtml(k)+'</li>');
+          html += '</ul></div>';
+        }
+        if (st.monitoring_points && st.monitoring_points.length) {
+          html += '<div class="ai-box"><h4>👀 모니터링 포인트</h4><ul style="padding-left:18px;margin:0;">';
+          st.monitoring_points.forEach(k => html += '<li style="margin-bottom:4px;font-size:13px;color:#d1d5db;">'+escHtml(k)+'</li>');
+          html += '</ul></div>';
+        }
+        html += '</div>';
+      }
+
+      // 메타 정보
+      const ts = d.analyzed_at ? new Date(d.analyzed_at).toLocaleString("ko-KR") : "";
+      const cacheBadge = d.from_cache ? '<span style="background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:2px 8px;font-size:10px;color:#fbbf24;margin-left:8px;">⚡ 캐시</span>' : '';
+      if (ts) html += '<div style="font-size:11px;color:#6b7280;margin-top:14px;text-align:right;">위원회 분석 시각: '+ts+cacheBadge+'</div>';
+
+      content.innerHTML = html;
+    }
+
+    function renderAgentCard(emoji, title, color, agent, sections) {
+      const verdict = agent.verdict || "—";
+      const score = agent.score != null ? agent.score.toFixed(1) : "-";
+      let html = '<div style="background:rgba(255,255,255,.03);border:1px solid '+color+'44;border-radius:14px;padding:16px;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
+      html += '<span style="font-size:20px;">'+emoji+'</span>';
+      html += '<span style="font-weight:700;font-size:13px;color:'+color+';">'+title+'</span>';
+      html += '<span style="margin-left:auto;background:'+color+'22;color:'+color+';border:1px solid '+color+'66;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">'+escHtml(verdict)+' · '+score+'</span>';
+      html += '</div>';
+      if (agent.rationale) {
+        html += '<p style="font-size:12px;color:#d1d5db;line-height:1.5;margin-bottom:10px;">'+escHtml(agent.rationale)+'</p>';
+      }
+      sections.forEach(([label, items]) => {
+        if (items && items.length) {
+          html += '<div style="margin-top:8px;"><div style="font-size:10px;font-weight:700;color:'+color+';margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;">'+label+'</div>';
+          html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+          items.forEach(it => {
+            html += '<span style="font-size:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:2px 8px;color:#d1d5db;">'+escHtml(it)+'</span>';
+          });
+          html += '</div></div>';
+        }
+      });
+      html += '</div>';
+      return html;
     }
 
     // ── 초기화 ──

@@ -16,6 +16,7 @@ from app.api.payment import router as payment_router
 from app.api.watchlist import router as watchlist_router
 from app.api.admin import router as admin_router
 from app.api.v2_portfolio import router as portfolio_router
+from app.api.v2_committee import router as committee_router
 from app.api.v2_news import router as news_router
 from app.core.database import check_db, SessionLocal
 
@@ -163,6 +164,7 @@ app.include_router(payment_router)
 app.include_router(watchlist_router)
 app.include_router(admin_router)
 app.include_router(portfolio_router)
+app.include_router(committee_router)
 app.include_router(news_router)
 
 
