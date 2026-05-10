@@ -10,17 +10,37 @@ from app.domain.scoring import calculate_tenbagger_score
 
 
 async def _get_price_at(ticker: str, year: int) -> Optional[int]:
-    """특정 연도 말 주가 조회 (pykrx)"""
-    try:
-        from pykrx import stock
-        start = f"{year}1201"
-        end = f"{year}1231"
-        df = stock.get_market_ohlcv(start, end, ticker)
-        if not df.empty:
-            return int(df['종가'].iloc[-1])
-    except Exception as e:
-        print(f"[Backtest] {ticker} {year}년 주가 조회 실패: {e}")
-    return None
+    """특정 연도 말 주가 조회 (FinanceDataReader 우선 → pykrx fallback)"""
+    def _fdr_fetch() -> Optional[int]:
+        try:
+            import FinanceDataReader as fdr
+            df = fdr.DataReader(ticker, f"{year}-12-01", f"{year}-12-31")
+            if df is not None and not df.empty:
+                closes = df["Close"].dropna()
+                if len(closes) > 0:
+                    return int(closes.iloc[-1])
+        except Exception as e:
+            print(f"[Backtest] {ticker} {year}년 FDR 조회 실패: {e}")
+        return None
+
+    def _pykrx_fetch() -> Optional[int]:
+        try:
+            from pykrx import stock
+            df = stock.get_market_ohlcv(f"{year}1201", f"{year}1231", ticker)
+            if df is not None and not df.empty:
+                return int(df["종가"].iloc[-1])
+        except Exception as e:
+            print(f"[Backtest] {ticker} {year}년 pykrx 조회 실패: {e}")
+        return None
+
+    # FinanceDataReader 먼저 시도 (더 안정적)
+    price = await asyncio.to_thread(_fdr_fetch)
+    if price:
+        return price
+
+    # pykrx fallback (1초 대기 후)
+    await asyncio.sleep(1)
+    return await asyncio.to_thread(_pykrx_fetch)
 
 
 async def run_backtest(

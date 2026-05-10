@@ -17,8 +17,7 @@ docker logs tenbagger_api --tail 10
 ```
 컨테이너가 실행 중이 아니면:
 ```bash
-cd C:\Users\00LG00\Desktop\tenbagger
-docker-compose up -d
+docker-compose -f /path/to/tenbagger/docker-compose.yml up -d
 ```
 
 ### Step 2: ETL 실행 (신규 데이터 수집)
@@ -56,19 +55,56 @@ docker exec tenbagger_db psql -U tenbagger -d tenbagger -c "SELECT COUNT(*) FROM
 docker exec tenbagger_api env | grep DART_API_KEY
 ```
 
+### Step 5: 뉴스 감성 현황 확인 (선택)
+```bash
+# 최근 1일 뉴스 감성 집계 확인
+docker exec tenbagger_db psql -U tenbagger -d tenbagger -c "
+  SELECT ticker, signal, avg_score, article_count, sentiment_date
+  FROM news_sentiment
+  WHERE sentiment_date = CURRENT_DATE
+  ORDER BY avg_score DESC
+  LIMIT 10;
+"
+
+# 섹터 감성 현황
+docker exec tenbagger_db psql -U tenbagger -d tenbagger -c "
+  SELECT sector, signal, avg_score, sentiment_date
+  FROM sector_sentiment
+  ORDER BY sentiment_date DESC;
+"
+```
+
+### Step 6: 문제 발생 시 진단
+```bash
+# API 로그
+docker logs tenbagger_api --tail 50
+
+# DB 연결 확인
+docker exec tenbagger_db psql -U tenbagger -d tenbagger -c "SELECT COUNT(*) FROM scores;"
+
+# DART API 키 확인
+docker exec tenbagger_api env | grep DART_API_KEY
+
+# 카카오 Push 환경변수 확인
+docker exec tenbagger_api env | grep KAKAO
+```
+
 ## 성공 기준
 - ETL: 오류율 < 20% (949종목 중 800+ 성공)
 - 어드바이저: HTML 리포트 생성 완료
 - 이메일: yoonchang.park@gmail.com 수신 확인
+- 카카오 Push: 구독자 전송 완료 (실패해도 이메일 성공이면 OK)
 
 ## 실패 시 처리
 1. ETL 일부 실패 → 정상 (네트워크 일시 오류), 다음 날 재시도
 2. 이메일 미발송 → `EMAIL_SENDER`, `EMAIL_PASSWORD` 환경변수 확인
-3. DB 연결 실패 → `docker-compose restart db` 실행
-4. 전체 실패 → `docker-compose down && docker-compose up -d` 재시작
+3. 카카오 Push 실패 → `KAKAO_*` 환경변수 확인, 이메일만 성공해도 정상 완료
+4. DB 연결 실패 → `docker-compose restart db` 실행
+5. 전체 실패 → `docker-compose down && docker-compose up -d` 재시작
 
 ## 완료 후 보고
 실행 완료 후 다음 정보를 오너(yoonchang.park@gmail.com)에게 보고:
 - 오늘 신규 TENBAGGER 후보 종목명 및 점수
 - ETL 성공/실패 종목 수
+- 카카오 Push 발송 건수
 - 시스템 이상 유무

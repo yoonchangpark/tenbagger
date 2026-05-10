@@ -297,8 +297,8 @@
         <div class="config-group">
           <label>대상 등급</label>
           <div class="tr-grade-btns" id="trGradeBtns">
-            <button class="tr-grade-btn active" data-grade="TENBAGGER" onclick="selectTrGrade(this)">⭐ TENBAGGER만</button>
-            <button class="tr-grade-btn" data-grade="TENBAGGER,COMPOUNDER" onclick="selectTrGrade(this)">⭐+💙 TENBAGGER+COMPOUNDER</button>
+            <button class="tr-grade-btn" data-grade="TENBAGGER" onclick="selectTrGrade(this)">⭐ TENBAGGER만</button>
+            <button class="tr-grade-btn active" data-grade="TENBAGGER,COMPOUNDER" onclick="selectTrGrade(this)">⭐+💙 TENBAGGER+COMPOUNDER</button>
           </div>
         </div>
         <div class="config-group">
@@ -337,7 +337,7 @@
   let selectedYear = 2015;
   let selectedMYear = 2014;
   let selectedTrYear = 2019;
-  let selectedTrGrade = "TENBAGGER";
+  let selectedTrGrade = "TENBAGGER,COMPOUNDER";
 
   function switchTab(tab, btn) {
     currentTab = tab;

@@ -13,19 +13,16 @@
 
 ## 작업 순서
 
-### Step 1: 2년 전 예측 데이터 조회
+### Step 1: 현재 TENBAGGER 예측 데이터 조회
 ```python
-# backend/app/domain/backtest.py 활용
 docker exec -it tenbagger_api python3 << 'EOF'
-import asyncio
-from app.infra.repositories.company_repo import SessionLocal
+from app.core.database import SessionLocal
 from sqlalchemy import text
 
 with SessionLocal() as db:
-    # 2년 전 TENBAGGER 예측 종목 조회 (score_history 테이블이 있는 경우)
     result = db.execute(text("""
-        SELECT ticker, name, grade, total_score, updated_at
-        FROM score_cache
+        SELECT ticker, name, grade, total_score, analyzed_at
+        FROM scores
         WHERE grade = 'TENBAGGER'
         ORDER BY total_score DESC
     """)).fetchall()
@@ -39,13 +36,13 @@ EOF
 docker exec -it tenbagger_api python3 << 'EOF'
 import asyncio
 import FinanceDataReader as fdr
-from app.infra.repositories.company_repo import SessionLocal
+from app.core.database import SessionLocal
 from sqlalchemy import text
 from datetime import datetime, timedelta
 
 with SessionLocal() as db:
     tenbaggers = db.execute(text(
-        "SELECT ticker, name, grade, total_score FROM score_cache WHERE grade='TENBAGGER'"
+        "SELECT ticker, name, grade, total_score FROM scores WHERE grade='TENBAGGER'"
     )).fetchall()
 
 results = []
@@ -83,7 +80,7 @@ done
 ### Step 4: 정확도 리포트 생성
 ```python
 docker exec -it tenbagger_api python3 << 'EOF'
-from app.infra.repositories.company_repo import SessionLocal
+from app.core.database import SessionLocal
 from sqlalchemy import text
 
 with SessionLocal() as db:
@@ -91,27 +88,48 @@ with SessionLocal() as db:
     dist = db.execute(text("""
         SELECT grade, COUNT(*) as cnt, ROUND(AVG(total_score),2) as avg_score,
                ROUND(MIN(total_score),2) as min_score, ROUND(MAX(total_score),2) as max_score
-        FROM score_cache
+        FROM scores
         GROUP BY grade
         ORDER BY avg_score DESC
     """)).fetchall()
-    
+
     print("=== 등급별 분포 ===")
     for d in dist:
         print(f"{d[0]}: {d[1]}종목, 평균={d[2]}, 범위={d[3]}~{d[4]}")
-    
-    # 성장성 점수 분포
+
+    # 세부 점수 분포
     growth = db.execute(text("""
-        SELECT 
-            ROUND(AVG((score_details->>'growth_score')::float),2) as avg_growth,
-            ROUND(AVG((score_details->>'stability_score')::float),2) as avg_stability,
-            ROUND(AVG((score_details->>'cashflow_score')::float),2) as avg_cashflow
-        FROM score_cache
-        WHERE score_details IS NOT NULL
+        SELECT
+            ROUND(AVG(growth_score),2) as avg_growth,
+            ROUND(AVG(stability_score),2) as avg_stability,
+            ROUND(AVG(cashflow_score),2) as avg_cashflow,
+            ROUND(AVG(dividend_score),2) as avg_dividend,
+            ROUND(AVG(consistency_score),2) as avg_consistency
+        FROM scores
+        WHERE total_score IS NOT NULL
     """)).fetchone()
     if growth:
         print(f"\n=== 평균 세부 점수 ===")
         print(f"성장성: {growth[0]}, 안정성: {growth[1]}, 현금흐름: {growth[2]}")
+        print(f"배당: {growth[3]}, 일관성: {growth[4]}")
+
+    # 뉴스 감성 vs 등급 교차 분석
+    cross = db.execute(text("""
+        SELECT s.grade, ns.signal, COUNT(*) as cnt
+        FROM scores s
+        JOIN (
+            SELECT DISTINCT ON (ticker) ticker, signal
+            FROM news_sentiment
+            ORDER BY ticker, sentiment_date DESC
+        ) ns ON ns.ticker = s.ticker
+        WHERE s.grade IN ('TENBAGGER','COMPOUNDER')
+        GROUP BY s.grade, ns.signal
+        ORDER BY s.grade, cnt DESC
+    """)).fetchall()
+    if cross:
+        print(f"\n=== 등급별 뉴스 감성 분포 ===")
+        for c in cross:
+            print(f"{c[0]} × {c[1]}: {c[2]}종목")
 EOF
 ```
 
@@ -147,5 +165,5 @@ EOF
 ## CHANGELOG.md 업데이트 필수
 정확도 데이터가 의미있게 쌓이면 반드시 기록:
 ```bash
-echo "## $(date +%Y-%m-%d) 정확도 검증" >> /sessions/nice-admiring-euler/mnt/tenbagger/CHANGELOG.md
+echo "## $(date +%Y-%m-%d) 정확도 검증" >> /home/user/tenbagger/CHANGELOG.md
 ```
