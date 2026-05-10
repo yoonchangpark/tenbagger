@@ -536,8 +536,9 @@
           <button onclick="removeWatchlist('${s.ticker}','${s.name}')"
             style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;"
             title="삭제">✕</button>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
             <span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;">${emoji} ${grade}</span>
+            <span id="news-badge-${s.ticker}" style="display:none;"></span>
             <span style="font-size:11px;color:var(--muted);">${s.ticker}</span>
           </div>
           <div style="font-size:16px;font-weight:700;margin-bottom:4px;">${s.name || s.ticker}</div>
@@ -561,8 +562,9 @@
       }
       html += '</div>';
       document.getElementById('watchlistContent').innerHTML = html;
-      // 스파크라인 비동기 로드 (카드 렌더링 후)
+      // 스파크라인 + 뉴스 감성 배지 비동기 로드 (카드 렌더링 후)
       setTimeout(() => loadSparklines(items.map(s => s.ticker)), 200);
+      setTimeout(() => loadNewsBadges(items.map(s => s.ticker)), 300);
     } catch(e) {
       document.getElementById('watchlistContent').innerHTML =
         `<p style="color:var(--red);">서버 연결 오류: ${e.message}</p>`;
@@ -621,6 +623,46 @@
         ctx.lineWidth = 1.5;
         ctx.stroke();
       } catch (e) { /* 스파크라인 오류 무시 */ }
+    }
+  }
+
+  // ── 워치리스트 카드 뉴스 감성 배지 ─────────────────────────────────────
+  async function loadNewsBadges(tickers) {
+    // 5개씩 병렬 조회 (서버 부담 방지)
+    const chunkSize = 5;
+    for (let i = 0; i < tickers.length; i += chunkSize) {
+      const chunk = tickers.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(async (ticker) => {
+        try {
+          const res = await fetch(`${API}/api/v2/news/sentiment/${ticker}?days=14`);
+          if (!res.ok) return;
+          const d = await res.json();
+          const el = document.getElementById(`news-badge-${ticker}`);
+          if (!el) return;
+
+          if (!d.has_data) {
+            // 분석 진행 중이면 작은 로딩 표시
+            if (d.analyzing) {
+              el.style.display = "inline-flex";
+              el.innerHTML = `<span style="background:rgba(99,102,241,.15);color:#a5b4fc;border:1px solid rgba(99,102,241,.3);border-radius:6px;padding:3px 6px;font-size:10px;font-weight:600;" title="뉴스 분석 진행 중">📰 분석중</span>`;
+            }
+            return;
+          }
+          const latest = d.latest || {};
+          const signal = latest.signal || "NEUTRAL";
+          const score = latest.avg_score;
+          const meta = {
+            BUY_SIGNAL: { emoji: "🟢", label: "매수", bg: "rgba(34,197,94,.15)", color: "#4ade80", border: "rgba(34,197,94,.4)" },
+            POSITIVE:   { emoji: "🟡", label: "긍정", bg: "rgba(132,204,22,.15)", color: "#bef264", border: "rgba(132,204,22,.4)" },
+            NEUTRAL:    { emoji: "⚪", label: "중립", bg: "rgba(107,114,128,.15)", color: "#9ca3af", border: "rgba(107,114,128,.4)" },
+            CAUTION:    { emoji: "🟠", label: "주의", bg: "rgba(249,115,22,.15)", color: "#fdba74", border: "rgba(249,115,22,.4)" },
+            SELL_SIGNAL:{ emoji: "🔴", label: "매도", bg: "rgba(239,68,68,.15)", color: "#fca5a5", border: "rgba(239,68,68,.4)" },
+          }[signal] || { emoji: "⚪", label: signal, bg: "rgba(107,114,128,.15)", color: "#9ca3af", border: "rgba(107,114,128,.4)" };
+          const scoreStr = score != null ? `${score >= 0 ? "+" : ""}${score.toFixed(2)}` : "";
+          el.style.display = "inline-flex";
+          el.innerHTML = `<span style="background:${meta.bg};color:${meta.color};border:1px solid ${meta.border};border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;cursor:help;" title="뉴스 감성 ${meta.label} ${scoreStr} (지난 14일)">${meta.emoji} 뉴스 ${scoreStr}</span>`;
+        } catch (e) { /* 배지 오류 무시 */ }
+      }));
     }
   }
 
