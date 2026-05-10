@@ -30,7 +30,7 @@
     .layout { display: grid; grid-template-columns: 280px 1fr; gap: 24px; max-width: 1280px; margin: 32px auto; padding: 0 24px; }
 
     /* Filter Panel */
-    .filter-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; height: fit-content; position: sticky; top: 84px; }
+    .filter-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow-y: auto; }
     .filter-panel h2 { font-size: 14px; font-weight: 700; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 20px; }
     .filter-group { margin-bottom: 20px; }
     .filter-group label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 8px; font-weight: 600; letter-spacing: .03em; }
@@ -157,7 +157,7 @@
       <label>최소 종합점수 <span id="minScoreDisplay" style="color:var(--purple)">0점</span></label>
       <div class="slider-row">
         <input type="range" id="minScore" min="0" max="9" value="0" step="0.5"
-               oninput="document.getElementById('minScoreDisplay').textContent=this.value+'점'">
+               oninput="document.getElementById('minScoreDisplay').textContent=this.value+'점'; debounceRun()">
       </div>
     </div>
 
@@ -165,7 +165,7 @@
       <label>최소 성장점수 <span id="minGrowthDisplay" style="color:var(--green)">0점</span></label>
       <div class="slider-row">
         <input type="range" id="minGrowth" min="0" max="10" value="0" step="0.5"
-               oninput="document.getElementById('minGrowthDisplay').textContent=this.value+'점'">
+               oninput="document.getElementById('minGrowthDisplay').textContent=this.value+'점'; debounceRun()">
       </div>
     </div>
 
@@ -173,7 +173,7 @@
       <label>최소 배당수익률 <span id="minDivDisplay" style="color:var(--yellow)">0%</span></label>
       <div class="slider-row">
         <input type="range" id="minDiv" min="0" max="8" value="0" step="0.5"
-               oninput="document.getElementById('minDivDisplay').textContent=this.value+'%'">
+               oninput="document.getElementById('minDivDisplay').textContent=this.value+'%'; debounceRun()">
       </div>
     </div>
 
@@ -181,7 +181,7 @@
       <label>최대 부채비율 <span id="maxDebtDisplay" style="color:var(--red)">제한없음</span></label>
       <div class="slider-row">
         <input type="range" id="maxDebt" min="0" max="500" value="500" step="10"
-               oninput="document.getElementById('maxDebtDisplay').textContent=this.value>=500?'제한없음':this.value+'%'">
+               oninput="document.getElementById('maxDebtDisplay').textContent=this.value>=500?'제한없음':this.value+'%'; debounceRun()">
       </div>
     </div>
 
@@ -208,7 +208,7 @@
       <label>결과 개수 <span id="limitDisplay" style="color:var(--purple)">50개</span></label>
       <div class="slider-row">
         <input type="range" id="limitRange" min="10" max="200" value="50" step="10"
-               oninput="document.getElementById('limitDisplay').textContent=this.value+'개'">
+               oninput="document.getElementById('limitDisplay').textContent=this.value+'개'; debounceRun()">
       </div>
     </div>
 
@@ -254,6 +254,12 @@
   let selectedGrades = new Set(["TENBAGGER", "COMPOUNDER", "WATCHLIST"]);
   let selectedMarket = "전체";
   let selectedSort = "total_score";
+  let _debounceTimer = null;
+
+  function debounceRun() {
+    clearTimeout(_debounceTimer);
+    _debounceTimer = setTimeout(runScreener, 500); // 슬라이더: 0.5초 후 실행
+  }
 
   function toggleGrade(btn) {
     const g = btn.dataset.grade;
@@ -265,18 +271,21 @@
       selectedGrades.add(g);
       btn.classList.add("active");
     }
+    runScreener(); // 자동 재검색
   }
 
   function selectMarket(btn) {
     document.querySelectorAll("#marketGroup .toggle-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     selectedMarket = btn.dataset.market;
+    runScreener(); // 자동 재검색
   }
 
   function selectSort(btn) {
     document.querySelectorAll("[data-sort]").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     selectedSort = btn.dataset.sort;
+    runScreener(); // 자동 재검색
   }
 
   // 스크리너 실행
