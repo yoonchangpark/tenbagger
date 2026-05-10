@@ -191,6 +191,11 @@
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (!data) return;
+          // 실제 이름 갱신 (재로그인 없이 최신 닉네임 반영)
+          if (data.user?.name && data.user.name !== localStorage.getItem('user_name')) {
+            localStorage.setItem('user_name', data.user.name);
+            btn.textContent = '👤 ' + data.user.name;
+          }
           const tier = data.subscription?.tier || 'free';
           if (tier !== 'free') {
             const badge = document.createElement('span');
