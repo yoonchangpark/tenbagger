@@ -46,6 +46,38 @@ def _run_subprocess(cmd: list, timeout: int = 7200) -> dict:
     }
 
 
+# ── DB 마이그레이션 (init.sql 재실행) ─────────────────────────────
+@router.post("/init-db")
+def admin_init_db(secret: str = Query(...)):
+    """init.sql 재실행 — 새로 추가된 테이블 생성 (IF NOT EXISTS 안전)"""
+    _check_secret(secret)
+    sql_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "..", "scripts", "init.sql"
+    )
+    if not os.path.exists(sql_path):
+        raise HTTPException(status_code=500, detail=f"init.sql not found at {sql_path}")
+    with open(sql_path, "r", encoding="utf-8") as f:
+        sql = f.read()
+    try:
+        with SessionLocal() as db:
+            db.execute(text(sql))
+            db.commit()
+        # 생성 결과 확인
+        with SessionLocal() as db:
+            tables = db.execute(text("""
+                SELECT tablename FROM pg_tables WHERE schemaname='public'
+                ORDER BY tablename
+            """)).fetchall()
+        return {
+            "status": "ok",
+            "message": "init.sql 재실행 완료",
+            "tables": [t.tablename for t in tables],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"init.sql 실행 오류: {e}")
+
+
 # ── DB 현황 조회 ───────────────────────────────────────────────────
 @router.get("/status")
 def admin_status(secret: str = Query(...)):
