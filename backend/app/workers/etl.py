@@ -27,6 +27,23 @@ from sqlalchemy import text
 
 # ── ETL 실행 상태 DB 관리 (재배포 후 이어받기) ──────────────────────────────
 
+def _etl_ensure_table() -> None:
+    """etl_run_state 테이블이 없으면 생성"""
+    with SessionLocal() as session:
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS etl_run_state (
+                run_date    DATE PRIMARY KEY,
+                status      VARCHAR(20) DEFAULT 'running',
+                last_ticker VARCHAR(20),
+                processed   INTEGER DEFAULT 0,
+                total       INTEGER DEFAULT 0,
+                started_at  TIMESTAMP,
+                finished_at TIMESTAMP
+            )
+        """))
+        session.commit()
+
+
 def _etl_state_init(total: int) -> None:
     """오늘 ETL 실행 레코드 생성 (이미 있으면 total만 업데이트)"""
     today = datetime.date.today()
@@ -203,6 +220,7 @@ def _load_market_tickers_fdr(markets: list[str]) -> list[tuple[str, str, str]]:
 
 async def run_etl(markets: list[str], limit: int = None, skip_existing: bool = False):
     """전체 종목 ETL 실행"""
+    _etl_ensure_table()
     print(f"\n{'='*60}")
     print(f"  텐배거 헌터 ETL 시작")
     print(f"  대상 시장: {', '.join(markets)}")

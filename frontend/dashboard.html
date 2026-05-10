@@ -222,10 +222,20 @@
     .cagr-forecast .cf-desc{font-size:12px;color:#d1d5db;line-height:1.5;}
     .ai-spinner{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;padding:16px 0;}
 
-    @media(max-width:640px){
-      .tabs-bar{overflow-x:auto;}
+    @media(max-width:768px){
+      header{padding:12px 16px;}
+      .tabs-bar{overflow-x:auto;padding:0 12px;margin-top:16px;}
+      .tab-btn{padding:8px 14px;font-size:13px;white-space:nowrap;}
+      .content{padding:0 12px;margin-top:16px;}
       .nav-links{display:none;}
       .company-card{flex-direction:column;}
+      .charts-row{grid-template-columns:1fr;}
+      .sim-scenarios{grid-template-columns:1fr;}
+      .ai-two-col{grid-template-columns:1fr;}
+      .swot-grid{grid-template-columns:1fr;}
+      .rank-bars{display:none;}
+      .section-header{flex-direction:column;align-items:flex-start;}
+      .section-header > div:last-child{align-self:flex-end;}
     }
   </style>
 </head>
@@ -323,7 +333,13 @@
         <div class="section-title">⭐ 관심종목</div>
         <div class="section-desc">내 포트폴리오 후보 · Pro 20개 / Premium 무제한</div>
       </div>
-      <button class="refresh-btn" onclick="loadWatchlist()">새로고침</button>
+      <div style="display:flex;gap:8px;">
+        <button class="refresh-btn" onclick="loadWatchlist()">새로고침</button>
+        <button class="refresh-btn" onclick="runWatchlistSimulation()"
+          style="background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border:none;">
+          📊 시뮬레이션
+        </button>
+      </div>
     </div>
 
     <!-- 종목 추가 입력창 -->
@@ -437,6 +453,7 @@
       <div id="sectorHeatmap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
         <div class="loading-row" style="grid-column:1/-1;padding:32px;"><div class="spinner"></div></div>
       </div>
+      <div id="sectorDetail" style="display:none;margin-top:16px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;"></div>
     </div>
 
     <!-- 시그널 탭 -->
@@ -656,7 +673,35 @@
           ? `<span style="color:${s.change_pct >= 0 ? '#10b981' : '#ef4444'}">${s.change_pct >= 0 ? '▲' : '▼'}${Math.abs(s.change_pct).toFixed(2)}%</span>`
           : '';
         const cagr = s.revenue_cagr_5y ? `매출CAGR ${s.revenue_cagr_5y.toFixed(1)}%` : '';
-        const roe = s.avg_roe_5y ? `ROE ${s.avg_roe_5y.toFixed(1)}%` : '';
+        const roe  = s.avg_roe_5y ? `ROE ${s.avg_roe_5y.toFixed(1)}%` : '';
+
+        const subScores = [
+          { label:'성장', val: s.growth_score },
+          { label:'안정', val: s.stability_score },
+          { label:'현금', val: s.cashflow_score },
+          { label:'배당', val: s.dividend_score },
+          { label:'일관', val: s.consistency_score },
+        ];
+        const subBars = subScores.map(({ label, val }) => {
+          const v = val ? parseFloat(val) : 0;
+          const pct = Math.min(v / 10 * 100, 100);
+          const barColor = v >= 7 ? '#10b981' : v >= 5 ? '#3b82f6' : '#f59e0b';
+          return `<div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10px;color:var(--muted);width:22px;flex-shrink:0;">${label}</span>
+            <div style="flex:1;background:rgba(255,255,255,.08);border-radius:3px;height:5px;overflow:hidden;">
+              <div style="width:${pct}%;height:100%;background:${barColor};border-radius:3px;"></div>
+            </div>
+            <span style="font-size:10px;color:var(--muted);width:24px;text-align:right;">${v > 0 ? v.toFixed(1) : '-'}</span>
+          </div>`;
+        }).join('');
+
+        const valTags = [];
+        if (s.per  && parseFloat(s.per)  > 0) valTags.push(`PER ${parseFloat(s.per).toFixed(1)}`);
+        if (s.pbr  && parseFloat(s.pbr)  > 0) valTags.push(`PBR ${parseFloat(s.pbr).toFixed(1)}`);
+        if (s.dividend_yield && parseFloat(s.dividend_yield) > 0) valTags.push(`배당 ${parseFloat(s.dividend_yield).toFixed(1)}%`);
+        const valLine = valTags.length
+          ? `<div style="display:flex;gap:8px;font-size:11px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;">${valTags.map(t=>`<span style="background:rgba(255,255,255,.06);border-radius:4px;padding:2px 7px;">${t}</span>`).join('')}</div>`
+          : '';
 
         html += `
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;position:relative;transition:border-color .2s;" onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='var(--border)'">
@@ -669,15 +714,19 @@
             <span style="font-size:11px;color:var(--muted);">${s.ticker}</span>
           </div>
           <div style="font-size:16px;font-weight:700;margin-bottom:4px;">${s.name || s.ticker}</div>
-          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
             <span style="font-size:20px;font-weight:800;color:#60a5fa;">${price}</span>
             <span style="font-size:13px;">${chg}</span>
           </div>
-          <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);margin-bottom:12px;">
+          <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);margin-bottom:10px;">
             <span>📊 ${score}점</span>
             ${cagr ? `<span>📈 ${cagr}</span>` : ''}
-            ${roe ? `<span>💰 ${roe}</span>` : ''}
+            ${roe  ? `<span>💰 ${roe}</span>`  : ''}
           </div>
+          <!-- 서브점수 미니 바 -->
+          <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">${subBars}</div>
+          <!-- 밸류에이션 태그 -->
+          ${valLine}
           <!-- 52주 스파크라인 -->
           <canvas id="spark-${s.ticker}" width="240" height="48"
             style="width:100%;height:48px;display:block;margin-bottom:10px;border-radius:6px;"></canvas>
@@ -841,6 +890,12 @@
   }
 
   // ── 포트폴리오 시뮬레이터 ────────────────────────────────────────────────
+  function runWatchlistSimulation() {
+    document.getElementById("pfGrade").value = "__WATCHLIST__";
+    const pfTabBtn = document.querySelector('.tab-btn[onclick*="portfolio"]');
+    switchTab("portfolio", pfTabBtn);
+  }
+
   async function runPortfolioSimulation() {
     const resultEl = document.getElementById("pfResult");
     if (!resultEl) return;
@@ -1158,7 +1213,7 @@
   }
 
   function analyzeFromWatchlist(ticker) {
-    const tabBtn = document.querySelectorAll(".tab-btn")[4]; // 종목 분석 탭
+    const tabBtn = document.querySelector('.tab-btn[onclick*="analysis"]');
     switchTab("analysis", tabBtn);
     document.getElementById("stockInput").value = ticker;
     analyzeStock();
@@ -1319,8 +1374,7 @@
   }
 
   function jumpToAnalysis(ticker) {
-    // 종목 분석 탭으로 이동 후 자동 분석
-    const tabBtn = document.querySelectorAll(".tab-btn")[4]; // 종목 분석 탭
+    const tabBtn = document.querySelector('.tab-btn[onclick*="analysis"]');
     switchTab("analysis", tabBtn);
     document.getElementById("stockInput").value = ticker;
     analyzeStock();
@@ -1370,8 +1424,9 @@
         const mktCls = item.corp_cls || "N";
         const mktLabel = { Y: "KOSPI", K: "KOSDAQ", N: "비상장", E: "ETC" }[mktCls] || mktCls;
         const dateStr = formatDate(item.rcept_dt || "");
+        const rcept_no = item.rcept_no || "";
         return `
-          <div class="disc-item">
+          <div class="disc-item" id="disc-${rcept_no}">
             <div class="disc-meta">
               <div class="disc-corp">${esc(item.corp_name || "-")}</div>
               <div class="disc-date">${dateStr}</div>
@@ -1379,9 +1434,16 @@
             </div>
             <div class="disc-main">
               <a class="disc-title" href="${dartUrl}" target="_blank" rel="noopener">${esc(item.report_nm || "-")}</a>
-              <div class="disc-type">제출인: ${esc(item.flr_nm || "-")}</div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
+                <div class="disc-type">제출인: ${esc(item.flr_nm || "-")}</div>
+                <button onclick="analyzeDisclosure('${rcept_no}','${esc(item.corp_name)}','${esc(item.report_nm)}','${esc(item.rcept_dt||'')}',this)"
+                  style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                  🤖 AI 분석
+                </button>
+              </div>
             </div>
-          </div>`;
+          </div>
+          <div id="ai-result-${rcept_no}" style="display:none;"></div>`;
       }).join("");
     } catch (e) {
       list.innerHTML = '<div class="empty-row" style="color:#f87171;">⚠️ 공시 데이터를 불러오지 못했습니다: ' + esc(e.message) + '</div>';
@@ -1394,6 +1456,71 @@
   function formatDate(s) {
     if (!s || s.length < 8) return s;
     return s.slice(0, 4) + "." + s.slice(4, 6) + "." + s.slice(6, 8);
+  }
+
+  async function analyzeDisclosure(rcept_no, corp_name, report_nm, rcept_dt, btn) {
+    const resultEl = document.getElementById("ai-result-" + rcept_no);
+    if (!resultEl) return;
+
+    // 토글: 이미 결과 있으면 닫기
+    if (resultEl.style.display !== "none" && resultEl.innerHTML) {
+      resultEl.style.display = "none";
+      btn.textContent = "🤖 AI 분석";
+      return;
+    }
+
+    btn.textContent = "분석 중…";
+    btn.disabled = true;
+    resultEl.style.display = "block";
+    resultEl.innerHTML = `<div style="padding:14px 20px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;">
+      <span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span> GPT-4o가 공시를 분석 중입니다…
+    </div>`;
+
+    try {
+      const res = await fetch(API + "/api/v2/disclosures/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rcept_no, corp_name, report_nm, rcept_dt }),
+      });
+      const d = await res.json();
+
+      if (d.error) {
+        resultEl.innerHTML = `<div style="padding:12px 20px;color:#f87171;font-size:13px;">⚠️ ${d.error}</div>`;
+        return;
+      }
+
+      const impactColor = { POSITIVE:"#10b981", NEGATIVE:"#ef4444", CAUTION:"#f59e0b", NEUTRAL:"#6b7280" };
+      const impactBg    = { POSITIVE:"rgba(16,185,129,.08)", NEGATIVE:"rgba(239,68,68,.08)", CAUTION:"rgba(245,158,11,.08)", NEUTRAL:"rgba(107,114,128,.08)" };
+      const impact = d.impact || "NEUTRAL";
+      const color  = impactColor[impact] || "#6b7280";
+      const bg     = impactBg[impact]    || "rgba(107,114,128,.08)";
+      const points = (d.key_points || []).map(p => `<li style="margin-bottom:4px;">• ${p}</li>`).join("");
+      const confLabel = { HIGH:"높음", MEDIUM:"보통", LOW:"낮음" }[d.confidence] || d.confidence;
+
+      resultEl.innerHTML = `
+        <div style="margin:0 0 8px 0;padding:16px 20px;background:${bg};border-left:3px solid ${color};border-radius:0 0 12px 12px;font-size:13px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+            <span style="font-size:18px;">${d.impact_emoji}</span>
+            <span style="font-weight:700;color:${color};">${impact}</span>
+            <span style="font-size:11px;color:var(--muted);background:rgba(255,255,255,.06);padding:2px 8px;border-radius:4px;">신뢰도: ${confLabel}</span>
+          </div>
+          <p style="color:var(--text);margin-bottom:8px;line-height:1.6;">${d.summary || ""}</p>
+          <p style="color:${color};margin-bottom:10px;font-weight:600;">${d.impact_reason || ""}</p>
+          <ul style="list-style:none;padding:0;margin:0 0 10px;color:var(--muted);">${points}</ul>
+          <div style="padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;color:#93c5fd;font-size:12px;">
+            💡 ${d.action || ""}
+          </div>
+          <div style="margin-top:10px;text-align:right;">
+            <a href="https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${rcept_no}" target="_blank"
+              style="font-size:11px;color:var(--muted);text-decoration:none;">원문 보기 →</a>
+          </div>
+        </div>`;
+    } catch(e) {
+      resultEl.innerHTML = `<div style="padding:12px 20px;color:#f87171;font-size:13px;">⚠️ 오류: ${e.message}</div>`;
+    } finally {
+      btn.textContent = "🤖 AI 분석 ▲";
+      btn.disabled = false;
+    }
   }
 
   // ────────────────────────────────────────────
@@ -1693,25 +1820,40 @@
   }
 
   async function loadSectorDetail(sector) {
+    const panel = document.getElementById('sectorDetail');
+    panel.style.display = 'block';
+    panel.innerHTML = '<div style="color:var(--muted);font-size:13px;">로딩 중...</div>';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const res = await fetch(API + '/api/v2/news/sector/' + encodeURIComponent(sector));
       const d = await res.json();
       if (!d.has_data) {
-        alert(`${sector} 업종 데이터가 없습니다.`);
+        panel.innerHTML = `<div style="color:var(--muted);font-size:13px;">${escHtml(sector)} 업종 데이터가 없습니다.</div>`;
         return;
       }
       const l = d.latest;
+      const scoreColor = l.avg_score > 0.1 ? '#34d399' : l.avg_score < -0.1 ? '#f87171' : 'var(--muted)';
       const articles = (d.recent_articles || []).slice(0, 5).map(a =>
         `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
           <div style="font-size:13px;font-weight:600;color:${a.score > 0.1 ? '#34d399' : a.score < -0.1 ? '#f87171' : 'var(--text)'};">
-            ${a.score > 0.1 ? '🟢' : a.score < -0.1 ? '🔴' : '⚪'} ${esc(a.title)}
+            ${a.score > 0.1 ? '🟢' : a.score < -0.1 ? '🔴' : '⚪'} ${escHtml(a.title)}
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:3px;">${a.published_at ? a.published_at.slice(0,16) : ''}</div>
         </div>`
       ).join('');
-      const msg = `${l.signal_emoji} ${sector} — ${l.signal_label} (감성점수: ${(l.avg_score >= 0 ? '+' : '') + l.avg_score.toFixed(2)})\n\n주요 키워드: ${(l.key_topics || []).join(', ') || '없음'}\n기사 수: ${l.article_count}건`;
-      alert(msg);
+      panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:15px;font-weight:700;">${l.signal_emoji} ${escHtml(sector)} — ${escHtml(l.signal_label)}</div>
+          <button onclick="document.getElementById('sectorDetail').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
+        </div>
+        <div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
+          <span style="font-size:13px;">감성점수 <strong style="color:${scoreColor}">${(l.avg_score >= 0 ? '+' : '') + l.avg_score.toFixed(2)}</strong></span>
+          <span style="font-size:13px;">기사 ${l.article_count}건</span>
+          ${(l.key_topics || []).length ? `<span style="font-size:13px;color:var(--muted);">키워드: ${(l.key_topics).join(', ')}</span>` : ''}
+        </div>
+        ${articles ? `<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;">최근 기사</div>${articles}` : ''}`;
     } catch(e) {
+      panel.innerHTML = '<div style="color:#f87171;font-size:13px;">데이터 로드 실패</div>';
       console.error(e);
     }
   }
@@ -1836,9 +1978,7 @@
   }
 
   // ── Util ──
-  function esc(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
+  const esc = escHtml;
 
   // ── Init ──
   renderAuthBtn();
