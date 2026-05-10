@@ -222,10 +222,20 @@
     .cagr-forecast .cf-desc{font-size:12px;color:#d1d5db;line-height:1.5;}
     .ai-spinner{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;padding:16px 0;}
 
-    @media(max-width:640px){
-      .tabs-bar{overflow-x:auto;}
+    @media(max-width:768px){
+      header{padding:12px 16px;}
+      .tabs-bar{overflow-x:auto;padding:0 12px;margin-top:16px;}
+      .tab-btn{padding:8px 14px;font-size:13px;white-space:nowrap;}
+      .content{padding:0 12px;margin-top:16px;}
       .nav-links{display:none;}
       .company-card{flex-direction:column;}
+      .charts-row{grid-template-columns:1fr;}
+      .sim-scenarios{grid-template-columns:1fr;}
+      .ai-two-col{grid-template-columns:1fr;}
+      .swot-grid{grid-template-columns:1fr;}
+      .rank-bars{display:none;}
+      .section-header{flex-direction:column;align-items:flex-start;}
+      .section-header > div:last-child{align-self:flex-end;}
     }
   </style>
 </head>
@@ -662,7 +672,35 @@
           ? `<span style="color:${s.change_pct >= 0 ? '#10b981' : '#ef4444'}">${s.change_pct >= 0 ? '▲' : '▼'}${Math.abs(s.change_pct).toFixed(2)}%</span>`
           : '';
         const cagr = s.revenue_cagr_5y ? `매출CAGR ${s.revenue_cagr_5y.toFixed(1)}%` : '';
-        const roe = s.avg_roe_5y ? `ROE ${s.avg_roe_5y.toFixed(1)}%` : '';
+        const roe  = s.avg_roe_5y ? `ROE ${s.avg_roe_5y.toFixed(1)}%` : '';
+
+        const subScores = [
+          { label:'성장', val: s.growth_score },
+          { label:'안정', val: s.stability_score },
+          { label:'현금', val: s.cashflow_score },
+          { label:'배당', val: s.dividend_score },
+          { label:'일관', val: s.consistency_score },
+        ];
+        const subBars = subScores.map(({ label, val }) => {
+          const v = val ? parseFloat(val) : 0;
+          const pct = Math.min(v / 10 * 100, 100);
+          const barColor = v >= 7 ? '#10b981' : v >= 5 ? '#3b82f6' : '#f59e0b';
+          return `<div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10px;color:var(--muted);width:22px;flex-shrink:0;">${label}</span>
+            <div style="flex:1;background:rgba(255,255,255,.08);border-radius:3px;height:5px;overflow:hidden;">
+              <div style="width:${pct}%;height:100%;background:${barColor};border-radius:3px;"></div>
+            </div>
+            <span style="font-size:10px;color:var(--muted);width:24px;text-align:right;">${v > 0 ? v.toFixed(1) : '-'}</span>
+          </div>`;
+        }).join('');
+
+        const valTags = [];
+        if (s.per  && parseFloat(s.per)  > 0) valTags.push(`PER ${parseFloat(s.per).toFixed(1)}`);
+        if (s.pbr  && parseFloat(s.pbr)  > 0) valTags.push(`PBR ${parseFloat(s.pbr).toFixed(1)}`);
+        if (s.dividend_yield && parseFloat(s.dividend_yield) > 0) valTags.push(`배당 ${parseFloat(s.dividend_yield).toFixed(1)}%`);
+        const valLine = valTags.length
+          ? `<div style="display:flex;gap:8px;font-size:11px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;">${valTags.map(t=>`<span style="background:rgba(255,255,255,.06);border-radius:4px;padding:2px 7px;">${t}</span>`).join('')}</div>`
+          : '';
 
         html += `
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;position:relative;transition:border-color .2s;" onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='var(--border)'">
@@ -675,15 +713,19 @@
             <span style="font-size:11px;color:var(--muted);">${s.ticker}</span>
           </div>
           <div style="font-size:16px;font-weight:700;margin-bottom:4px;">${s.name || s.ticker}</div>
-          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
             <span style="font-size:20px;font-weight:800;color:#60a5fa;">${price}</span>
             <span style="font-size:13px;">${chg}</span>
           </div>
-          <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);margin-bottom:12px;">
+          <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);margin-bottom:10px;">
             <span>📊 ${score}점</span>
             ${cagr ? `<span>📈 ${cagr}</span>` : ''}
-            ${roe ? `<span>💰 ${roe}</span>` : ''}
+            ${roe  ? `<span>💰 ${roe}</span>`  : ''}
           </div>
+          <!-- 서브점수 미니 바 -->
+          <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">${subBars}</div>
+          <!-- 밸류에이션 태그 -->
+          ${valLine}
           <!-- 52주 스파크라인 -->
           <canvas id="spark-${s.ticker}" width="240" height="48"
             style="width:100%;height:48px;display:block;margin-bottom:10px;border-radius:6px;"></canvas>

@@ -76,8 +76,12 @@ def list_watchlist(
 ):
     rows = db.execute(text("""
         SELECT w.ticker, w.name, w.added_at, w.alert_enabled,
-               s.total_score, s.grade, s.growth_score, s.stability_score,
-               s.revenue_cagr_5y, s.avg_roe_5y, s.close
+               s.total_score, s.grade,
+               s.growth_score, s.stability_score, s.cashflow_score,
+               s.dividend_score, s.consistency_score,
+               s.revenue_cagr_5y, s.eps_cagr_5y, s.avg_roe_5y,
+               s.avg_fcf_margin, s.per, s.pbr, s.dividend_yield,
+               s.market_cap, s.close
         FROM watchlist w
         LEFT JOIN scores s ON s.ticker = w.ticker
         WHERE w.user_id = :uid
