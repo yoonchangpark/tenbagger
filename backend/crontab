@@ -6,3 +6,6 @@
 
 # 매주 월요일 오전 8시 — 주간 전체 재분석 (skip 없이)
 0 8 * * 1 cd /app && python -m app.workers.etl --market ALL >> /app/reports/etl_weekly.log 2>&1
+
+# 매주 일요일 오전 7시 — 정확도 검증 (TENBAGGER/COMPOUNDER 실제 수익률)
+0 7 * * 0 cd /app && python -m app.agents.accuracy_validator >> /app/reports/accuracy.log 2>&1
