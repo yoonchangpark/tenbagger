@@ -43,10 +43,17 @@ MAX_SECTION_CHARS = 3000
 async def search_annual_reports(corp_code: str, count: int = 4) -> list[dict]:
     """최근 사업보고서 + 분기보고서 rcept_no 목록 반환"""
     from app.infra.clients.dart_client import _get
+    import datetime
+    today = datetime.date.today().strftime("%Y%m%d")
+    two_years_ago = (datetime.date.today() - datetime.timedelta(days=730)).strftime("%Y%m%d")
+
     data = await _get("list.json", {
         "corp_code": corp_code,
-        "pblntf_ty": "A",
-        "page_count": "40",
+        "bgn_de": two_years_ago,
+        "end_de": today,
+        "page_count": "100",
+        "sort": "date",
+        "sort_mth": "desc",
     })
     results = []
     for item in data.get("list", []):
