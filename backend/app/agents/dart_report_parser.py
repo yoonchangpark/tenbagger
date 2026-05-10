@@ -84,8 +84,14 @@ async def download_document(rcept_no: str) -> dict[str, bytes]:
     async with httpx.AsyncClient(timeout=60) as client:
         r = await client.get(f"{DART_BASE}/document.json", params=params)
     r.raise_for_status()
-    zf = zipfile.ZipFile(io.BytesIO(r.content))
-    return {name: zf.read(name) for name in zf.namelist()}
+    # 에러 응답 확인 (DART는 오류 시 JSON 반환)
+    if r.headers.get("content-type", "").startswith("application/json"):
+        raise RuntimeError(f"DART API 오류: {r.text[:200]}")
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(r.content))
+        return {name: zf.read(name) for name in zf.namelist()}
+    except zipfile.BadZipFile:
+        raise RuntimeError(f"ZIP 파싱 실패 (응답 앞부분): {r.content[:200]}")
 
 
 def html_to_text(html_bytes: bytes) -> str:
