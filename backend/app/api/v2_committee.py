@@ -57,6 +57,31 @@ def _save_cache(ticker: str, result: dict) -> None:
         print(f"[committee] 캐시 저장 실패 (무시): {e}")
 
 
+@router.get("/recent")
+def list_recent_committee_v2(limit: int = Query(20, ge=1, le=100)):
+    """최근 위원회 분석 결과 목록 (관리자/모니터링) — /{ticker}보다 먼저 매칭되어야 함"""
+    with SessionLocal() as session:
+        rows = session.execute(text("""
+            SELECT ticker, name, decision, confidence, consensus_score, analyzed_at
+            FROM committee_cache
+            ORDER BY analyzed_at DESC LIMIT :lim
+        """), {"lim": limit}).fetchall()
+    return {
+        "items": [
+            {
+                "ticker": r.ticker,
+                "name": r.name,
+                "decision": r.decision,
+                "confidence": round(r.confidence or 0, 2),
+                "score": round(r.consensus_score or 0, 2),
+                "analyzed_at": r.analyzed_at.isoformat() if r.analyzed_at else None,
+            }
+            for r in rows
+        ],
+        "count": len(rows),
+    }
+
+
 @router.get("/{ticker}")
 async def get_committee_analysis(ticker: str, force: bool = Query(False, description="True면 캐시 무시 강제 재분석")):
     """
@@ -100,35 +125,21 @@ async def get_committee_analysis(ticker: str, force: bool = Query(False, descrip
 @router.post("/{ticker}/run")
 async def trigger_committee_analysis(ticker: str):
     """강제 재분석 트리거 (캐시 무시)"""
+    import traceback
     ticker = ticker.upper().strip()
-    result = await run_committee(ticker)
+    try:
+        result = await run_committee(ticker)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"위원회 재분석 오류: {type(e).__name__}: {e}")
     if result.get("error"):
         raise HTTPException(status_code=500, detail=result["error"])
     result["from_cache"] = False
-    _save_cache(ticker, result)
+    try:
+        _save_cache(ticker, result)
+    except Exception as e:
+        print(f"[committee] 캐시 저장 오류 (응답 정상): {e}")
+        traceback.print_exc()
     return result
 
 
-@router.get("/recent")
-def list_recent_committee(limit: int = Query(20, ge=1, le=100)):
-    """최근 위원회 분석 결과 목록 (관리자/모니터링)"""
-    with SessionLocal() as session:
-        rows = session.execute(text("""
-            SELECT ticker, name, decision, confidence, consensus_score, analyzed_at
-            FROM committee_cache
-            ORDER BY analyzed_at DESC LIMIT :lim
-        """), {"lim": limit}).fetchall()
-    return {
-        "items": [
-            {
-                "ticker": r.ticker,
-                "name": r.name,
-                "decision": r.decision,
-                "confidence": round(r.confidence or 0, 2),
-                "score": round(r.consensus_score or 0, 2),
-                "analyzed_at": r.analyzed_at.isoformat() if r.analyzed_at else None,
-            }
-            for r in rows
-        ],
-        "count": len(rows),
-    }
