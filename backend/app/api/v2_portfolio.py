@@ -231,122 +231,95 @@ def _get_kospi_return(start: datetime.date, end: datetime.date) -> float | None:
 def simulate_portfolio(
     grade_filter: str = Query("TENBAGGER", description="등급 필터 (쉼표 구분, 예: TENBAGGER,COMPOUNDER)"),
     invest_amount: int = Query(100_000_000, description="투자 원금 (원)"),
-    start_date: str = Query(None, description="시뮬레이션 시작일 YYYY-MM-DD (미입력 시 가장 오래된 이력)"),
+    period: str = Query("3m", description="시뮬레이션 기간: 1m | 3m | 6m | 1y"),
     weight_method: str = Query("equal", description="비중 방식: equal | score_weighted"),
 ):
     """
-    가상 포트폴리오 시뮬레이터.
-    start_date 기준 해당 등급 종목들에 invest_amount를 투자했을 때 현재 수익률 계산.
-
-    score_history 데이터가 충분하지 않으면 insufficient_data: true 반환.
+    가상 포트폴리오 시뮬레이터 (v2 — score_history 불필요).
+    현재 scores 테이블 등급 기준 + price_daily_cache 과거 주가로 수익률 계산.
+    period 전에 해당 등급이었다고 가정 (보수적 시뮬레이션).
     """
     grades = [g.strip().upper() for g in grade_filter.split(",")]
     today  = datetime.date.today()
 
-    # 1. score_history에서 시작일 기준 종목 조회
+    # period → 시작일 계산
+    period_days_map = {"1m": 30, "3m": 90, "6m": 180, "1y": 365}
+    period_days = period_days_map.get(period, 90)
+    sim_start = today - datetime.timedelta(days=period_days)
+
+    # 1. 현재 등급 기준 종목 조회 (scores 테이블)
     with SessionLocal() as session:
-        if start_date:
-            try:
-                sim_start = datetime.date.fromisoformat(start_date)
-            except ValueError:
-                raise HTTPException(400, "start_date 형식 오류 (YYYY-MM-DD)")
-            # 시작일 당일 또는 직후 이력
-            rows = session.execute(text("""
-                SELECT DISTINCT ON (ticker)
-                    ticker, name, market, grade, total_score, growth_score,
-                    close_price, snapshot_date
-                FROM score_history
-                WHERE grade = ANY(:grades)
-                  AND snapshot_date <= :sd
-                ORDER BY ticker, snapshot_date DESC
-            """), {"grades": grades, "sd": sim_start}).fetchall()
-        else:
-            # 가장 오래된 이력 자동 선택
-            oldest = session.execute(text("""
-                SELECT MIN(snapshot_date) FROM score_history WHERE grade = ANY(:grades)
-            """), {"grades": grades}).scalar()
-            if not oldest:
-                return {
-                    "insufficient_data": True,
-                    "message": "score_history 데이터가 없습니다. ETL 실행 후 최소 1일이 지나야 합니다.",
-                    "meta": {"invest_amount": invest_amount, "grade_filter": grades},
-                }
-            sim_start = oldest
-            rows = session.execute(text("""
-                SELECT DISTINCT ON (ticker)
-                    ticker, name, market, grade, total_score, growth_score,
-                    close_price, snapshot_date
-                FROM score_history
-                WHERE grade = ANY(:grades)
-                  AND snapshot_date = :sd
-                ORDER BY ticker, snapshot_date DESC
-            """), {"grades": grades, "sd": sim_start}).fetchall()
+        rows = session.execute(text("""
+            SELECT ticker, name, market, grade, total_score, growth_score,
+                   close AS close_price
+            FROM scores
+            WHERE grade = ANY(:grades)
+            ORDER BY total_score DESC
+            LIMIT 50
+        """), {"grades": grades}).fetchall()
 
     if not rows:
         return {
             "insufficient_data": True,
-            "message": f"{sim_start} 기준 {grade_filter} 등급 종목이 없습니다.",
-            "meta": {"invest_amount": invest_amount, "start_date": str(sim_start), "grade_filter": grades},
+            "message": f"{grade_filter} 등급 종목이 없습니다. ETL을 먼저 실행하세요.",
+            "meta": {"invest_amount": invest_amount, "grade_filter": grades},
         }
 
-    # 시작일 ~ 오늘 날짜 차이
-    days_elapsed = (today - sim_start).days
-    if days_elapsed < 1:
-        return {
-            "insufficient_data": True,
-            "message": "시뮬레이션 기간이 너무 짧습니다. 최소 1일 이후부터 유효합니다.",
-            "meta": {"invest_amount": invest_amount, "start_date": str(sim_start)},
-        }
-
-    # 2. 비중 계산
     holdings_raw = [dict(r._mapping) for r in rows]
 
+    # 2. 비중 계산
     if weight_method == "score_weighted":
         total_score_sum = sum(h["total_score"] or 0 for h in holdings_raw)
         for h in holdings_raw:
             h["weight"] = round((h["total_score"] or 0) / total_score_sum * 100, 2) if total_score_sum else 0
-    else:  # equal
+    else:
         w = round(100 / len(holdings_raw), 2)
         for h in holdings_raw:
             h["weight"] = w
 
-    # 3. 현재 주가 조회 (캐시 → pykrx)
+    # 3. 시작일 주가(진입가) + 현재 주가 조회
     holdings_out = []
     portfolio_current = 0
+    fetched_any_history = False  # price_daily_cache에 과거 데이터가 있는지
 
     for h in holdings_raw:
-        ticker      = h["ticker"]
-        entry_price = h["close_price"]
+        ticker = h["ticker"]
 
-        # 현재 종가: 캐시 확인
         with SessionLocal() as session:
-            recent = session.execute(text("""
-                SELECT close_price FROM price_daily_cache
-                WHERE ticker = :t
+            # 시작일 기준 가장 가까운 과거 종가
+            entry_row = session.execute(text("""
+                SELECT close_price, trade_date FROM price_daily_cache
+                WHERE ticker = :t AND trade_date <= :sd AND close_price > 0
+                ORDER BY trade_date DESC LIMIT 1
+            """), {"t": ticker, "sd": sim_start}).fetchone()
+
+            # 현재 종가 (가장 최근)
+            current_row = session.execute(text("""
+                SELECT close_price, trade_date FROM price_daily_cache
+                WHERE ticker = :t AND close_price > 0
                 ORDER BY trade_date DESC LIMIT 1
             """), {"t": ticker}).fetchone()
 
-        current_price = None
-        if recent and recent.close_price:
-            current_price = recent.close_price
-        else:
-            # pykrx fallback
-            try:
-                from pykrx import stock
-                past = (today - datetime.timedelta(days=7)).strftime("%Y%m%d")
-                df = stock.get_market_ohlcv(past, today.strftime("%Y%m%d"), ticker)
-                if df is not None and not df.empty:
-                    current_price = int(df["종가"].iloc[-1])
-            except Exception:
-                pass
+        # 과거 가격 없으면 scores.close를 현재가로, 시작가는 skip
+        entry_price   = entry_row.close_price if entry_row else None
+        entry_date    = str(entry_row.trade_date) if entry_row else None
+        current_price = current_row.close_price if current_row else h.get("close_price")
+
+        # 진입가가 없으면 현재 scores.close를 진입가로 사용 (0% return)
+        if not entry_price:
+            entry_price = h.get("close_price")
+            entry_date  = str(today)
 
         if not entry_price or not current_price:
-            continue  # 가격 없는 종목 제외
+            continue
 
-        invested    = int(invest_amount * h["weight"] / 100)
-        shares      = invested / entry_price
-        cur_value   = int(shares * current_price)
-        return_pct  = round((current_price - entry_price) / entry_price * 100, 2)
+        if entry_row and entry_row.trade_date < sim_start:
+            fetched_any_history = True
+
+        invested   = int(invest_amount * h["weight"] / 100)
+        shares     = invested / entry_price
+        cur_value  = int(shares * current_price)
+        return_pct = round((current_price - entry_price) / entry_price * 100, 2)
 
         portfolio_current += cur_value
 
@@ -354,7 +327,7 @@ def simulate_portfolio(
             "ticker":        ticker,
             "name":          h["name"],
             "grade":         h["grade"],
-            "entry_date":    str(h["snapshot_date"]),
+            "entry_date":    entry_date,
             "entry_price":   entry_price,
             "current_price": current_price,
             "weight":        h["weight"],
@@ -369,35 +342,44 @@ def simulate_portfolio(
     if not holdings_out:
         return {
             "insufficient_data": True,
-            "message": "현재 주가를 조회할 수 있는 종목이 없습니다.",
+            "message": "주가 데이터가 없습니다. 종목 분석 페이지를 먼저 방문해 주가 캐시를 채워주세요.",
         }
 
+    # 주가 캐시가 없어서 모두 0% return인 경우 안내
+    if not fetched_any_history:
+        return {
+            "insufficient_data": True,
+            "message": f"price_daily_cache에 {period} 전 주가 데이터가 없습니다.\n종목 분석 페이지에서 개별 종목의 주가 차트를 먼저 로드하거나,\n아래 '주가 일괄 캐시' 버튼을 눌러주세요.",
+            "meta": {
+                "invest_amount": invest_amount,
+                "grade_filter": grades,
+                "period": period,
+                "hint": "GET /api/v2/price/history/{ticker}?period=1y 를 각 TENBAGGER 종목에 호출하면 캐시가 채워집니다.",
+            },
+        }
+
+    days_elapsed = (today - sim_start).days
     total_return_pct = round((portfolio_current - invest_amount) / invest_amount * 100, 2)
 
-    # CAGR
     years = days_elapsed / 365
-    cagr = None
-    if years > 0 and invest_amount > 0:
-        cagr = round(((portfolio_current / invest_amount) ** (1 / years) - 1) * 100, 2)
+    cagr = round(((portfolio_current / invest_amount) ** (1 / years) - 1) * 100, 2) if years > 0 else None
 
-    # KOSPI 벤치마크
     kospi_return = _get_kospi_return(sim_start, today)
     alpha = round(total_return_pct - kospi_return, 2) if kospi_return is not None else None
 
-    # 월별 포트폴리오 가치 시계열 (차트용) — score_history 기반
-    monthly_returns = _build_monthly_series(
-        holdings_raw, sim_start, today, invest_amount
-    )
+    monthly_returns = _build_monthly_series(holdings_raw, sim_start, today, invest_amount)
 
     return {
         "meta": {
             "invest_amount":  invest_amount,
+            "period":         period,
             "start_date":     str(sim_start),
             "end_date":       str(today),
             "days_elapsed":   days_elapsed,
             "grade_filter":   grades,
             "weight_method":  weight_method,
             "portfolio_size": len(holdings_out),
+            "data_source":    "price_daily_cache + scores",
         },
         "performance": {
             "current_value":    portfolio_current,
@@ -406,7 +388,7 @@ def simulate_portfolio(
             "alpha":            alpha,
             "cagr":             cagr,
         },
-        "holdings":       holdings_out,
+        "holdings":        holdings_out,
         "monthly_returns": monthly_returns,
     }
 

@@ -349,7 +349,7 @@
 
     <!-- 설정 폼 -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:20px;">
         <div>
           <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;">투자 원금</label>
           <select id="pfAmount" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;">
@@ -368,6 +368,15 @@
           </select>
         </div>
         <div>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;">시뮬레이션 기간</label>
+          <select id="pfPeriod" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;">
+            <option value="1m">1개월 전 매수</option>
+            <option value="3m" selected>3개월 전 매수</option>
+            <option value="6m">6개월 전 매수</option>
+            <option value="1y">1년 전 매수</option>
+          </select>
+        </div>
+        <div>
           <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;">비중 방식</label>
           <select id="pfWeight" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;">
             <option value="equal">균등 분배</option>
@@ -381,8 +390,12 @@
           </button>
         </div>
       </div>
-      <div style="font-size:11px;color:#6b7280;">
-        💡 ETL이 처음 실행된 날부터 데이터가 쌓입니다. 오늘 처음 실행했다면 내일부터 수익률이 표시됩니다.
+      <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span>📈 현재 TENBAGGER/COMPOUNDER 종목을 N개월 전에 매수했다면? (price_daily_cache 기반)</span>
+        <button onclick="prefetchPrices()" id="prefetchBtn"
+          style="background:rgba(99,102,241,.2);border:1px solid rgba(99,102,241,.4);border-radius:6px;padding:4px 10px;color:#a5b4fc;font-size:11px;cursor:pointer;font-weight:600;">
+          ⚡ 주가 데이터 일괄 로드
+        </button>
       </div>
     </div>
 
@@ -677,18 +690,24 @@
     const amount  = document.getElementById("pfAmount")?.value || 100000000;
     const grade   = document.getElementById("pfGrade")?.value || "TENBAGGER";
     const weight  = document.getElementById("pfWeight")?.value || "equal";
+    const period  = document.getElementById("pfPeriod")?.value || "3m";
 
     try {
-      const res = await fetch(`${API}/api/v2/portfolio/simulate?invest_amount=${amount}&grade_filter=${encodeURIComponent(grade)}&weight_method=${weight}`);
+      const res = await fetch(`${API}/api/v2/portfolio/simulate?invest_amount=${amount}&grade_filter=${encodeURIComponent(grade)}&weight_method=${weight}&period=${period}`);
       const d = await res.json();
 
       if (d.insufficient_data) {
         resultEl.innerHTML = `
-          <div style="text-align:center;padding:60px;color:var(--muted);">
-            <div style="font-size:3rem;margin-bottom:16px;">⏳</div>
-            <h3 style="font-size:16px;margin-bottom:8px;">데이터 축적 중</h3>
-            <p style="font-size:13px;">${d.message}</p>
-            <p style="font-size:12px;margin-top:12px;color:#6b7280;">ETL이 처음 실행된 날부터 매일 스냅샷이 쌓입니다.<br>내일 다시 확인해주세요!</p>
+          <div style="text-align:center;padding:48px;color:var(--muted);">
+            <div style="font-size:3rem;margin-bottom:16px;">📊</div>
+            <h3 style="font-size:16px;margin-bottom:10px;color:var(--text);">주가 데이터 필요</h3>
+            <p style="font-size:13px;line-height:1.7;">${d.message}</p>
+            <div style="margin-top:20px;">
+              <button onclick="prefetchPrices()" style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:10px;padding:10px 24px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">
+                ⚡ 주가 데이터 일괄 로드 (TENBAGGER 종목)
+              </button>
+            </div>
+            <p style="font-size:11px;margin-top:12px;color:#6b7280;">주가 로드 후 다시 시뮬레이션을 실행하세요.</p>
           </div>`;
         return;
       }
@@ -820,6 +839,46 @@
 
     } catch (e) {
       resultEl.innerHTML = `<p style="color:var(--red);padding:24px;">시뮬레이션 오류: ${e.message}</p>`;
+    }
+  }
+
+  // TENBAGGER/COMPOUNDER 종목 주가 일괄 캐시 로드
+  async function prefetchPrices() {
+    const btn = document.getElementById("prefetchBtn");
+    const grade = document.getElementById("pfGrade")?.value || "TENBAGGER";
+    if (btn) { btn.disabled = true; btn.textContent = "⏳ 로딩 중..."; }
+
+    try {
+      // 스크리너에서 해당 등급 종목 목록 가져오기
+      const res = await fetch(`${API}/api/screener?grade=${encodeURIComponent(grade)}&limit=60`);
+      const d = await res.json();
+      const tickers = (d.companies || []).map(c => c.ticker);
+
+      if (!tickers.length) {
+        alert("등급 종목이 없습니다. ETL을 먼저 실행하세요.");
+        return;
+      }
+
+      // 5개씩 병렬로 주가 히스토리 요청 (6개월치 캐시 채우기)
+      let done = 0;
+      const period = document.getElementById("pfPeriod")?.value || "3m";
+      const apiPeriod = period === "1y" ? "1y" : "6m";
+
+      for (let i = 0; i < tickers.length; i += 5) {
+        const chunk = tickers.slice(i, i + 5);
+        await Promise.all(chunk.map(t =>
+          fetch(`${API}/api/v2/price/history/${t}?period=${apiPeriod}`).catch(() => null)
+        ));
+        done += chunk.length;
+        if (btn) btn.textContent = `⏳ ${done}/${tickers.length} 로딩 중...`;
+      }
+
+      if (btn) { btn.textContent = `✅ ${done}개 완료`; btn.disabled = false; }
+      // 자동 시뮬레이션 재실행
+      setTimeout(runPortfolioSimulation, 500);
+    } catch (e) {
+      if (btn) { btn.textContent = "⚡ 주가 데이터 일괄 로드"; btn.disabled = false; }
+      alert("주가 로드 오류: " + e.message);
     }
   }
 
