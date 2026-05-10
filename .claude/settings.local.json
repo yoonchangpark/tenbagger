@@ -21,7 +21,9 @@
       "mcp__Claude_in_Chrome__list_connected_browsers",
       "mcp__Claude_in_Chrome__select_browser",
       "PowerShell(gh --version 2>&1)",
-      "Bash(powershell -Command \"\\(Get-Content frontend/screener.html\\) -replace '<a class=\\\\\"nav-link\\\\\" href=\\\\\"dashboard.html\\\\\">📡 대시보드</a>', '<a class=\\\\\"nav-link\\\\\" href=\\\\\"dashboard.html\\\\\">📡 대시보드</a>\\\\n    <a class=\\\\\"nav-link\\\\\" href=\\\\\"pricing.html\\\\\" style=\\\\\"border-color:rgba\\(139,92,246,.4\\);color:#c4b5fd;\\\\\">💎 구독</a>' | Set-Content frontend/screener.html\")"
+      "Bash(powershell -Command \"\\(Get-Content frontend/screener.html\\) -replace '<a class=\\\\\"nav-link\\\\\" href=\\\\\"dashboard.html\\\\\">📡 대시보드</a>', '<a class=\\\\\"nav-link\\\\\" href=\\\\\"dashboard.html\\\\\">📡 대시보드</a>\\\\n    <a class=\\\\\"nav-link\\\\\" href=\\\\\"pricing.html\\\\\" style=\\\\\"border-color:rgba\\(139,92,246,.4\\);color:#c4b5fd;\\\\\">💎 구독</a>' | Set-Content frontend/screener.html\")",
+      "mcp__7157411d-6d55-4db7-be41-31de3cbc7572__opendart-search_disclosures",
+      "mcp__7157411d-6d55-4db7-be41-31de3cbc7572__opendart-get_financial_index"
     ]
   }
 }
