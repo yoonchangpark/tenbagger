@@ -369,25 +369,28 @@ def calculate_score_from_indices(idx_list: list) -> dict:
         grade = "AVOID"
 
     return {
-        "total_score":       total,
-        "grade":             grade,
-        "growth_score":      round(g_score, 2),
-        "stability_score":   round(st_score, 2),
-        "cashflow_score":    round(cf_score, 2),
-        "dividend_score":    round(div_score, 2),
-        "consistency_score": round(con_score, 2),
-        "source":            "index",
-        # 핵심 지표 스냅샷
-        "roe":               roe,
-        "roa":               roa,
-        "op_margin":         op_mgn,
-        "net_margin":        net_mgn,
-        "debt_ratio":        debt,
-        "current_ratio":     curr,
-        "revenue_growth":    rev_g,
-        "op_profit_growth":  op_g,
-        "net_income_growth": net_g,
-        "equity_growth":     eq_g,
+        "total_score":          total,
+        "grade":                grade,
+        "growth_score":         round(g_score, 2),
+        "stability_score":      round(st_score, 2),
+        "cashflow_score":       round(cf_score, 2),
+        "dividend_score":       round(div_score, 2),
+        "consistency_score":    round(con_score, 2),
+        "source":               "index",
+        # save_score 필드 매핑 (DART 인덱스 → DB 컬럼)
+        "revenue_cagr_5y":      round(rev_g, 2) if rev_g is not None else None,
+        "avg_roe_5y":           round(roe, 2)   if roe   is not None else None,
+        "avg_operating_margin": round(op_mgn, 2) if op_mgn is not None else None,
+        "avg_fcf_margin":       round(net_mgn, 2) if net_mgn is not None else None,
+        "debt_ratio":           round(debt, 2)  if debt  is not None else None,
+        "current_ratio":        round(curr, 2)  if curr  is not None else None,
+        # 추가 스냅샷
+        "roe":                  roe,
+        "roa":                  roa,
+        "revenue_growth":       rev_g,
+        "op_profit_growth":     op_g,
+        "net_income_growth":    net_g,
+        "equity_growth":        eq_g,
     }
 
 
