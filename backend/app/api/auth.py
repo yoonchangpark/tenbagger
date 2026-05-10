@@ -339,7 +339,12 @@ async def kakao_callback(
     kakao_id = str(kakao_data["id"])
     kakao_account = kakao_data.get("kakao_account", {})
     email = kakao_account.get("email", f"kakao_{kakao_id}@kakao.com")
-    nickname = kakao_data.get("properties", {}).get("nickname", "카카오 사용자")
+    # nickname 조회: properties > kakao_account.profile 순으로 시도
+    nickname = (
+        kakao_data.get("properties", {}).get("nickname")
+        or kakao_account.get("profile", {}).get("nickname")
+        or "카카오 사용자"
+    )
 
     # 3단계: 기존 계정 조회 또는 신규 생성
     row = db.execute(
@@ -348,13 +353,13 @@ async def kakao_callback(
     ).fetchone()
 
     if row:
-        # 기존 사용자: kakao_id 업데이트 (이메일로 가입된 경우)
+        # 기존 사용자: kakao_id·이름·last_login 갱신
         db.execute(
-            text("UPDATE users SET kakao_id = :kid, last_login = NOW() WHERE id = :uid"),
-            {"kid": kakao_id, "uid": row.id},
+            text("UPDATE users SET kakao_id = :kid, name = :name, last_login = NOW() WHERE id = :uid"),
+            {"kid": kakao_id, "name": nickname, "uid": row.id},
         )
         db.commit()
-        user_id, user_name = row.id, row.name
+        user_id, user_name = row.id, nickname
     else:
         # 신규 사용자 생성
         new_row = db.execute(
