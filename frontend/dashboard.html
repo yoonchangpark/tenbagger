@@ -471,6 +471,70 @@
   let _corpCls = "";
   let _rankChart = null;
 
+  // ── JWT 자동 갱신 fetch 래퍼 ──────────────────────────────────────
+  // 401 응답 시 refresh_token으로 access_token 재발급 후 재시도.
+  // 재발급도 실패하면 로그인 페이지로 이동.
+  let _isRefreshing = false;
+  const _refreshQueue = [];
+
+  async function authFetch(url, options = {}) {
+    const doFetch = () => fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: "Bearer " + (localStorage.getItem("access_token") || ""),
+      },
+    });
+
+    let res = await doFetch();
+
+    if (res.status !== 401) return res;
+
+    // 401 — refresh_token으로 재발급 시도
+    if (_isRefreshing) {
+      // 다른 요청이 갱신 중이면 대기
+      return new Promise((resolve) => {
+        _refreshQueue.push(() => resolve(doFetch()));
+      });
+    }
+
+    _isRefreshing = true;
+    const rt = localStorage.getItem("refresh_token");
+
+    if (!rt) {
+      _isRefreshing = false;
+      localStorage.removeItem("access_token");
+      window.location.href = "/login.html?redirect=/dashboard.html";
+      return res;
+    }
+
+    try {
+      const refreshRes = await fetch(API + "/api/v2/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: rt }),
+      });
+
+      if (!refreshRes.ok) throw new Error("refresh 실패");
+
+      const data = await refreshRes.json();
+      localStorage.setItem("access_token", data.access_token);
+
+      // 대기 중인 요청들 재시도
+      _refreshQueue.forEach(fn => fn());
+      _refreshQueue.length = 0;
+
+      return doFetch();  // 원래 요청 재시도
+    } catch {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      window.location.href = "/login.html?redirect=/dashboard.html";
+      return res;
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
   // ── Tab switching ──
   function switchTab(id, btn) {
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
@@ -505,9 +569,7 @@
       return;
     }
     try {
-      const res = await fetch(API + '/api/v2/watchlist', {
-        headers: { Authorization: 'Bearer ' + token }
-      });
+      const res = await authFetch(API + '/api/v2/watchlist');
       const data = await res.json();
 
       if (!res.ok) {
@@ -1007,9 +1069,9 @@
 
     if (!body) { wlMsg(`'${input}' 종목을 찾을 수 없습니다.`, 'error'); return; }
 
-    const res = await fetch(API + '/api/v2/watchlist', {
+    const res = await authFetch(API + '/api/v2/watchlist', {
       method: 'POST',
-      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const data = await res.json();
@@ -1046,10 +1108,8 @@
 
   async function removeWatchlist(ticker, name) {
     if (!confirm(`${name || ticker}을(를) 관심종목에서 삭제할까요?`)) return;
-    const token = localStorage.getItem('access_token');
-    const res = await fetch(API + '/api/v2/watchlist/' + ticker, {
+    const res = await authFetch(API + '/api/v2/watchlist/' + ticker, {
       method: 'DELETE',
-      headers: { Authorization: 'Bearer ' + token },
     });
     if (res.ok) {
       wlMsg(`${name || ticker} 삭제됐습니다.`, 'success');

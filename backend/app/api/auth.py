@@ -203,6 +203,48 @@ def me(
     }
 
 
+# ── 토큰 갱신 ────────────────────────────────────────────────────
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh", summary="액세스 토큰 갱신")
+def refresh_token(body: RefreshRequest, db: Session = Depends(get_db)):
+    """
+    refresh_token으로 새 access_token을 발급합니다.
+    refresh_token 유효기간: 7일.
+    """
+    from app.core.auth import decode_token, create_access_token
+
+    payload = decode_token(body.refresh_token)
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="리프레시 토큰이 아닙니다.",
+        )
+
+    user_id = int(payload["sub"])
+    row = db.execute(
+        text("SELECT id, email, name FROM users WHERE id = :uid"),
+        {"uid": user_id},
+    ).fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+
+    new_access_token = create_access_token(row.id, row.email)
+    return {
+        "access_token": new_access_token,
+        "token_type": "bearer",
+        "user": {"id": row.id, "email": row.email, "name": row.name},
+    }
+
+
 # ── 로그아웃 ─────────────────────────────────────────────────────
 
 @router.post("/logout", summary="로그아웃 (클라이언트 토큰 삭제)")
