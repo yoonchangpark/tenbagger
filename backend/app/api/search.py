@@ -55,7 +55,31 @@ def search_companies_v2(
     except Exception:
         pass
 
-    # 2. pykrx fallback (DB 비어있을 때)
+    # 2. scores 테이블 직접 검색 (companies 비어있을 때 — ETL은 항상 scores를 채움)
+    try:
+        rows = db.execute(text("""
+            SELECT ticker, name, market
+            FROM scores
+            WHERE REPLACE(LOWER(name), ' ', '') LIKE :q
+               OR ticker = :ticker
+            ORDER BY
+              CASE WHEN ticker = :ticker THEN 0
+                   WHEN LOWER(name) LIKE :starts THEN 1
+                   ELSE 2 END,
+              total_score DESC
+            LIMIT 10
+        """), {
+            "q": f"%{q_lower}%",
+            "ticker": q.upper(),
+            "starts": f"{q_lower}%",
+        }).fetchall()
+
+        if rows:
+            return [{"ticker": r.ticker, "name": r.name, "market": r.market or ""} for r in rows]
+    except Exception:
+        pass
+
+    # 3. pykrx fallback (DB 전체 비어있을 때)
     return _pykrx_search(q, q_lower)
 
 
@@ -108,14 +132,41 @@ def _pykrx_search(q: str, q_clean: str) -> list[dict]:
 
 
 @router.get("/api/search")
-def search_companies(q: str = Query(..., min_length=1, max_length=30)):
+def search_companies(
+    q: str = Query(..., min_length=1, max_length=30),
+    db: Session = Depends(get_db),
+):
     """
-    종목명 또는 종목코드로 검색 (pykrx 기반)
+    종목명 또는 종목코드로 검색 (scores DB 우선 → pykrx fallback)
     - 최대 10개 반환
     - 정확도 순: 코드 일치 > 이름 시작 > 이름 포함
     """
     q = q.strip()
     q_clean = re.sub(r"\s+", "", q).lower()
+
+    # scores 테이블 우선 검색
+    try:
+        rows = db.execute(text("""
+            SELECT ticker, name, market
+            FROM scores
+            WHERE REPLACE(LOWER(name), ' ', '') LIKE :q
+               OR ticker = :ticker
+            ORDER BY
+              CASE WHEN ticker = :ticker THEN 0
+                   WHEN LOWER(name) LIKE :starts THEN 1
+                   ELSE 2 END,
+              total_score DESC
+            LIMIT 10
+        """), {
+            "q": f"%{q_clean}%",
+            "ticker": q.upper(),
+            "starts": f"{q_clean}%",
+        }).fetchall()
+        if rows:
+            return [{"ticker": r.ticker, "name": r.name, "market": r.market or ""} for r in rows]
+    except Exception:
+        pass
+
     return _pykrx_search(q, q_clean)
 
 
