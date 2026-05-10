@@ -323,7 +323,13 @@
         <div class="section-title">⭐ 관심종목</div>
         <div class="section-desc">내 포트폴리오 후보 · Pro 20개 / Premium 무제한</div>
       </div>
-      <button class="refresh-btn" onclick="loadWatchlist()">새로고침</button>
+      <div style="display:flex;gap:8px;">
+        <button class="refresh-btn" onclick="loadWatchlist()">새로고침</button>
+        <button class="refresh-btn" onclick="runWatchlistSimulation()"
+          style="background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border:none;">
+          📊 시뮬레이션
+        </button>
+      </div>
     </div>
 
     <!-- 종목 추가 입력창 -->
@@ -841,6 +847,12 @@
   }
 
   // ── 포트폴리오 시뮬레이터 ────────────────────────────────────────────────
+  function runWatchlistSimulation() {
+    document.getElementById("pfGrade").value = "__WATCHLIST__";
+    const pfTabBtn = document.querySelector('.tab-btn[onclick*="portfolio"]');
+    switchTab("portfolio", pfTabBtn);
+  }
+
   async function runPortfolioSimulation() {
     const resultEl = document.getElementById("pfResult");
     if (!resultEl) return;
