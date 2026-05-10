@@ -453,6 +453,7 @@
       <div id="sectorHeatmap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
         <div class="loading-row" style="grid-column:1/-1;padding:32px;"><div class="spinner"></div></div>
       </div>
+      <div id="sectorDetail" style="display:none;margin-top:16px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;"></div>
     </div>
 
     <!-- 시그널 탭 -->
@@ -1212,7 +1213,7 @@
   }
 
   function analyzeFromWatchlist(ticker) {
-    const tabBtn = document.querySelectorAll(".tab-btn")[4]; // 종목 분석 탭
+    const tabBtn = document.querySelector('.tab-btn[onclick*="analysis"]');
     switchTab("analysis", tabBtn);
     document.getElementById("stockInput").value = ticker;
     analyzeStock();
@@ -1373,8 +1374,7 @@
   }
 
   function jumpToAnalysis(ticker) {
-    // 종목 분석 탭으로 이동 후 자동 분석
-    const tabBtn = document.querySelectorAll(".tab-btn")[4]; // 종목 분석 탭
+    const tabBtn = document.querySelector('.tab-btn[onclick*="analysis"]');
     switchTab("analysis", tabBtn);
     document.getElementById("stockInput").value = ticker;
     analyzeStock();
@@ -1820,25 +1820,40 @@
   }
 
   async function loadSectorDetail(sector) {
+    const panel = document.getElementById('sectorDetail');
+    panel.style.display = 'block';
+    panel.innerHTML = '<div style="color:var(--muted);font-size:13px;">로딩 중...</div>';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const res = await fetch(API + '/api/v2/news/sector/' + encodeURIComponent(sector));
       const d = await res.json();
       if (!d.has_data) {
-        alert(`${sector} 업종 데이터가 없습니다.`);
+        panel.innerHTML = `<div style="color:var(--muted);font-size:13px;">${escHtml(sector)} 업종 데이터가 없습니다.</div>`;
         return;
       }
       const l = d.latest;
+      const scoreColor = l.avg_score > 0.1 ? '#34d399' : l.avg_score < -0.1 ? '#f87171' : 'var(--muted)';
       const articles = (d.recent_articles || []).slice(0, 5).map(a =>
         `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
           <div style="font-size:13px;font-weight:600;color:${a.score > 0.1 ? '#34d399' : a.score < -0.1 ? '#f87171' : 'var(--text)'};">
-            ${a.score > 0.1 ? '🟢' : a.score < -0.1 ? '🔴' : '⚪'} ${esc(a.title)}
+            ${a.score > 0.1 ? '🟢' : a.score < -0.1 ? '🔴' : '⚪'} ${escHtml(a.title)}
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:3px;">${a.published_at ? a.published_at.slice(0,16) : ''}</div>
         </div>`
       ).join('');
-      const msg = `${l.signal_emoji} ${sector} — ${l.signal_label} (감성점수: ${(l.avg_score >= 0 ? '+' : '') + l.avg_score.toFixed(2)})\n\n주요 키워드: ${(l.key_topics || []).join(', ') || '없음'}\n기사 수: ${l.article_count}건`;
-      alert(msg);
+      panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:15px;font-weight:700;">${l.signal_emoji} ${escHtml(sector)} — ${escHtml(l.signal_label)}</div>
+          <button onclick="document.getElementById('sectorDetail').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
+        </div>
+        <div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
+          <span style="font-size:13px;">감성점수 <strong style="color:${scoreColor}">${(l.avg_score >= 0 ? '+' : '') + l.avg_score.toFixed(2)}</strong></span>
+          <span style="font-size:13px;">기사 ${l.article_count}건</span>
+          ${(l.key_topics || []).length ? `<span style="font-size:13px;color:var(--muted);">키워드: ${(l.key_topics).join(', ')}</span>` : ''}
+        </div>
+        ${articles ? `<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;">최근 기사</div>${articles}` : ''}`;
     } catch(e) {
+      panel.innerHTML = '<div style="color:#f87171;font-size:13px;">데이터 로드 실패</div>';
       console.error(e);
     }
   }
@@ -1963,9 +1978,7 @@
   }
 
   // ── Util ──
-  function esc(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
+  const esc = escHtml;
 
   // ── Init ──
   renderAuthBtn();
