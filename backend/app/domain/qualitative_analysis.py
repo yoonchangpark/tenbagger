@@ -165,7 +165,7 @@ async def generate_qualitative_analysis(
     op_margin_str = f"{op_margin:.1f}%" if op_margin else "N/A"
 
     prompt = (
-        f"당신은 한국 주식 장기투자 전문 애널리스트입니다. 다음 데이터를 바탕으로 {name}({ticker})의 투자 분석 리포트를 작성하세요.\n\n"
+        f"당신은 한국 주식 장기투자 전문 애널리스트입니다. 다음 데이터를 바탕으로 {name}({ticker})의 기업 리서치 리포트를 작성하세요.\n\n"
         f"## 기업 기본정보\n{company_str}\n\n"
         f"## 재무 현황 (최근 6년)\n{fin_summary}\n"
         f"- 현재 시스템 점수: {total_score}/10 ({grade})\n"
@@ -191,7 +191,7 @@ async def generate_qualitative_analysis(
         '  "estimated_forward_cagr": 8.5,\n'
         '  "future_outlook": "향후 3~5년 사업 전망과 장기투자자 관전 포인트 (300자 이내)",\n'
         '  "key_risks": "핵심 리스크 2~3가지 (쉼표 구분)",\n'
-        '  "ai_investment_opinion": "BUY / HOLD / AVOID 중 하나와 핵심 근거 한 줄"\n'
+        '  "long_term_potential": "STRONG / MODERATE / WEAK 중 하나와 장기 사업 잠재력 평가 한 줄 (현재 주가/타이밍 무관, 사업 본질만 평가)"\n'
         "}"
     )
 
@@ -255,7 +255,7 @@ def _fallback_analysis(ticker: str, name: str, financials: list, score: dict) ->
         "estimated_forward_cagr": None,
         "future_outlook": "잠시 후 다시 시도하거나 OPENAI_API_KEY 설정을 확인하세요.",
         "key_risks": "-",
-        "ai_investment_opinion": "HOLD - AI 분석 불가",
+        "long_term_potential": "MODERATE - AI 분석 불가",
         "generated_at": datetime.datetime.now().isoformat(),
         "error": "AI analysis unavailable",
     }

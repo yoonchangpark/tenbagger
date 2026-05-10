@@ -452,23 +452,23 @@
       });
       html+='</tbody></table></div>';
 
-      // ── v2.0 AI 정성 분석 패널 ──
+      // ── STEP 1: 기업 리서치 패널 (DART 기반 정성 분석) ──
       html+='<div class="ai-panel">';
       html+='<div class="ai-panel-header">';
-      html+='<div class="ai-panel-title">🤖 AI 정성 분석 <span class="ai-v2-badge">v2.0</span></div>';
-      html+='<button class="ai-load-btn" id="aiLoadBtn" onclick="loadQualitative(\''+d.ticker+'\')">AI 분석 불러오기</button>';
+      html+='<div class="ai-panel-title">🔬 기업 리서치 <span class="ai-v2-badge">DART 기반</span></div>';
+      html+='<button class="ai-load-btn" id="aiLoadBtn" onclick="loadQualitative(\''+d.ticker+'\')">리서치 불러오기</button>';
       html+='</div>';
-      html+='<div id="aiContent" class="ai-content">';
-      html+='</div>';
+      html+='<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">공시 데이터·재무 트렌드·주주구조를 바탕으로 사업 본질을 분석합니다. <em>현재 주가·타이밍 판단은 아래 위원회에서 합니다.</em></div>';
+      html+='<div id="aiContent" class="ai-content"></div>';
       html+='</div>';
 
-      // ── Phase 6: AI 투자위원회 ──
+      // ── STEP 2: AI 투자위원회 (최종 투자 판단) ──
       html+='<div class="ai-panel" style="background:linear-gradient(135deg,rgba(168,85,247,.06),rgba(236,72,153,.06));border-color:rgba(168,85,247,.25);">';
       html+='<div class="ai-panel-header">';
-      html+='<div class="ai-panel-title">🏛️ AI 투자위원회 <span class="ai-v2-badge" style="border-color:rgba(168,85,247,.4);">v2.6</span></div>';
+      html+='<div class="ai-panel-title">🏛️ AI 투자위원회 <span class="ai-v2-badge" style="border-color:rgba(168,85,247,.4);">최종 판단</span></div>';
       html+='<button class="ai-load-btn" id="committeeLoadBtn" onclick="loadCommittee(\''+d.ticker+'\',\''+(d.name||'')+'\')" style="background:linear-gradient(135deg,#9333ea,#ec4899);">위원회 분석 시작</button>';
       html+='</div>';
-      html+='<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">재무분석가 · 뉴스감성가 · 업종리서처 · 투자전략가 4명의 AI 전문가가 독립 분석 후 종합 의견을 제시합니다 (15~20초 소요).</div>';
+      html+='<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">재무분석가 · 뉴스감성가 · 업종리서처 · 투자전략가 4명이 독립 분석 후 <strong style="color:#c084fc;">현 시점 매수·관망·회피</strong>를 결정합니다 (15~20초).</div>';
       html+='<div id="committeeContent" class="ai-content"></div>';
       html+='</div>';
 
@@ -659,13 +659,27 @@
 
     function renderQualitative(q){
       const content=document.getElementById("aiContent");
-      const opinionWord=(q.ai_investment_opinion||"").includes("BUY")?"BUY":(q.ai_investment_opinion||"").includes("AVOID")?"AVOID":"HOLD";
-      const opinionIcon={BUY:"🟢",HOLD:"🟡",AVOID:"🔴"}[opinionWord];
+      // long_term_potential: "STRONG / MODERATE / WEAK + 한 줄 설명"
+      const potentialRaw = q.long_term_potential || q.ai_investment_opinion || "";
+      const potentialWord = potentialRaw.includes("STRONG") ? "STRONG"
+                          : potentialRaw.includes("WEAK")   ? "WEAK"
+                          : "MODERATE";
+      const potentialMeta = {
+        STRONG:   { icon:"🌟", label:"장기 잠재력 STRONG",   bg:"rgba(16,185,129,.15)", color:"#34d399", border:"rgba(16,185,129,.3)" },
+        MODERATE: { icon:"📊", label:"장기 잠재력 MODERATE", bg:"rgba(251,191,36,.12)", color:"#fbbf24", border:"rgba(251,191,36,.3)" },
+        WEAK:     { icon:"⚠️", label:"장기 잠재력 WEAK",     bg:"rgba(239,68,68,.12)",  color:"#f87171", border:"rgba(239,68,68,.3)"  },
+      }[potentialWord];
 
       let html="";
 
-      // AI 투자의견 배너
-      html+='<div class="ai-opinion '+opinionWord+'">'+opinionIcon+' '+escHtml(q.ai_investment_opinion||"-")+'</div>';
+      // 장기 잠재력 배지 (투자 타이밍 아님 명시)
+      html+='<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:12px;border:1px solid '+potentialMeta.border+';background:'+potentialMeta.bg+';margin-bottom:14px;">';
+      html+='<span style="font-size:20px;line-height:1.2;">'+potentialMeta.icon+'</span>';
+      html+='<div>';
+      html+='<div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:'+potentialMeta.color+';margin-bottom:3px;">'+potentialMeta.label+'</div>';
+      html+='<div style="font-size:13px;color:#d1d5db;line-height:1.5;">'+escHtml(potentialRaw)+'</div>';
+      html+='<div style="font-size:11px;color:#6b7280;margin-top:4px;">※ 사업 본질 평가 — 현재 주가·매매 타이밍은 아래 AI 투자위원회에서 확인하세요</div>';
+      html+='</div></div>';
 
       // 사업모델 + 경쟁우위
       html+='<div class="ai-two-col">';
