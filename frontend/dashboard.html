@@ -1842,6 +1842,22 @@
 
   // ── Init ──
   renderAuthBtn();
+  // 로그인 상태면 /me API로 실제 이름 즉시 갱신 (재로그인 없이도 최신 닉네임 반영)
+  (function syncUserName() {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    fetch(API + "/api/v2/auth/me", { headers: { Authorization: "Bearer " + token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.user?.name) return;
+        const fresh = data.user.name;
+        if (fresh && fresh !== localStorage.getItem("user_name")) {
+          localStorage.setItem("user_name", fresh);
+          renderAuthBtn();  // 이름 갱신 후 버튼 재렌더
+        }
+      })
+      .catch(() => {});
+  })();
   loadRanking();
   loadDisclosures();
 </script>
