@@ -104,9 +104,10 @@ async def run_backtest(
         "is_tenbagger_actual": is_tenbagger_actual,
         "predicted_grade": historical_score.get("grade"),
         "prediction_correct": (
-            (historical_score.get("grade") in ("TENBAGGER", "COMPOUNDER") and actual_return is not None and actual_return > 0)
-            or
-            (historical_score.get("grade") in ("AVOID",) and actual_return is not None and actual_return < 0)
+            (historical_score.get("grade") == "TENBAGGER" and actual_return >= 20)
+            or (historical_score.get("grade") == "COMPOUNDER" and actual_return >= 10)
+            or (historical_score.get("grade") == "WATCHLIST" and actual_return >= 0)
+            or (historical_score.get("grade") == "AVOID" and actual_return < 0)
         ) if actual_return is not None else None,
     }
 
