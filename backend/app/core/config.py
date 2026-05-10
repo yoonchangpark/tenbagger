@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # 관리자 API 시크릿 키
     admin_secret: str = ""      # ADMIN_SECRET 환경변수
 
+    # 오너/관리자 이메일 (항상 premium 티어로 처리)
+    admin_email: str = "yoonchang.park@gmail.com"  # ADMIN_EMAIL 환경변수로 재정의 가능
+
     # 네이버 뉴스 검색 API (뉴스 감성 분석용)
     naver_client_id: str = ""      # NAVER_CLIENT_ID 환경변수
     naver_client_secret: str = ""  # NAVER_CLIENT_SECRET 환경변수

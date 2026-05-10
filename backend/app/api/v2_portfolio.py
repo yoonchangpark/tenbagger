@@ -238,13 +238,14 @@ def simulate_portfolio(
     invest_amount: int = Query(100_000_000, description="투자 원금 (원)"),
     period: str = Query("3m", description="시뮬레이션 기간: 1m | 3m | 6m | 1y"),
     weight_method: str = Query("equal", description="비중 방식: equal | score_weighted"),
+    tickers: str | None = Query(None, description="특정 종목 코드 목록 (쉼표 구분). 지정 시 grade_filter 무시"),
 ):
     """
     가상 포트폴리오 시뮬레이터 (v2 — score_history 불필요).
     현재 scores 테이블 등급 기준 + price_daily_cache 과거 주가로 수익률 계산.
     period 전에 해당 등급이었다고 가정 (보수적 시뮬레이션).
+    tickers 지정 시 해당 종목만 대상으로 시뮬레이션 (관심종목 모드).
     """
-    grades = [g.strip().upper() for g in grade_filter.split(",")]
     today  = datetime.date.today()
 
     # period → 시작일 계산
@@ -252,16 +253,29 @@ def simulate_portfolio(
     period_days = period_days_map.get(period, 90)
     sim_start = today - datetime.timedelta(days=period_days)
 
-    # 1. 현재 등급 기준 종목 조회 (scores 테이블)
-    with SessionLocal() as session:
-        rows = session.execute(text("""
-            SELECT ticker, name, market, grade, total_score, growth_score,
-                   close AS close_price
-            FROM scores
-            WHERE grade = ANY(:grades)
-            ORDER BY total_score DESC
-            LIMIT 50
-        """), {"grades": grades}).fetchall()
+    # 1. 종목 조회 — 관심종목 모드(tickers 지정) vs 등급 필터 모드
+    if tickers:
+        ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+        with SessionLocal() as session:
+            rows = session.execute(text("""
+                SELECT ticker, name, market, grade, total_score, growth_score,
+                       close AS close_price
+                FROM scores
+                WHERE ticker = ANY(:tickers)
+                ORDER BY total_score DESC
+                LIMIT 100
+            """), {"tickers": ticker_list}).fetchall()
+    else:
+        grades = [g.strip().upper() for g in grade_filter.split(",")]
+        with SessionLocal() as session:
+            rows = session.execute(text("""
+                SELECT ticker, name, market, grade, total_score, growth_score,
+                       close AS close_price
+                FROM scores
+                WHERE grade = ANY(:grades)
+                ORDER BY total_score DESC
+                LIMIT 50
+            """), {"grades": grades}).fetchall()
 
     if not rows:
         return {
