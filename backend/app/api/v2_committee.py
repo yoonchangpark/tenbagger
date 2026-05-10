@@ -64,14 +64,24 @@ async def get_committee_analysis(ticker: str, force: bool = Query(False, descrip
     - 24시간 이내 캐시 있으면 즉시 반환 (~0.1초)
     - 없거나 force=True면 4개 에이전트 병렬 실행 (~15초, $0.04)
     """
+    import traceback
     ticker = ticker.upper().strip()
     if not force:
-        cached = _get_cached(ticker)
-        if cached:
-            return cached
+        try:
+            cached = _get_cached(ticker)
+            if cached:
+                return cached
+        except Exception as e:
+            print(f"[committee] 캐시 조회 오류 (계속 진행): {e}")
+            traceback.print_exc()
 
     # 신규 분석
-    result = await run_committee(ticker)
+    try:
+        result = await run_committee(ticker)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"위원회 분석 오류: {type(e).__name__}: {e}")
+
     if result.get("error"):
         raise HTTPException(
             status_code=404 if result["error"] == "ticker_not_in_scores" else 500,
@@ -79,7 +89,11 @@ async def get_committee_analysis(ticker: str, force: bool = Query(False, descrip
         )
 
     result["from_cache"] = False
-    _save_cache(ticker, result)
+    try:
+        _save_cache(ticker, result)
+    except Exception as e:
+        print(f"[committee] 캐시 저장 오류 (응답은 정상): {e}")
+        traceback.print_exc()
     return result
 
 

@@ -127,7 +127,7 @@ def _gather_financial_data(ticker: str) -> dict:
         # 5년 재무 추이
         fin_rows = session.execute(text("""
             SELECT f.year, f.revenue, f.operating_profit, f.net_income, f.fcf
-            FROM financials f
+            FROM financials_annual f
             JOIN companies c ON c.id = f.company_id
             WHERE c.ticker = :t
             ORDER BY f.year DESC LIMIT 5
