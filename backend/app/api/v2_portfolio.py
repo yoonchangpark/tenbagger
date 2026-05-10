@@ -313,7 +313,7 @@ def simulate_portfolio(
         if not entry_price or not current_price:
             continue
 
-        if entry_row and entry_row.trade_date < sim_start:
+        if entry_row is not None:   # 과거 데이터 존재 여부만 확인
             fetched_any_history = True
 
         invested   = int(invest_amount * h["weight"] / 100)
