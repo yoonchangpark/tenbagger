@@ -41,7 +41,6 @@ async def fetch_bz_summary(corp_code: str, bsns_year: str, reprt_code: str) -> s
         items = data.get("list", [])
         if not items:
             return ""
-        # 텍스트 필드 합산
         fields = ["induty_cd_nm", "bsns_nm", "bsns_pp", "bsns_cmp"]
         parts = []
         for item in items:
@@ -57,7 +56,7 @@ async def fetch_bz_summary(corp_code: str, bsns_year: str, reprt_code: str) -> s
 async def fetch_financial_indices(corp_code: str, bsns_year: str, reprt_code: str) -> dict:
     """수익성 + 성장성 지표"""
     result = {}
-    for cl_code, cl_nm in [("M210000", "수익성"), ("M230000", "성장성")]:
+    for cl_code in ["M210000", "M230000"]:
         try:
             data = await _get("fnlttCmpnyIndx.json", {
                 "corp_code": corp_code,
@@ -78,7 +77,6 @@ async def fetch_financial_indices(corp_code: str, bsns_year: str, reprt_code: st
 async def fetch_period_data(corp_code: str, bsns_year: str, reprt_code: str) -> dict:
     """한 분기의 텍스트 + 지표 통합 수집"""
     label = REPRT_LABELS.get(reprt_code, reprt_code)
-    print(f"  [{bsns_year} {label}] 수집 중...", flush=True)
 
     bz_text, indices = await asyncio.gather(
         fetch_bz_summary(corp_code, bsns_year, reprt_code),
@@ -154,45 +152,73 @@ async def compare_with_gpt(prev: dict, curr: dict, company_name: str) -> str:
     return resp.choices[0].message.content
 
 
+# ── API에서 호출하는 통합 함수 ───────────────────────────────────────────────
+
+async def fetch_quarter_compare(ticker: str, base_year: Optional[int] = None) -> dict:
+    """
+    ticker → 분기 비교 분석 결과 반환.
+    반환: {
+        "ticker": str,
+        "corp_name": str,
+        "prev_label": str,
+        "curr_label": str,
+        "prev_indices": dict,
+        "curr_indices": dict,
+        "analysis_md": str,   # GPT 마크다운 분석 전문
+    }
+    """
+    import datetime
+    if base_year is None:
+        base_year = datetime.date.today().year - 1
+
+    corp_code, _ = await _get_corp_code(ticker)
+    if not corp_code:
+        raise ValueError(f"corp_code를 찾을 수 없습니다: {ticker}")
+
+    try:
+        info = await _get("company.json", {"corp_code": corp_code})
+        corp_name = info.get("corp_name", ticker)
+    except Exception:
+        corp_name = ticker
+
+    year = str(base_year)
+    next_year = str(base_year + 1)
+
+    prev_data, curr_data = await asyncio.gather(
+        fetch_period_data(corp_code, year, "11011"),
+        fetch_period_data(corp_code, next_year, "11013"),
+    )
+
+    analysis_md = await compare_with_gpt(prev_data, curr_data, corp_name)
+
+    return {
+        "ticker": ticker,
+        "corp_name": corp_name,
+        "prev_label": prev_data["label"],
+        "curr_label": curr_data["label"],
+        "prev_indices": prev_data["indices"],
+        "curr_indices": curr_data["indices"],
+        "analysis_md": analysis_md,
+    }
+
+
 # ── 메인 ─────────────────────────────────────────────────────────────────────
 
 async def run(ticker: str, base_year: Optional[int]):
     print(f"\n{ticker} corp_code 조회 중...")
-    corp_code, _ = await _get_corp_code(ticker)
-    if not corp_code:
-        print("corp_code를 찾을 수 없습니다.")
-        return
+    result = await fetch_quarter_compare(ticker, base_year)
 
-    # 회사명 조회
-    try:
-        info = await _get("company.json", {"corp_code": corp_code})
-        company_name = info.get("corp_name", ticker)
-    except Exception:
-        company_name = ticker
-
-    year = str(base_year or 2024)
-    next_year = str(int(year) + 1)
-
-    print(f"\n{company_name} ({corp_code})")
-    print(f"비교: {year} 사업보고서 → {next_year} Q1\n")
-
-    prev_data, curr_data = await asyncio.gather(
-        fetch_period_data(corp_code, year, "11011"),       # 사업보고서
-        fetch_period_data(corp_code, next_year, "11013"),  # Q1
-    )
-
-    print("\nGPT 비교 분석 중...")
-    result = await compare_with_gpt(prev_data, curr_data, company_name)
-
+    print(f"\n{result['corp_name']} ({ticker})")
+    print(f"비교: {result['prev_label']} → {result['curr_label']}\n")
     print("\n" + "=" * 70)
-    print(result)
+    print(result["analysis_md"])
     print("=" * 70)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DART 보고서 분기 비교 분석")
     parser.add_argument("--ticker", required=True, help="종목코드 (예: 005930)")
-    parser.add_argument("--year", type=int, default=2024, help="기준 연도 (기본: 2024)")
+    parser.add_argument("--year", type=int, default=None, help="기준 연도 (기본: 작년)")
     args = parser.parse_args()
 
     asyncio.run(run(args.ticker, args.year))

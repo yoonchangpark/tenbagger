@@ -282,3 +282,15 @@ CREATE TABLE IF NOT EXISTS committee_cache (
 );
 CREATE INDEX IF NOT EXISTS idx_committee_ticker ON committee_cache(ticker, analyzed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_committee_decision ON committee_cache(decision, analyzed_at DESC);
+
+CREATE TABLE IF NOT EXISTS quarter_compare_cache (
+    ticker          VARCHAR(10) PRIMARY KEY,
+    corp_name       VARCHAR(100),
+    prev_label      VARCHAR(60),
+    curr_label      VARCHAR(60),
+    prev_indices    JSONB,
+    curr_indices    JSONB,
+    analysis_md     TEXT,
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_qcc_updated ON quarter_compare_cache(updated_at DESC);

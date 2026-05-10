@@ -191,6 +191,24 @@
     .tenbagger-badge{background:rgba(16,185,129,.2);color:#10b981;border:1px solid rgba(16,185,129,.4);font-size:11px;padding:3px 8px;border-radius:6px;display:inline-block;}
 
     .ai-panel{background:linear-gradient(135deg,rgba(16,185,129,.06),rgba(59,130,246,.06));border:1px solid rgba(16,185,129,.2);border-radius:20px;padding:24px 28px;margin-bottom:20px;}
+    /* 분기비교 패널 */
+    .qc-panel{background:linear-gradient(135deg,rgba(139,92,246,.06),rgba(59,130,246,.06));border:1px solid rgba(139,92,246,.25);border-radius:20px;padding:24px 28px;margin-bottom:20px;}
+    .qc-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+    .qc-panel-title{font-size:16px;font-weight:700;}
+    .qc-labels{font-size:12px;color:var(--muted);margin-bottom:12px;}
+    .qc-indices-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+    .qc-idx-item{background:var(--surface2);border-radius:10px;padding:10px 14px;min-width:120px;border:1px solid var(--border);}
+    .qc-idx-item.down{border-color:rgba(239,68,68,.3);}
+    .qc-idx-item.up{border-color:rgba(16,185,129,.3);}
+    .qc-idx-nm{font-size:11px;color:var(--muted);margin-bottom:4px;}
+    .qc-idx-vals{font-size:13px;font-weight:600;}
+    .qc-md{font-size:13px;line-height:1.75;color:var(--text);white-space:pre-wrap;word-break:break-word;}
+    /* 공시탭 고정 예시 카드 */
+    .qc-pinned-card{background:linear-gradient(135deg,rgba(139,92,246,.08),rgba(59,130,246,.05));border:1px solid rgba(139,92,246,.3);border-radius:16px;padding:18px 20px;margin-bottom:16px;}
+    .qc-pinned-label{font-size:13px;font-weight:700;color:#c4b5fd;margin-bottom:4px;}
+    .qc-pinned-meta{font-size:11px;color:var(--muted);margin-bottom:12px;}
+    .qc-summary{font-size:12px;color:var(--text);margin:10px 0;}
+    .qc-actions{display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;}
     .ai-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
     .ai-panel-title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;}
     .ai-v2-badge{font-size:10px;font-weight:700;background:linear-gradient(135deg,#10b981,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;border:1px solid rgba(16,185,129,.4);border-radius:8px;padding:2px 8px;}
@@ -295,6 +313,24 @@
         <button class="filter-btn" id="cls-kospi" onclick="setCorpCls('Y',this)">KOSPI</button>
         <button class="filter-btn" id="cls-kosdaq" onclick="setCorpCls('K',this)">KOSDAQ</button>
         <button class="refresh-btn" id="discRefreshBtn" onclick="loadDisclosures()">새로고침</button>
+      </div>
+    </div>
+    <!-- 분기비교 예시 고정 카드 -->
+    <div class="qc-pinned-card">
+      <div class="qc-pinned-label">📌 분기비교 분석 예시 · 삼성전자(005930)</div>
+      <div class="qc-pinned-meta">2024 사업보고서(연간) → 2025 1분기보고서</div>
+      <div class="qc-indices-row">
+        <div class="qc-idx-item down"><div class="qc-idx-nm">ROE</div><div class="qc-idx-vals">8.997% → 2.033%</div></div>
+        <div class="qc-idx-item down"><div class="qc-idx-nm">매출총이익률</div><div class="qc-idx-vals">37.993% → 35.545%</div></div>
+        <div class="qc-idx-item down"><div class="qc-idx-nm">순이익률</div><div class="qc-idx-vals">11.451% → 10.39%</div></div>
+      </div>
+      <div class="qc-summary">ROE 급락(8.9%→2.0%) · 원가 부담 확대 · 반도체 업황 모니터링 필요</div>
+      <div class="qc-actions">
+        <span style="font-size:11px;color:var(--muted);">관심종목·텐배거 종목은 종목 분석 하단에서 분기비교 자동 조회</span>
+        <button onclick="switchTab('analysis',document.querySelector('.tab-btn[onclick*=\'analysis\']'));document.getElementById('stockInput').value='005930';analyzeStock()"
+          style="padding:4px 12px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;">
+          삼성전자 분석 →
+        </button>
       </div>
     </div>
     <div class="disc-list" id="discList">
@@ -1683,6 +1719,15 @@
     html += '<button class="ai-load-btn" id="dashAiBtn" onclick="dashLoadAI(\'' + esc(d.ticker) + '\')">AI 분석 불러오기</button>';
     html += '</div><div id="dashAiContent" class="ai-content"></div></div>';
 
+    // Quarter compare panel
+    html += '<div class="qc-panel" id="qcPanel">';
+    html += '<div class="qc-panel-header">';
+    html += '<div class="qc-panel-title">📊 분기 비교 분석 <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px;">DART 재무지표 · GPT 분석</span></div>';
+    html += '<button class="ai-load-btn" id="qcLoadBtn" onclick="loadQuarterCompare(\'' + esc(d.ticker) + '\')">불러오기</button>';
+    html += '</div>';
+    html += '<div id="qcContent"></div>';
+    html += '</div>';
+
     document.getElementById("analysisResult").innerHTML = html;
 
     // Draw charts
@@ -1730,6 +1775,57 @@
       document.getElementById("dashSimResult").style.display = "block";
     } catch (e) { alert("시뮬레이션 오류: " + e.message); }
     finally { btn.textContent = "🚀 시뮬레이션 실행"; btn.disabled = false; }
+  }
+
+  async function loadQuarterCompare(ticker, forceRefresh) {
+    const btn = document.getElementById("qcLoadBtn");
+    const content = document.getElementById("qcContent");
+    if (!btn || !content) return;
+    btn.disabled = true;
+    btn.textContent = "조회 중…";
+    content.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;"><span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span> DART + GPT 분기 비교 분석 중… (10~20초)</div>';
+
+    try {
+      const url = API + "/api/v2/company/" + encodeURIComponent(ticker) + "/quarter-compare" + (forceRefresh ? "?refresh=true" : "");
+      const r = await fetch(url);
+      const d = await r.json();
+
+      if (d.error) {
+        content.innerHTML = '<div style="padding:12px 16px;color:#f87171;font-size:13px;">⚠️ ' + escHtml(d.error) + '</div>';
+        btn.disabled = false; btn.textContent = "다시 시도";
+        return;
+      }
+
+      const KEY_NAMES = ["매출액증가율", "영업이익증가율", "순이익증가율", "순이익률", "매출총이익률", "ROE"];
+      const prev = d.prev_indices || {};
+      const curr = d.curr_indices || {};
+
+      let idxHtml = KEY_NAMES.filter(k => prev[k] || curr[k]).map(k => {
+        const pv = prev[k] ? parseFloat(prev[k]) : null;
+        const cv = curr[k] ? parseFloat(curr[k]) : null;
+        const dir = (pv !== null && cv !== null) ? (cv > pv ? "up" : cv < pv ? "down" : "flat") : "flat";
+        const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "—";
+        const col = dir === "up" ? "#10b981" : dir === "down" ? "#ef4444" : "#6b7280";
+        return '<div class="qc-idx-item ' + dir + '"><div class="qc-idx-nm">' + escHtml(k) + '</div>'
+          + '<div class="qc-idx-vals">' + (pv !== null ? pv.toFixed(2) + "%" : "-") + ' <span style="color:' + col + '">' + arrow + '</span> ' + (cv !== null ? cv.toFixed(2) + "%" : "-") + '</div></div>';
+      }).join("");
+
+      const md = escHtml(d.analysis_md || "").replace(/\n/g, "<br>").replace(/## (.+?)(<br>|$)/g, '<strong style="color:#c4b5fd;">$1</strong><br>').replace(/\| (.+?) \|/g, function(m) { return m; });
+
+      let h = '<div class="qc-labels">' + escHtml(d.prev_label || "") + ' → ' + escHtml(d.curr_label || "") + '</div>';
+      if (idxHtml) h += '<div class="qc-indices-row">' + idxHtml + '</div>';
+      h += '<div class="qc-md">' + md + '</div>';
+      h += '<div style="margin-top:10px;text-align:right;">';
+      if (d.updated_at) h += '<span style="font-size:11px;color:var(--muted);">캐시: ' + d.updated_at.slice(0,16).replace("T"," ") + '</span> ';
+      h += '<button onclick="loadQuarterCompare(\'' + escHtml(ticker) + '\',true)" style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);border-radius:6px;color:#a78bfa;font-size:11px;cursor:pointer;">🔄 재분석</button>';
+      h += '</div>';
+
+      content.innerHTML = h;
+      btn.textContent = "✅ 완료"; btn.disabled = false;
+    } catch(e) {
+      content.innerHTML = '<div style="padding:12px 16px;color:#f87171;font-size:13px;">오류: ' + escHtml(e.message) + '</div>';
+      btn.disabled = false; btn.textContent = "다시 시도";
+    }
   }
 
   async function dashLoadAI(ticker) {
