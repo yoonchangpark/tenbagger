@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user, get_db
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/v2/watchlist", tags=["watchlist"])
 
@@ -19,7 +20,10 @@ router = APIRouter(prefix="/api/v2/watchlist", tags=["watchlist"])
 WATCHLIST_LIMITS = {"free": 0, "pro": 20, "premium": -1}  # -1 = 무제한
 
 
-def _get_user_tier(user_id: int, db: Session) -> str:
+def _get_user_tier(user_id: int, db: Session, user_email: str = "") -> str:
+    # 오너/관리자는 항상 premium
+    if user_email and settings.admin_email and user_email == settings.admin_email:
+        return "premium"
     row = db.execute(text("""
         SELECT tier FROM subscriptions
         WHERE user_id = :uid AND status = 'active'
@@ -94,7 +98,7 @@ def list_watchlist(
         item["added_at"] = r.added_at.isoformat() if r.added_at else None
         items.append(item)
 
-    tier = _get_user_tier(current_user["id"], db)
+    tier = _get_user_tier(current_user["id"], db, current_user.get("email", ""))
     limit = WATCHLIST_LIMITS.get(tier, 0)
 
     return {
@@ -117,7 +121,7 @@ def add_watchlist(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    tier = _get_user_tier(current_user["id"], db)
+    tier = _get_user_tier(current_user["id"], db, current_user.get("email", ""))
     limit = WATCHLIST_LIMITS.get(tier, 0)
 
     if limit == 0:
