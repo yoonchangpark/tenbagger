@@ -2362,7 +2362,28 @@
 
     tableEl.innerHTML = '<div class="loading-row"><div class="spinner"></div><div>현재가 불러오는 중…</div></div>';
 
-    const enriched = await Promise.all(holdings.map(async h => {
+    // ticker 없는 종목은 이름으로 먼저 검색해서 ticker 확보 후 localStorage 갱신
+    const resolvedHoldings = await Promise.all(holdings.map(async h => {
+      if (h.ticker) return h;
+      try {
+        const res = await fetch(API + '/api/v2/search?q=' + encodeURIComponent(h.name));
+        if (res.ok) {
+          const data = await res.json();
+          const results = Array.isArray(data) ? data : (data.results || []);
+          if (results.length > 0) {
+            return { ...h, ticker: results[0].ticker, name: results[0].name || h.name };
+          }
+        }
+      } catch {}
+      return h;
+    }));
+
+    // ticker 해소 결과를 localStorage에 반영
+    const anyResolved = resolvedHoldings.some((h, i) => h.ticker !== holdings[i].ticker);
+    if (anyResolved) mhSave(resolvedHoldings);
+
+    const enriched = await Promise.all(resolvedHoldings.map(async h => {
+      if (!h.ticker) return { ...h, close: 0, grade: '' };
       try {
         const res = await fetch(API + '/api/company/' + h.ticker);
         if (res.ok) {
