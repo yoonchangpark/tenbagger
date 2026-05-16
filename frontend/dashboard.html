@@ -2258,14 +2258,34 @@
   });
 
   async function mhAdd() {
-    const ticker   = document.getElementById('mhSelectedTicker').value.trim();
-    const name     = document.getElementById('mhSelectedName').value.trim() || ticker;
+    let ticker   = document.getElementById('mhSelectedTicker').value.trim();
+    let name     = document.getElementById('mhSelectedName').value.trim() || ticker;
     const qtyRaw   = document.getElementById('mhQty').value;
     const avgRaw   = document.getElementById('mhAvg').value;
     const qty      = parseInt(qtyRaw);
     const avgPrice = parseInt(avgRaw);
 
-    if (!ticker) { mhShowMsg('종목을 검색하여 선택해주세요.', 'error'); return; }
+    // 드롭다운 미선택 시 자동 검색하여 첫 결과 선택
+    if (!ticker) {
+      const query = document.getElementById('mhSearchInput').value.trim();
+      if (!query) { mhShowMsg('종목명 또는 종목코드를 입력해주세요.', 'error'); return; }
+      try {
+        const res = await fetch(API + '/api/v2/search?q=' + encodeURIComponent(query));
+        if (res.ok) {
+          const data = await res.json();
+          const results = Array.isArray(data) ? data : (data.results || []);
+          if (results.length > 0) {
+            ticker = results[0].ticker;
+            name   = results[0].name || ticker;
+            document.getElementById('mhSelectedTicker').value = ticker;
+            document.getElementById('mhSelectedName').value   = name;
+            document.getElementById('mhSearchInput').value    = name;
+          }
+        }
+      } catch {}
+      if (!ticker) { mhShowMsg('종목을 찾을 수 없습니다. 정확한 종목명이나 종목코드를 입력해주세요.', 'error'); return; }
+    }
+
     if (!qty || qty <= 0) { mhShowMsg('수량을 입력해주세요.', 'error'); return; }
     if (!avgPrice || avgPrice <= 0) { mhShowMsg('평균 매수가를 입력해주세요.', 'error'); return; }
 
