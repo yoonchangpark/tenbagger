@@ -675,10 +675,11 @@ async def parse_portfolio_image(file: UploadFile = File(...)):
         "이 이미지는 한국 증권사 앱의 보유주식 목록 화면입니다.\n"
         "화면에 보이는 모든 종목의 다음 정보를 추출하세요:\n"
         "- name: 종목명 (ETF·펀드 포함, 그대로)\n"
+        "- ticker: 종목코드 (6자리 숫자, 화면에 보이면 추출, 없으면 null)\n"
         "- qty: 보유 수량 (정수, '주' 단위 제거)\n"
         "- avg_price: 1주 평균금액 또는 평균단가 (정수, '원'·쉼표 제거)\n\n"
         "반드시 아래 JSON 형식으로만 응답하세요:\n"
-        '{"holdings": [{"name": "종목명", "qty": 100, "avg_price": 50000}]}'
+        '{"holdings": [{"name": "종목명", "ticker": "005930", "qty": 100, "avg_price": 50000}]}'
     )
 
     def _call_openai():
@@ -711,8 +712,11 @@ async def parse_portfolio_image(file: UploadFile = File(...)):
         cleaned = []
         for h in holdings:
             try:
+                raw_ticker = str(h.get("ticker") or "").strip()
+                ticker = raw_ticker if raw_ticker.isdigit() and len(raw_ticker) == 6 else ""
                 cleaned.append({
                     "name": str(h["name"]).strip(),
+                    "ticker": ticker,
                     "qty": int(h["qty"]),
                     "avg_price": int(h["avg_price"]),
                 })

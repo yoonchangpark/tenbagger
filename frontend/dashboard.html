@@ -2607,6 +2607,7 @@
             <thead>
               <tr style="background:var(--surface2);">
                 <th style="text-align:left;padding:10px 14px;font-size:11px;color:#6b7280;font-weight:600;">종목명</th>
+                <th style="text-align:left;padding:10px 14px;font-size:11px;color:#6b7280;font-weight:600;">코드</th>
                 <th style="text-align:right;padding:10px 14px;font-size:11px;color:#6b7280;font-weight:600;">수량</th>
                 <th style="text-align:right;padding:10px 14px;font-size:11px;color:#6b7280;font-weight:600;">평균단가</th>
               </tr>
@@ -2615,6 +2616,7 @@
               ${holdings.map((h, i) => `
                 <tr style="border-top:1px solid var(--border);">
                   <td style="padding:10px 14px;font-size:13px;font-weight:600;">${escHtml(h.name)}</td>
+                  <td style="padding:10px 14px;font-size:12px;color:${h.ticker ? '#34d399' : '#f59e0b'};">${h.ticker || '미확인'}</td>
                   <td style="text-align:right;padding:10px 14px;font-size:13px;">${h.qty.toLocaleString()}주</td>
                   <td style="text-align:right;padding:10px 14px;font-size:13px;">${h.avg_price.toLocaleString()}원</td>
                 </tr>`).join('')}
@@ -2638,9 +2640,9 @@
     for (const h of holdings) {
       const idx = existing.findIndex(e => e.name === h.name);
       if (idx >= 0) {
-        existing[idx] = { ticker: existing[idx].ticker || '', name: h.name, qty: h.qty, avgPrice: h.avg_price };
+        existing[idx] = { ticker: h.ticker || existing[idx].ticker || '', name: h.name, qty: h.qty, avgPrice: h.avg_price };
       } else {
-        existing.push({ ticker: '', name: h.name, qty: h.qty, avgPrice: h.avg_price });
+        existing.push({ ticker: h.ticker || '', name: h.name, qty: h.qty, avgPrice: h.avg_price });
         added++;
       }
     }

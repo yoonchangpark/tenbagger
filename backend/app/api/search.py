@@ -114,7 +114,8 @@ def _load_all_tickers() -> list[dict]:
     except Exception as e:
         print(f"[Search] ETF 로드 실패: {e}")
 
-    _ticker_cache["all"] = result
+    if result:  # 실패 시 빈 결과를 캐시하지 않아 다음 요청에서 재시도
+        _ticker_cache["all"] = result
     return result
 
 
