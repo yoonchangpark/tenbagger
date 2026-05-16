@@ -10,10 +10,13 @@ GET /api/v2/portfolio/track-record       시스템 신뢰도 검증 — 포트�
 """
 
 import asyncio
+import base64
 import datetime
-from fastapi import APIRouter, HTTPException, Query
+import json
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from sqlalchemy import text
 from app.core.database import SessionLocal
+from app.core.config import settings
 
 # ── 트랙레코드 인메모리 캐시 (연산이 무거우므로 서버 재시작 전까지 유지) ──────
 _track_record_cache: dict = {}
@@ -650,3 +653,73 @@ async def portfolio_track_record(
 
     _track_record_cache[cache_key] = result
     return result
+
+
+@router.post("/portfolio/parse-image")
+async def parse_portfolio_image(file: UploadFile = File(...)):
+    """
+    증권사 앱 보유주식 스크린샷 → GPT-4o Vision으로 종목/수량/평단가 자동 추출
+    반환: {"holdings": [{"name": str, "qty": int, "avg_price": int}]}
+    """
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="OpenAI API 키가 설정되지 않았습니다.")
+
+    image_bytes = await file.read()
+    if len(image_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="이미지 크기는 10MB 이하여야 합니다.")
+
+    content_type = file.content_type or "image/jpeg"
+    image_b64 = base64.b64encode(image_bytes).decode()
+
+    prompt = (
+        "이 이미지는 한국 증권사 앱의 보유주식 목록 화면입니다.\n"
+        "화면에 보이는 모든 종목의 다음 정보를 추출하세요:\n"
+        "- name: 종목명 (ETF·펀드 포함, 그대로)\n"
+        "- qty: 보유 수량 (정수, '주' 단위 제거)\n"
+        "- avg_price: 1주 평균금액 또는 평균단가 (정수, '원'·쉼표 제거)\n\n"
+        "반드시 아래 JSON 형식으로만 응답하세요:\n"
+        '{"holdings": [{"name": "종목명", "qty": 100, "avg_price": 50000}]}'
+    )
+
+    def _call_openai():
+        from openai import OpenAI
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:{content_type};base64,{image_b64}",
+                        "detail": "high",
+                    }},
+                ],
+            }],
+            response_format={"type": "json_object"},
+            max_tokens=1000,
+            timeout=30,
+        )
+        return response.choices[0].message.content
+
+    try:
+        raw = await asyncio.to_thread(_call_openai)
+        parsed = json.loads(raw)
+        holdings = parsed.get("holdings", [])
+
+        # 기본 정제: qty/avg_price가 숫자인지 확인
+        cleaned = []
+        for h in holdings:
+            try:
+                cleaned.append({
+                    "name": str(h["name"]).strip(),
+                    "qty": int(h["qty"]),
+                    "avg_price": int(h["avg_price"]),
+                })
+            except (KeyError, ValueError, TypeError):
+                continue
+
+        return {"holdings": cleaned, "total": len(cleaned)}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"이미지 분석 실패: {str(e)}")
