@@ -2433,9 +2433,10 @@
   function mhFmtWon(v) {
     const abs = Math.abs(v);
     const sign = v < 0 ? '-' : '';
-    if (abs >= 1e8)  return sign + (abs / 1e8).toFixed(1) + '억원';
-    if (abs >= 1e4)  return sign + Math.round(abs / 1e4).toLocaleString() + '만원';
-    return sign + abs.toLocaleString() + '원';
+    if (abs >= 1e8) return sign + (abs / 1e8).toFixed(1) + '억원';
+    if (abs >= 1e7) return sign + Math.round(abs / 1e4).toLocaleString() + '만원';
+    if (abs >= 1e4) return sign + (abs / 1e4).toFixed(1) + '만원';
+    return sign + Math.round(abs).toLocaleString() + '원';
   }
 
   async function renderMyHoldings() {
