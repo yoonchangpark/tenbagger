@@ -1,7 +1,7 @@
 """
 종목명 / 종목코드 검색 API
-GET /api/search?q=삼성전자        (pykrx 기반)
-GET /api/v2/search?q=삼성전자     (DB 기반, pykrx fallback)
+GET /api/search?q=삼성전자        (DART+pykrx 기반)
+GET /api/v2/search?q=삼성전자     (DB 기반, DART fallback, pykrx fallback)
 """
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
@@ -15,15 +15,42 @@ router = APIRouter(tags=["Search"])
 
 _ticker_cache: dict[str, list[dict]] = {}  # 인메모리 캐시 (프로세스 재시작 시 초기화)
 
-# ── /api/v2/search — DB 기반 (pykrx fallback) ────────────────────
+
+async def _dart_search(q: str, q_clean: str) -> list[dict]:
+    """DART corpCode.xml 캐시에서 종목명/코드 검색 (전 세계 어디서나 접근 가능)"""
+    try:
+        from app.infra.clients.dart_client import _load_corp_cache
+        items = await _load_corp_cache()
+        exact, starts, contains = [], [], []
+        for item in items:
+            code = item["stock_code"]
+            name = re.sub(r"\s+", "", item["corp_name"]).lower()
+            if code == q.upper():
+                exact.append({"ticker": code, "name": item["corp_name"], "market": ""})
+            elif name.startswith(q_clean):
+                starts.append({"ticker": code, "name": item["corp_name"], "market": ""})
+            elif q_clean in name:
+                contains.append({"ticker": code, "name": item["corp_name"], "market": ""})
+        combined = exact + starts + contains
+        seen, unique = set(), []
+        for it in combined:
+            if it["ticker"] not in seen:
+                seen.add(it["ticker"])
+                unique.append(it)
+        return unique[:10]
+    except Exception as e:
+        print(f"[Search] DART fallback 실패: {e}")
+        return []
+
+
+# ── /api/v2/search — DB 기반 (DART fallback → pykrx fallback) ────────────────────
 @router.get("/api/v2/search")
-def search_companies_v2(
+async def search_companies_v2(
     q: str = Query(..., min_length=1, max_length=30),
     db: Session = Depends(get_db),
 ):
     """
-    DB(companies + scores)에서 종목명/코드 검색.
-    DB가 비어있으면 pykrx fallback.
+    DB(companies + scores) → DART corpCode → pykrx 순으로 검색.
     최대 10개 반환.
     """
     q = q.strip()
@@ -55,7 +82,7 @@ def search_companies_v2(
     except Exception:
         pass
 
-    # 2. scores 테이블 직접 검색 (companies 비어있을 때 — ETL은 항상 scores를 채움)
+    # 2. scores 테이블 직접 검색
     try:
         rows = db.execute(text("""
             SELECT ticker, name, market
@@ -79,7 +106,12 @@ def search_companies_v2(
     except Exception:
         pass
 
-    # 3. pykrx fallback (DB 전체 비어있을 때)
+    # 3. DART fallback (글로벌 접근 가능, 상장 주식 전종목 커버)
+    dart_results = await _dart_search(q, q_lower)
+    if dart_results:
+        return dart_results
+
+    # 4. pykrx fallback (ETF 전용 — KRX 서버 접근 필요)
     return _pykrx_search(q, q_lower)
 
 
@@ -120,7 +152,7 @@ def _load_all_tickers() -> list[dict]:
 
 
 def _pykrx_search(q: str, q_clean: str) -> list[dict]:
-    """pykrx 기반 종목 검색 (내부 헬퍼)"""
+    """pykrx 기반 종목 검색 (내부 헬퍼, 주로 ETF용)"""
     all_tickers = _load_all_tickers()
 
     exact_code, name_starts, name_contains = [], [], []
@@ -144,14 +176,13 @@ def _pykrx_search(q: str, q_clean: str) -> list[dict]:
 
 
 @router.get("/api/search")
-def search_companies(
+async def search_companies(
     q: str = Query(..., min_length=1, max_length=30),
     db: Session = Depends(get_db),
 ):
     """
-    종목명 또는 종목코드로 검색 (scores DB 우선 → pykrx fallback)
+    종목명 또는 종목코드로 검색 (scores DB → DART → pykrx fallback)
     - 최대 10개 반환
-    - 정확도 순: 코드 일치 > 이름 시작 > 이름 포함
     """
     q = q.strip()
     q_clean = re.sub(r"\s+", "", q).lower()
@@ -178,6 +209,11 @@ def search_companies(
             return [{"ticker": r.ticker, "name": r.name, "market": r.market or ""} for r in rows]
     except Exception:
         pass
+
+    # DART fallback
+    dart_results = await _dart_search(q, q_clean)
+    if dart_results:
+        return dart_results
 
     return _pykrx_search(q, q_clean)
 
