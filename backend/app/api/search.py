@@ -84,7 +84,7 @@ def search_companies_v2(
 
 
 def _load_all_tickers() -> list[dict]:
-    """KOSPI + KOSDAQ 전체 종목 로드 (캐시)"""
+    """KOSPI + KOSDAQ + ETF 전체 종목 로드 (캐시)"""
     if "all" in _ticker_cache:
         return _ticker_cache["all"]
 
@@ -95,13 +95,24 @@ def _load_all_tickers() -> list[dict]:
             for ticker in tickers:
                 name = stock.get_market_ticker_name(ticker)
                 if name:
-                    result.append({
-                        "ticker": ticker,
-                        "name": name,
-                        "market": market,
-                    })
+                    result.append({"ticker": ticker, "name": name, "market": market})
         except Exception as e:
             print(f"[Search] {market} 로드 실패: {e}")
+
+    # ETF 추가 (KODEX, TIGER 등)
+    try:
+        import datetime
+        today = datetime.date.today().strftime("%Y%m%d")
+        etf_tickers = stock.get_etf_ticker_list(today)
+        for ticker in etf_tickers:
+            try:
+                name = stock.get_market_ticker_name(ticker)
+                if name:
+                    result.append({"ticker": ticker, "name": name, "market": "ETF"})
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[Search] ETF 로드 실패: {e}")
 
     _ticker_cache["all"] = result
     return result
