@@ -2341,6 +2341,74 @@
     renderMyHoldings();
   }
 
+  function mhRemoveByIdx(idx) {
+    const holdings = mhLoad();
+    holdings.splice(idx, 1);
+    mhSave(holdings);
+    renderMyHoldings();
+  }
+
+  function mhOpenTickerSearch(idx) {
+    document.querySelectorAll('.mh-search-row').forEach(r => r.remove());
+    const targetRow = document.querySelector(`tr[data-idx="${idx}"]`);
+    if (!targetRow) return;
+
+    const searchRow = document.createElement('tr');
+    searchRow.className = 'mh-search-row';
+    searchRow.innerHTML = `
+      <td colspan="7" style="padding:8px 12px;background:rgba(245,158,11,.06);">
+        <div style="font-size:12px;color:#f59e0b;margin-bottom:6px;font-weight:600;">🔍 종목명 또는 코드로 검색 (ETF 포함)</div>
+        <div style="position:relative;">
+          <input id="mhRowInput_${idx}" type="text" placeholder="예: KODEX 200, 삼성전자, 005930…"
+            style="width:100%;background:var(--surface);border:1px solid rgba(245,158,11,.5);border-radius:8px;padding:8px 12px;color:var(--fg);font-size:13px;outline:none;box-sizing:border-box;"
+            oninput="mhRowSearch(${idx},this.value)"
+            onkeydown="if(event.key==='Escape')document.querySelectorAll('.mh-search-row').forEach(r=>r.remove());"
+          />
+          <div id="mhRowDrop_${idx}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:200px;overflow-y:auto;margin-top:4px;box-shadow:0 4px 16px rgba(0,0,0,.35);"></div>
+        </div>
+        <button onclick="document.querySelectorAll('.mh-search-row').forEach(r=>r.remove())"
+          style="margin-top:6px;background:transparent;border:none;color:#6b7280;font-size:12px;cursor:pointer;">취소</button>
+      </td>`;
+    targetRow.after(searchRow);
+    document.getElementById(`mhRowInput_${idx}`)?.focus();
+  }
+
+  let _mhRowTimer = null;
+  function mhRowSearch(idx, query) {
+    clearTimeout(_mhRowTimer);
+    const drop = document.getElementById(`mhRowDrop_${idx}`);
+    if (!drop) return;
+    if (!query.trim()) { drop.style.display = 'none'; return; }
+    _mhRowTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(API + '/api/v2/search?q=' + encodeURIComponent(query));
+        const list = await res.json();
+        const items = Array.isArray(list) ? list : (list.results || []);
+        if (!items.length) { drop.style.display = 'none'; return; }
+        drop.innerHTML = items.map(it =>
+          `<div class="mh-dropdown-item"
+             onclick="mhSetRowTicker(${idx},'${it.ticker}','${it.name.replace(/'/g,"\\'")}')"
+             style="padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:13px;border-bottom:1px solid var(--border);">
+             <span>${escHtml(it.name)}</span>
+             <span style="color:#6b7280;font-size:11px;">${it.ticker} · ${it.market||''}</span>
+           </div>`
+        ).join('');
+        drop.style.display = 'block';
+      } catch {}
+    }, 220);
+  }
+
+  function mhSetRowTicker(idx, ticker, name) {
+    const holdings = mhLoad();
+    if (idx >= 0 && idx < holdings.length) {
+      holdings[idx].ticker = ticker;
+      holdings[idx].name   = name;
+      mhSave(holdings);
+    }
+    document.querySelectorAll('.mh-search-row').forEach(r => r.remove());
+    renderMyHoldings();
+  }
+
   function mhFmtWon(v) {
     const abs = Math.abs(v);
     const sign = v < 0 ? '-' : '';
@@ -2398,7 +2466,7 @@
 
     let totalInvest = 0, totalEval = 0, hasAnyPrice = false;
 
-    const rows = enriched.map(h => {
+    const rows = enriched.map((h, idx) => {
       const invest  = h.qty * h.avgPrice;
       const eval_   = h.close > 0 ? h.qty * h.close : 0;
       const pnl     = eval_ > 0 ? eval_ - invest : 0;
@@ -2414,18 +2482,26 @@
            <div style="font-size:11px;color:${pnlColor};margin-top:2px;">${pnl >= 0 ? '+' : ''}${mhFmtWon(pnl)}</div>`
         : `<span style="color:#6b7280;">-</span>`;
 
-      return `<tr>
+      const noPriceCell = h.close > 0
+        ? h.close.toLocaleString() + '원'
+        : `<span style="color:#f59e0b;font-size:11px;font-weight:600;">⚠ 미확인</span>
+           <button onclick="mhOpenTickerSearch(${idx})"
+             style="display:block;margin-top:4px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:3px 8px;color:#fbbf24;font-size:11px;cursor:pointer;white-space:nowrap;">
+             🔍 코드 설정
+           </button>`;
+
+      return `<tr data-idx="${idx}">
         <td>
           <div style="font-weight:700;font-size:14px;">${escHtml(h.name)}</div>
-          <div style="font-size:11px;color:#6b7280;margin-top:2px;">${h.ticker} ${badgeHtml}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">${h.ticker || '<span style="color:#f59e0b;">코드 없음</span>'} ${badgeHtml}</div>
         </td>
         <td style="text-align:right;">${h.qty.toLocaleString()}주</td>
         <td style="text-align:right;">${h.avgPrice.toLocaleString()}원</td>
-        <td style="text-align:right;">${h.close > 0 ? h.close.toLocaleString() + '원' : '<span style="color:#6b7280;">-</span>'}</td>
+        <td style="text-align:right;">${noPriceCell}</td>
         <td style="text-align:right;">${pnlDisplay}</td>
         <td style="text-align:right;font-weight:600;">${eval_ > 0 ? mhFmtWon(eval_) : '<span style="color:#6b7280;">-</span>'}</td>
         <td style="text-align:center;">
-          <button class="mh-del-btn" onclick="mhRemove('${h.ticker}')">삭제</button>
+          <button class="mh-del-btn" onclick="mhRemoveByIdx(${idx})">삭제</button>
         </td>
       </tr>`;
     }).join('');
