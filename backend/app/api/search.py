@@ -24,13 +24,15 @@ async def _dart_search(q: str, q_clean: str) -> list[dict]:
         exact, starts, contains = [], [], []
         for item in items:
             code = item["stock_code"]
-            name = re.sub(r"\s+", "", item["corp_name"]).lower()
-            if code == q.upper():
-                exact.append({"ticker": code, "name": item["corp_name"], "market": ""})
+            raw_name = item["corp_name"]
+            # "(주)", "주식회사" 제거 후 비교 ("현대자동차(주)" → "현대자동차")
+            name = re.sub(r"\(주\)|주식회사|\s+", "", raw_name).lower()
+            if code == q.upper() or name == q_clean:
+                exact.append({"ticker": code, "name": raw_name, "market": ""})
             elif name.startswith(q_clean):
-                starts.append({"ticker": code, "name": item["corp_name"], "market": ""})
+                starts.append({"ticker": code, "name": raw_name, "market": ""})
             elif q_clean in name:
-                contains.append({"ticker": code, "name": item["corp_name"], "market": ""})
+                contains.append({"ticker": code, "name": raw_name, "market": ""})
         combined = exact + starts + contains
         seen, unique = set(), []
         for it in combined:

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 import datetime
+import httpx
 from pykrx import stock
 from app.infra.clients.dart_client import get_corp_code, fetch_yearly_financials
 from app.domain.scoring import calculate_tenbagger_score
@@ -74,6 +75,52 @@ async def _fetch_market_data(ticker: str) -> dict:
         "pbr": pbr,
         "dividend_yield": dividend_yield,
         "market_cap": market_cap,
+    }
+
+
+async def _fetch_price_naver(ticker: str) -> dict:
+    """Naver Finance 모바일 API로 현재가/PER/PBR 조회 (글로벌 접근 가능)"""
+    try:
+        url = f"https://m.stock.naver.com/api/stock/{ticker}/basic"
+        async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
+            r = await client.get(url)
+            if r.status_code != 200:
+                return {}
+            d = r.json()
+
+        def _parse_num(val, cast):
+            s = str(val or "").replace(",", "").strip()
+            try:
+                return cast(s) if s and s not in ("-", "N/A") else None
+            except (ValueError, TypeError):
+                return None
+
+        return {
+            "name":  d.get("stockName"),
+            "close": _parse_num(d.get("closePrice"), int),
+            "per":   _parse_num(d.get("per"), float),
+            "pbr":   _parse_num(d.get("pbr"), float),
+        }
+    except Exception as e:
+        print(f"[Company] Naver 가격 조회 실패 {ticker}: {e}")
+        return {}
+
+
+@router.get("/{ticker}/price")
+async def get_stock_price(ticker: str):
+    """현재가 빠른 조회 (내 주식 탭용) — Naver Finance 기반"""
+    cached = get_score_cached(ticker)
+    grade = cached.get("grade", "") if cached else ""
+    cached_name = cached.get("name") if cached else None
+
+    naver = await _fetch_price_naver(ticker)
+    close = naver.get("close")
+
+    return {
+        "ticker": ticker,
+        "name":   naver.get("name") or cached_name or ticker,
+        "close":  close,
+        "grade":  grade,
     }
 
 
