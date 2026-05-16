@@ -2369,7 +2369,7 @@
           <input id="mhRowInput_${idx}" type="text" placeholder="예: KODEX 200, 삼성전자, 005930…"
             style="width:100%;background:var(--surface);border:1px solid rgba(245,158,11,.5);border-radius:8px;padding:8px 12px;color:var(--fg);font-size:13px;outline:none;box-sizing:border-box;"
             oninput="mhRowSearch(${idx},this.value)"
-            onkeydown="if(event.key==='Escape')document.querySelectorAll('.mh-search-row').forEach(r=>r.remove());"
+            onkeydown="if(event.key==='Escape'){document.querySelectorAll('.mh-search-row').forEach(r=>r.remove());}else if(event.key==='Enter'){mhRowConfirm(${idx},this.value);}"
           />
           <div id="mhRowDrop_${idx}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:200px;overflow-y:auto;margin-top:4px;box-shadow:0 4px 16px rgba(0,0,0,.35);"></div>
         </div>
@@ -2414,6 +2414,20 @@
     }
     document.querySelectorAll('.mh-search-row').forEach(r => r.remove());
     renderMyHoldings();
+  }
+
+  function mhRowConfirm(idx, query) {
+    query = query.trim();
+    if (!query) return;
+    // 6자리 숫자 코드는 Enter로 바로 확정
+    if (/^\d{6}$/.test(query)) {
+      mhSetRowTicker(idx, query, query);
+      return;
+    }
+    // 드롭다운 첫 번째 항목이 있으면 선택
+    const drop = document.getElementById(`mhRowDrop_${idx}`);
+    const first = drop?.querySelector('.mh-dropdown-item');
+    if (first) first.click();
   }
 
   function mhFmtWon(v) {
