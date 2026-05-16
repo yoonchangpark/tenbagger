@@ -2430,7 +2430,7 @@
 
     tableEl.innerHTML = '<div class="loading-row"><div class="spinner"></div><div>현재가 불러오는 중…</div></div>';
 
-    // ticker 없는 종목은 이름으로 먼저 검색해서 ticker 확보 후 localStorage 갱신
+    // ticker 없는 종목은 이름으로 검색해서 정확히 일치하는 경우만 자동 설정
     const resolvedHoldings = await Promise.all(holdings.map(async h => {
       if (h.ticker) return h;
       try {
@@ -2439,7 +2439,15 @@
           const data = await res.json();
           const results = Array.isArray(data) ? data : (data.results || []);
           if (results.length > 0) {
-            return { ...h, ticker: results[0].ticker, name: results[0].name || h.name };
+            // 정확한 이름 일치 또는 코드 일치인 경우만 자동 설정 (오매칭 방지)
+            const queryNorm = h.name.replace(/\s|\(주\)|주식회사/g, '').toLowerCase();
+            const exact = results.find(r => {
+              const rNorm = r.name.replace(/\s|\(주\)|주식회사/g, '').toLowerCase();
+              return rNorm === queryNorm || r.ticker === h.name.toUpperCase();
+            });
+            if (exact) {
+              return { ...h, ticker: exact.ticker, name: exact.name };
+            }
           }
         }
       } catch {}
@@ -2456,7 +2464,7 @@
         const res = await fetch(API + '/api/company/' + h.ticker);
         if (res.ok) {
           const d = await res.json();
-          const close = d.score?.close || d.current_price || 0;
+          const close = d.close || 0;
           const grade = d.score?.grade || '';
           return { ...h, close, grade };
         }
