@@ -2291,25 +2291,32 @@
     const qty      = parseInt(qtyRaw);
     const avgPrice = parseInt(avgRaw);
 
-    // 드롭다운 미선택 시 자동 검색하여 첫 결과 선택
+    // 드롭다운 미선택 시 자동 검색 또는 코드 직접 입력 처리
     if (!ticker) {
       const query = document.getElementById('mhSearchInput').value.trim();
       if (!query) { mhShowMsg('종목명 또는 종목코드를 입력해주세요.', 'error'); return; }
-      try {
-        const res = await fetch(API + '/api/v2/search?q=' + encodeURIComponent(query));
-        if (res.ok) {
-          const data = await res.json();
-          const results = Array.isArray(data) ? data : (data.results || []);
-          if (results.length > 0) {
-            ticker = results[0].ticker;
-            name   = results[0].name || ticker;
-            document.getElementById('mhSelectedTicker').value = ticker;
-            document.getElementById('mhSelectedName').value   = name;
-            document.getElementById('mhSearchInput').value    = name;
+
+      // 6자리 숫자 코드는 바로 사용 (우선주·ETF 등 검색 DB 미등록 종목 지원)
+      if (/^\d{6}$/.test(query)) {
+        ticker = query;
+        name   = query; // 이름은 현재가 조회 시 자동 설정
+      } else {
+        try {
+          const res = await fetch(API + '/api/v2/search?q=' + encodeURIComponent(query));
+          if (res.ok) {
+            const data = await res.json();
+            const results = Array.isArray(data) ? data : (data.results || []);
+            if (results.length > 0) {
+              ticker = results[0].ticker;
+              name   = results[0].name || ticker;
+              document.getElementById('mhSelectedTicker').value = ticker;
+              document.getElementById('mhSelectedName').value   = name;
+              document.getElementById('mhSearchInput').value    = name;
+            }
           }
-        }
-      } catch {}
-      if (!ticker) { mhShowMsg('종목을 찾을 수 없습니다. 정확한 종목명이나 종목코드를 입력해주세요.', 'error'); return; }
+        } catch {}
+        if (!ticker) { mhShowMsg('종목을 찾을 수 없습니다. 종목명이나 6자리 종목코드를 입력해주세요.', 'error'); return; }
+      }
     }
 
     if (!qty || qty <= 0) { mhShowMsg('수량을 입력해주세요.', 'error'); return; }
@@ -2455,7 +2462,7 @@
     }));
 
     // ticker 해소 결과를 localStorage에 반영
-    const anyResolved = resolvedHoldings.some((h, i) => h.ticker !== holdings[i].ticker);
+    const anyResolved = resolvedHoldings.some((h, i) => h.ticker !== holdings[i].ticker || h.name !== holdings[i].name);
     if (anyResolved) mhSave(resolvedHoldings);
 
     const enriched = await Promise.all(resolvedHoldings.map(async h => {
@@ -2464,11 +2471,20 @@
         const res = await fetch(API + '/api/company/' + h.ticker + '/price');
         if (res.ok) {
           const d = await res.json();
-          return { ...h, close: d.close || 0, grade: d.grade || '' };
+          // 이름이 종목코드 그대로인 경우(직접 코드 입력) API 이름으로 업데이트
+          const resolvedName = (d.name && d.name !== h.ticker) ? d.name : h.name;
+          return { ...h, name: resolvedName, close: d.close || 0, grade: d.grade || '' };
         }
       } catch {}
       return { ...h, close: 0, grade: '' };
     }));
+
+    // 이름이 업데이트된 경우 localStorage 반영 (코드로 직접 추가한 종목)
+    const nameUpdated = enriched.some((h, i) => h.name !== resolvedHoldings[i].name);
+    if (nameUpdated) {
+      const updated = resolvedHoldings.map((h, i) => ({ ...h, name: enriched[i].name }));
+      mhSave(updated);
+    }
 
     let totalInvest = 0, totalEval = 0, hasAnyPrice = false;
 
@@ -2496,10 +2512,14 @@
              🔍 코드 설정
            </button>`;
 
+      const tickerLabel = h.ticker
+        ? `<span style="cursor:pointer;border-bottom:1px dashed #4b5563;" onclick="mhOpenTickerSearch(${idx})" title="코드 수정">${h.ticker}</span>`
+        : `<span style="color:#f59e0b;cursor:pointer;" onclick="mhOpenTickerSearch(${idx})">코드 없음 🔍</span>`;
+
       return `<tr data-idx="${idx}">
         <td>
           <div style="font-weight:700;font-size:14px;">${escHtml(h.name)}</div>
-          <div style="font-size:11px;color:#6b7280;margin-top:2px;">${h.ticker || '<span style="color:#f59e0b;">코드 없음</span>'} ${badgeHtml}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">${tickerLabel} ${badgeHtml}</div>
         </td>
         <td style="text-align:right;">${h.qty.toLocaleString()}주</td>
         <td style="text-align:right;">${h.avgPrice.toLocaleString()}원</td>
