@@ -135,6 +135,28 @@
     .rank-empty{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:48px;text-align:center;color:var(--muted);}
     .rank-empty p{font-size:14px;margin-top:10px;line-height:1.7;}
 
+    /* ── 내 주식 탭: 드롭다운 ── */
+    .mh-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1e2535;border:1px solid var(--border);border-radius:12px;z-index:200;display:none;max-height:260px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.5);}
+    .mh-dropdown-item{padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.04);}
+    .mh-dropdown-item:last-child{border-bottom:none;}
+    .mh-dropdown-item:hover{background:rgba(59,130,246,.12);}
+    .mh-input-label{font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;}
+    .mh-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;box-sizing:border-box;}
+    .mh-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15);}
+    .mh-add-btn{width:100%;background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:10px;padding:11px 20px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;}
+    .mh-add-btn:hover{opacity:.9;}
+    .mh-table{width:100%;border-collapse:collapse;}
+    .mh-table th{text-align:left;padding:11px 14px;font-size:11px;color:#6b7280;font-weight:600;background:var(--surface2);white-space:nowrap;}
+    .mh-table td{padding:13px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle;}
+    .mh-table tr:last-child td{border-bottom:none;}
+    .mh-table tr:hover td{background:rgba(255,255,255,.02);}
+    .mh-del-btn{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);border-radius:6px;padding:5px 11px;color:#f87171;font-size:12px;cursor:pointer;}
+    .mh-del-btn:hover{background:rgba(239,68,68,.22);}
+    .mh-grade-badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;}
+    .mh-grade-TENBAGGER{background:rgba(245,158,11,.15);color:#fbbf24;}
+    .mh-grade-COMPOUNDER{background:rgba(59,130,246,.15);color:#60a5fa;}
+    .mh-grade-WATCHLIST{background:rgba(156,163,175,.12);color:#9ca3af;}
+
     /* ── Tab3: News ── */
     .news-search-wrap{max-width:640px;margin-bottom:28px;}
     .news-search-box{display:flex;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 10px 10px 20px;transition:border-color .2s;}
@@ -261,6 +283,7 @@
 <div class="tabs-bar">
   <button class="tab-btn active" onclick="switchTab('ranking',this)">🏆 텐배거 랭킹</button>
   <button class="tab-btn" onclick="switchTab('watchlist',this)">⭐ 관심종목</button>
+  <button class="tab-btn" onclick="switchTab('mystock',this)">💼 내 주식</button>
   <button class="tab-btn" onclick="switchTab('portfolio',this)">📈 시뮬레이터</button>
   <button class="tab-btn" onclick="switchTab('disclosures',this)">📡 신규 공시</button>
   <button class="tab-btn" onclick="switchTab('analysis',this)">🔬 종목 분석</button>
@@ -355,6 +378,67 @@
     </div>
     <div id="wlMsg" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:8px;font-size:13px;"></div>
     <div id="watchlistContent"></div>
+  </div>
+
+  <!-- ── TAB: 내 보유 주식 ── -->
+  <div class="tab-panel" id="tab-mystock">
+    <div class="section-header">
+      <div>
+        <div class="section-title">💼 내 보유 주식</div>
+        <div class="section-desc">종목별 수량과 평균 매수가를 입력하면 현재 손익을 바로 확인할 수 있습니다</div>
+      </div>
+      <button class="refresh-btn" onclick="renderMyHoldings()">현재가 갱신</button>
+    </div>
+
+    <!-- 종목 추가 폼 -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px;">📌 종목 추가</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+
+        <!-- 종목 검색 -->
+        <div style="flex:2;min-width:200px;position:relative;">
+          <label class="mh-input-label">종목명 또는 종목코드</label>
+          <input id="mhSearchInput" class="mh-input" placeholder="예: 삼성전자, 005930"
+            autocomplete="off" oninput="mhSearch()"
+            onkeydown="if(event.key==='Escape')document.getElementById('mhDropdown').style.display='none'" />
+          <input type="hidden" id="mhSelectedTicker" />
+          <input type="hidden" id="mhSelectedName" />
+          <div id="mhDropdown" class="mh-dropdown"></div>
+        </div>
+
+        <!-- 수량 -->
+        <div style="flex:1;min-width:110px;">
+          <label class="mh-input-label">보유 수량 (주)</label>
+          <input id="mhQty" class="mh-input" type="number" min="1" placeholder="예: 100"
+            onkeydown="if(event.key==='Enter')mhAdd()" />
+        </div>
+
+        <!-- 평균단가 -->
+        <div style="flex:1;min-width:140px;">
+          <label class="mh-input-label">평균 매수가 (원)</label>
+          <input id="mhAvg" class="mh-input" type="number" min="1" placeholder="예: 70000"
+            onkeydown="if(event.key==='Enter')mhAdd()" />
+        </div>
+
+        <!-- 추가 버튼 -->
+        <div style="flex:0 0 auto;">
+          <button class="mh-add-btn" onclick="mhAdd()">+ 추가</button>
+        </div>
+      </div>
+      <div id="mhMsg" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:13px;"></div>
+    </div>
+
+    <!-- 보유 종목 테이블 -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:16px;">
+      <div id="myHoldingsTable">
+        <div style="text-align:center;padding:48px;color:var(--muted);">
+          위 폼에서 보유 종목을 추가해주세요
+        </div>
+      </div>
+    </div>
+
+    <!-- 요약 카드 -->
+    <div id="myHoldingsSummary"></div>
   </div>
 
   <!-- ── TAB: 포트폴리오 시뮬레이터 ── -->
@@ -596,6 +680,7 @@
     document.getElementById("tab-" + id).classList.add("active");
     btn.classList.add("active");
     if (id === 'watchlist') loadWatchlist();
+    if (id === 'mystock')  loadMyHoldings();
     if (id === 'portfolio') { loadTrustBanner(); runPortfolioSimulation(); }
     if (id === 'news') loadNewsDashboard();
   }
@@ -1643,15 +1728,31 @@
     }
 
     // Simulator
-    html += '<div class="sim-card"><h3>📊 5년 후 시나리오 시뮬레이터</h3>';
+    html += '<div class="sim-card"><h3>📊 미래 가치 시뮬레이터</h3>';
     html += '<div class="sim-sliders">';
     html += '<div class="slider-group"><label>🐻 Bear EPS 성장률 (%/년)</label><div class="slider-val" id="dBearVal">5%</div><input type="range" id="dBearSlider" min="-10" max="30" value="5" step="1" oninput="document.getElementById(\'dBearVal\').textContent=this.value+\'%\'"></div>';
     html += '<div class="slider-group"><label>📊 Base EPS 성장률 (%/년)</label><div class="slider-val" id="dBaseVal">15%</div><input type="range" id="dBaseSlider" min="0" max="50" value="15" step="1" oninput="document.getElementById(\'dBaseVal\').textContent=this.value+\'%\'"></div>';
     html += '<div class="slider-group"><label>🐂 Bull EPS 성장률 (%/년)</label><div class="slider-val" id="dBullVal">25%</div><input type="range" id="dBullSlider" min="5" max="80" value="25" step="1" oninput="document.getElementById(\'dBullVal\').textContent=this.value+\'%\'"></div>';
     html += '<div class="slider-group"><label>목표 PER (Bear/Base/Bull)</label><div class="slider-val" id="dPerVal">10 / 15 / 20</div><input type="range" id="dPerSlider" min="5" max="40" value="15" step="1" oninput="document.getElementById(\'dPerVal\').textContent=(Math.max(5,parseInt(this.value)-5))+\' / \'+this.value+\' / \'+(parseInt(this.value)+5)"></div>';
     html += '</div>';
+    html += '<div style="display:flex;gap:12px;margin:16px 0;flex-wrap:wrap;align-items:flex-end;">';
+    html += '<div style="flex:1;min-width:180px;"><label class="mh-input-label">💰 투자 금액 (원)</label>';
+    html += '<input id="dInvestAmt" class="mh-input" type="number" min="0" step="100000" placeholder="예: 10000000 (미입력 시 % 수익률만)" /></div>';
+    html += '<div style="flex:0 0 auto;"><label class="mh-input-label">📅 보유 기간</label>';
+    html += '<div style="display:flex;gap:6px;">';
+    html += '<button id="dYear5Btn" onclick="dSetYears(5,this)" style="padding:9px 20px;border-radius:8px;font-weight:700;font-size:13px;border:1px solid var(--blue);background:rgba(59,130,246,.2);color:#60a5fa;cursor:pointer;">5년</button>';
+    html += '<button id="dYear10Btn" onclick="dSetYears(10,this)" style="padding:9px 20px;border-radius:8px;font-weight:700;font-size:13px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">10년</button>';
+    html += '</div></div></div>';
     html += '<button class="sim-run-btn" onclick="dashRunSim()">🚀 시뮬레이션 실행</button>';
-    html += '<div id="dashSimResult" style="display:none;"><div class="sim-scenarios" id="dashSimScenarios"></div><div class="sim-required" id="dashSimRequired"></div></div></div>';
+    html += '<div id="dashSimResult" style="display:none;">';
+    html += '<div class="sim-scenarios" id="dashSimScenarios"></div>';
+    html += '<div class="sim-required" id="dashSimRequired"></div>';
+    html += '<div id="dashSimChart" style="display:none;margin-top:24px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;">';
+    html += '<div style="font-size:13px;font-weight:700;margin-bottom:16px;">📈 투자 금액 성장 비교</div>';
+    html += '<canvas id="dashSimCanvas" height="280"></canvas>';
+    html += '</div>';
+    html += '<div id="dashSimReplacement" style="display:none;margin-top:20px;"></div>';
+    html += '</div></div>';
 
     // Financial table
     if (fins.length > 0) {
@@ -1699,37 +1800,150 @@
     }
   }
 
+  let _dHoldYears = 5;
+  let _dashSimChart = null;
+
+  function dSetYears(n, btn) {
+    _dHoldYears = n;
+    ["dYear5Btn", "dYear10Btn"].forEach(id => {
+      const b = document.getElementById(id);
+      if (!b) return;
+      b.style.background   = "transparent";
+      b.style.color        = "var(--muted)";
+      b.style.borderColor  = "var(--border)";
+    });
+    btn.style.background  = "rgba(59,130,246,.2)";
+    btn.style.color       = "#60a5fa";
+    btn.style.borderColor = "var(--blue)";
+  }
+
+  function simFmtWon(v) {
+    const abs = Math.abs(v), sign = v < 0 ? "-" : "";
+    if (abs >= 1e8) return sign + (abs / 1e8).toFixed(1) + "억원";
+    if (abs >= 1e4) return sign + Math.round(abs / 1e4).toLocaleString() + "만원";
+    return sign + abs.toLocaleString() + "원";
+  }
+
   async function dashRunSim() {
     if (!_lastAnalysis) return;
-    const bear = document.getElementById("dBearSlider").value;
-    const base = document.getElementById("dBaseSlider").value;
-    const bull = document.getElementById("dBullSlider").value;
-    const bp = parseInt(document.getElementById("dPerSlider").value);
-    const btn = document.querySelector(".sim-run-btn");
+    const bear      = document.getElementById("dBearSlider").value;
+    const base      = document.getElementById("dBaseSlider").value;
+    const bull      = document.getElementById("dBullSlider").value;
+    const bp        = parseInt(document.getElementById("dPerSlider").value);
+    const investAmt = parseInt(document.getElementById("dInvestAmt")?.value || "0") || 0;
+    const btn       = document.querySelector(".sim-run-btn");
     btn.textContent = "계산 중…"; btn.disabled = true;
+
     try {
-      const url = API + "/api/company/" + _lastAnalysis.ticker + "/simulate?bear_eps_cagr=" + bear + "&base_eps_cagr=" + base + "&bull_eps_cagr=" + bull + "&bear_per=" + Math.max(5, bp - 5) + "&base_per=" + bp + "&bull_per=" + (bp + 5);
+      const url = API + "/api/company/" + _lastAnalysis.ticker + "/simulate"
+        + "?bear_eps_cagr=" + bear + "&base_eps_cagr=" + base + "&bull_eps_cagr=" + bull
+        + "&bear_per=" + Math.max(5, bp - 5) + "&base_per=" + bp + "&bull_per=" + (bp + 5)
+        + "&hold_years=" + _dHoldYears
+        + "&invest_amount=" + investAmt;
+
       const r = await fetch(url);
       if (!r.ok) throw new Error((await r.json()).detail);
       const data = await r.json();
       const sim = data.simulation, cur = data.current_price;
-      const cfg = [{ key: "bear", label: "BEAR", cls: "bear", color: "#ef4444" }, { key: "base", label: "BASE", cls: "base", color: "#3b82f6" }, { key: "bull", label: "BULL", cls: "bull", color: "#10b981" }];
+
+      // ── 시나리오 카드 ──────────────────────────────────────────────
+      const cfg = [
+        { key: "bear", label: "BEAR", cls: "bear", color: "#ef4444" },
+        { key: "base", label: "BASE", cls: "base", color: "#3b82f6" },
+        { key: "bull", label: "BULL", cls: "bull", color: "#10b981" },
+      ];
       document.getElementById("dashSimScenarios").innerHTML = cfg.map(c => {
-        const s = sim[c.key];
-        const rs = (s.total_return >= 0 ? "+" : "") + s.total_return.toFixed(0) + "%";
-        const tb = s.is_tenbagger ? '<span class="tenbagger-badge">⭐ 텐배거!</span>' : "";
-        return '<div class="sim-scenario ' + c.cls + '"><div class="s-label">' + c.label + ' (EPS ' + (s.eps_cagr > 0 ? "+" : "") + s.eps_cagr + '%/yr)</div>'
-          + '<div class="s-price" style="color:' + c.color + '">₩' + s.target_price.toLocaleString() + '</div>'
-          + '<div class="s-return" style="color:' + (s.total_return >= 0 ? "#10b981" : "#ef4444") + '">' + rs + '</div>'
-          + '<div style="font-size:11px;color:#6b7280;margin-bottom:6px;">CAGR ' + (s.cagr > 0 ? "+" : "") + s.cagr + '%</div>' + tb + '</div>';
+        const s   = sim[c.key];
+        const rs  = (s.total_return >= 0 ? "+" : "") + s.total_return.toFixed(0) + "%";
+        const tb  = s.is_tenbagger ? '<span class="tenbagger-badge">⭐ 텐배거!</span>' : "";
+        const amt = s.final_amount
+          ? `<div style="font-size:16px;font-weight:800;color:${c.color};margin:6px 0;">${simFmtWon(s.final_amount)}</div>
+             <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">수익 ${simFmtWon(s.total_gain)}</div>` : "";
+        return `<div class="sim-scenario ${c.cls}">
+          <div class="s-label">${c.label} (EPS ${s.eps_cagr > 0 ? "+" : ""}${s.eps_cagr}%/yr)</div>
+          <div class="s-price" style="color:${c.color}">₩${s.target_price.toLocaleString()}</div>
+          ${amt}
+          <div class="s-return" style="color:${s.total_return >= 0 ? "#10b981" : "#ef4444"}">${rs}</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">CAGR ${s.cagr > 0 ? "+" : ""}${s.cagr}%</div>
+          ${tb}</div>`;
       }).join("");
+
+      // ── 텐배거 필요 CAGR ──────────────────────────────────────────
       const req = sim.tenbagger_required_cagr;
       document.getElementById("dashSimRequired").innerHTML = req != null
-        ? '⭐ 텐배거 달성을 위해 EPS <strong>' + (req > 0 ? "+" : "") + req + '% CAGR</strong> 이상 유지 필요<br><span style="font-size:11px;opacity:.6">현재 주가 ₩' + cur.toLocaleString() + ' · EPS ₩' + data.current_eps.toLocaleString() + '</span>'
+        ? `⭐ 텐배거 달성을 위해 EPS <strong>${req > 0 ? "+" : ""}${req}% CAGR</strong> 이상 유지 필요<br>
+           <span style="font-size:11px;opacity:.6">현재 주가 ₩${cur.toLocaleString()} · EPS ₩${data.current_eps.toLocaleString()}</span>`
         : "현재 주가 기준 텐배거 달성 조건을 계산할 수 없습니다.";
+
+      // ── 비교 차트 (투자 금액 입력 시) ─────────────────────────────
+      const chartWrap = document.getElementById("dashSimChart");
+      if (investAmt > 0 && data.benchmarks && sim.base.yearly_values) {
+        chartWrap.style.display = "block";
+        const labels = Array.from({ length: _dHoldYears + 1 }, (_, i) => i === 0 ? "현재" : i + "년 후");
+        const chartOpts = {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "#9ca3af", font: { size: 11 }, boxWidth: 14 } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${simFmtWon(ctx.raw)}` } },
+          },
+          scales: {
+            x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,.05)" } },
+            y: { ticks: { color: "#6b7280", callback: v => simFmtWon(v) }, grid: { color: "rgba(255,255,255,.05)" } },
+          },
+        };
+        const datasets = [
+          { label: "내 주식 (Base)", data: sim.base.yearly_values, borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,.08)", tension: .3, fill: true, borderWidth: 2.5 },
+          { label: "내 주식 (Bull)", data: sim.bull.yearly_values, borderColor: "#10b981", tension: .3, borderDash: [6, 3], borderWidth: 1.5, pointRadius: 2 },
+          { label: "내 주식 (Bear)", data: sim.bear.yearly_values, borderColor: "#ef4444", tension: .3, borderDash: [4, 4], borderWidth: 1.5, pointRadius: 2 },
+          { label: `서울아파트 (${data.benchmarks.housing.rate}%/년)`, data: data.benchmarks.housing.yearly_values, borderColor: "#8b5cf6", tension: .3, borderWidth: 2 },
+          { label: `적금 (${data.benchmarks.savings.rate}%/년)`, data: data.benchmarks.savings.yearly_values, borderColor: "#f59e0b", tension: .3, borderWidth: 2 },
+          { label: `물가상승률 (${data.benchmarks.inflation.rate}%/년)`, data: data.benchmarks.inflation.yearly_values, borderColor: "#6b7280", tension: .3, borderDash: [3, 3], borderWidth: 1.5, pointRadius: 1 },
+        ];
+        if (_dashSimChart) { _dashSimChart.destroy(); _dashSimChart = null; }
+        _dashSimChart = new Chart(document.getElementById("dashSimCanvas"), {
+          type: "line",
+          data: { labels, datasets },
+          options: chartOpts,
+        });
+      } else {
+        chartWrap.style.display = "none";
+      }
+
+      // ── 교체 추천 ─────────────────────────────────────────────────
+      const replEl = document.getElementById("dashSimReplacement");
+      const reps   = (data.replacement || []).filter(r => r.vs_current > 0);
+      if (investAmt > 0 && reps.length > 0) {
+        const baseFinal = sim.base.final_amount || 0;
+        replEl.style.display = "block";
+        replEl.innerHTML = `
+          <div style="font-size:13px;font-weight:700;margin-bottom:12px;color:#fbbf24;">
+            💡 더 나은 텐배거 후보 (교체 시 ${_dHoldYears}년 후 예상)
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+            ${reps.map(rep => {
+              const gain = rep.vs_current;
+              return `<div style="background:var(--surface2);border:1px solid rgba(251,191,36,.2);border-radius:14px;padding:16px;">
+                <div style="font-weight:700;font-size:14px;margin-bottom:4px;">${escHtml(rep.name)}</div>
+                <div style="font-size:11px;color:#6b7280;margin-bottom:10px;">${rep.ticker} · 점수 ${rep.total_score?.toFixed(1) ?? "-"}</div>
+                <div style="font-size:11px;color:#6b7280;margin-bottom:2px;">현재 보유 (Base)</div>
+                <div style="font-size:14px;font-weight:600;color:#9ca3af;margin-bottom:8px;">${simFmtWon(baseFinal)}</div>
+                <div style="font-size:11px;color:#6b7280;margin-bottom:2px;">교체 시 예상</div>
+                <div style="font-size:18px;font-weight:800;color:#10b981;">${simFmtWon(rep.base_final_amount)}</div>
+                <div style="font-size:12px;color:#10b981;margin-top:3px;">+${simFmtWon(gain)} 더 ▲</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:6px;">CAGR ${rep.base_cagr > 0 ? "+" : ""}${rep.base_cagr?.toFixed(1)}%</div>
+              </div>`;
+            }).join("")}
+          </div>`;
+      } else {
+        replEl.style.display = "none";
+      }
+
       document.getElementById("dashSimResult").style.display = "block";
-    } catch (e) { alert("시뮬레이션 오류: " + e.message); }
-    finally { btn.textContent = "🚀 시뮬레이션 실행"; btn.disabled = false; }
+    } catch (e) {
+      alert("시뮬레이션 오류: " + e.message);
+    } finally {
+      btn.textContent = "🚀 시뮬레이션 실행"; btn.disabled = false;
+    }
   }
 
   async function dashLoadAI(ticker) {
@@ -1975,6 +2189,219 @@
     } catch(e) {
       el.innerHTML = `<div class="empty-row">조회 실패: ${e.message}</div>`;
     }
+  }
+
+  // ── 내 보유 주식 (내 주식 탭) ──────────────────────────────────────────────
+
+  const MH_KEY = 'mh_holdings';
+
+  function mhLoad() {
+    try { return JSON.parse(localStorage.getItem(MH_KEY) || '[]'); }
+    catch { return []; }
+  }
+
+  function mhSave(data) {
+    localStorage.setItem(MH_KEY, JSON.stringify(data));
+  }
+
+  function mhShowMsg(text, type) {
+    const el = document.getElementById('mhMsg');
+    el.textContent = text;
+    el.style.display = 'block';
+    el.style.background   = type === 'error' ? 'rgba(239,68,68,.1)' : 'rgba(16,185,129,.1)';
+    el.style.border       = type === 'error' ? '1px solid rgba(239,68,68,.3)' : '1px solid rgba(16,185,129,.3)';
+    el.style.color        = type === 'error' ? '#f87171' : '#34d399';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  }
+
+  let _mhSearchTimer = null;
+
+  async function mhSearch() {
+    const q = document.getElementById('mhSearchInput').value.trim();
+    const dropdown = document.getElementById('mhDropdown');
+    if (q.length < 1) { dropdown.style.display = 'none'; return; }
+    clearTimeout(_mhSearchTimer);
+    _mhSearchTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(API + '/api/v2/search?q=' + encodeURIComponent(q));
+        if (!res.ok) return;
+        const data = await res.json();
+        const results = Array.isArray(data) ? data : (data.results || []);
+        if (results.length === 0) { dropdown.style.display = 'none'; return; }
+        dropdown.innerHTML = results.slice(0, 8).map(r => {
+          const grade = r.grade || '';
+          const badgeHtml = grade ? `<span class="mh-grade-badge mh-grade-${grade}">${grade}</span>` : '';
+          return `<div class="mh-dropdown-item" onclick="mhSelectStock('${r.ticker}','${(r.name||'').replace(/'/g,"\\'")}')">
+            <span style="font-weight:700;flex:1">${escHtml(r.name || r.ticker)}</span>
+            <span style="color:#6b7280;font-size:12px;">${r.ticker}</span>
+            ${badgeHtml}
+          </div>`;
+        }).join('');
+        dropdown.style.display = 'block';
+      } catch {}
+    }, 220);
+  }
+
+  function mhSelectStock(ticker, name) {
+    document.getElementById('mhSearchInput').value  = name;
+    document.getElementById('mhSelectedTicker').value = ticker;
+    document.getElementById('mhSelectedName').value   = name;
+    document.getElementById('mhDropdown').style.display = 'none';
+    document.getElementById('mhQty').focus();
+  }
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#mhSearchInput') && !e.target.closest('#mhDropdown')) {
+      const d = document.getElementById('mhDropdown');
+      if (d) d.style.display = 'none';
+    }
+  });
+
+  async function mhAdd() {
+    const ticker   = document.getElementById('mhSelectedTicker').value.trim();
+    const name     = document.getElementById('mhSelectedName').value.trim() || ticker;
+    const qtyRaw   = document.getElementById('mhQty').value;
+    const avgRaw   = document.getElementById('mhAvg').value;
+    const qty      = parseInt(qtyRaw);
+    const avgPrice = parseInt(avgRaw);
+
+    if (!ticker) { mhShowMsg('종목을 검색하여 선택해주세요.', 'error'); return; }
+    if (!qty || qty <= 0) { mhShowMsg('수량을 입력해주세요.', 'error'); return; }
+    if (!avgPrice || avgPrice <= 0) { mhShowMsg('평균 매수가를 입력해주세요.', 'error'); return; }
+
+    const holdings = mhLoad();
+    const idx = holdings.findIndex(h => h.ticker === ticker);
+    if (idx >= 0) {
+      holdings[idx] = { ticker, name, qty, avgPrice };
+      mhShowMsg(`${name} 정보를 업데이트했습니다.`, 'success');
+    } else {
+      holdings.push({ ticker, name, qty, avgPrice });
+      mhShowMsg(`${name} 추가됐습니다.`, 'success');
+    }
+    mhSave(holdings);
+
+    document.getElementById('mhSearchInput').value    = '';
+    document.getElementById('mhSelectedTicker').value = '';
+    document.getElementById('mhSelectedName').value   = '';
+    document.getElementById('mhQty').value            = '';
+    document.getElementById('mhAvg').value            = '';
+
+    await renderMyHoldings();
+  }
+
+  function mhRemove(ticker) {
+    const holdings = mhLoad().filter(h => h.ticker !== ticker);
+    mhSave(holdings);
+    renderMyHoldings();
+  }
+
+  function mhFmtWon(v) {
+    const abs = Math.abs(v);
+    const sign = v < 0 ? '-' : '';
+    if (abs >= 1e8)  return sign + (abs / 1e8).toFixed(1) + '억원';
+    if (abs >= 1e4)  return sign + Math.round(abs / 1e4).toLocaleString() + '만원';
+    return sign + abs.toLocaleString() + '원';
+  }
+
+  async function renderMyHoldings() {
+    const tableEl   = document.getElementById('myHoldingsTable');
+    const summaryEl = document.getElementById('myHoldingsSummary');
+    const holdings  = mhLoad();
+
+    if (holdings.length === 0) {
+      tableEl.innerHTML = `<div style="text-align:center;padding:48px;color:var(--muted);font-size:14px;">위 폼에서 보유 종목을 추가해주세요</div>`;
+      summaryEl.innerHTML = '';
+      return;
+    }
+
+    tableEl.innerHTML = '<div class="loading-row"><div class="spinner"></div><div>현재가 불러오는 중…</div></div>';
+
+    const enriched = await Promise.all(holdings.map(async h => {
+      try {
+        const res = await fetch(API + '/api/company/' + h.ticker);
+        if (res.ok) {
+          const d = await res.json();
+          const close = d.score?.close || d.current_price || 0;
+          const grade = d.score?.grade || '';
+          return { ...h, close, grade };
+        }
+      } catch {}
+      return { ...h, close: 0, grade: '' };
+    }));
+
+    let totalInvest = 0, totalEval = 0, hasAnyPrice = false;
+
+    const rows = enriched.map(h => {
+      const invest  = h.qty * h.avgPrice;
+      const eval_   = h.close > 0 ? h.qty * h.close : 0;
+      const pnl     = eval_ > 0 ? eval_ - invest : 0;
+      const pnlPct  = invest > 0 && eval_ > 0 ? (pnl / invest) * 100 : null;
+      totalInvest  += invest;
+      totalEval    += eval_ > 0 ? eval_ : invest;
+      if (eval_ > 0) hasAnyPrice = true;
+
+      const pnlColor   = pnl >= 0 ? '#10b981' : '#ef4444';
+      const badgeHtml  = h.grade ? `<span class="mh-grade-badge mh-grade-${h.grade}">${h.grade}</span>` : '';
+      const pnlDisplay = pnlPct != null
+        ? `<span style="color:${pnlColor};font-weight:700;">${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%</span>
+           <div style="font-size:11px;color:${pnlColor};margin-top:2px;">${pnl >= 0 ? '+' : ''}${mhFmtWon(pnl)}</div>`
+        : `<span style="color:#6b7280;">-</span>`;
+
+      return `<tr>
+        <td>
+          <div style="font-weight:700;font-size:14px;">${escHtml(h.name)}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">${h.ticker} ${badgeHtml}</div>
+        </td>
+        <td style="text-align:right;">${h.qty.toLocaleString()}주</td>
+        <td style="text-align:right;">${h.avgPrice.toLocaleString()}원</td>
+        <td style="text-align:right;">${h.close > 0 ? h.close.toLocaleString() + '원' : '<span style="color:#6b7280;">-</span>'}</td>
+        <td style="text-align:right;">${pnlDisplay}</td>
+        <td style="text-align:right;font-weight:600;">${eval_ > 0 ? mhFmtWon(eval_) : '<span style="color:#6b7280;">-</span>'}</td>
+        <td style="text-align:center;">
+          <button class="mh-del-btn" onclick="mhRemove('${h.ticker}')">삭제</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    tableEl.innerHTML = `<table class="mh-table">
+      <thead>
+        <tr>
+          <th>종목</th>
+          <th style="text-align:right;">수량</th>
+          <th style="text-align:right;">평균단가</th>
+          <th style="text-align:right;">현재가</th>
+          <th style="text-align:right;">수익률 / 손익</th>
+          <th style="text-align:right;">평가금액</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+    const totalPnl    = totalEval - totalInvest;
+    const totalPnlPct = totalInvest > 0 ? (totalPnl / totalInvest) * 100 : 0;
+    const pnlColor    = totalPnl >= 0 ? '#10b981' : '#ef4444';
+
+    summaryEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;">
+          <div style="font-size:11px;color:#6b7280;margin-bottom:8px;font-weight:600;">총 투자금액</div>
+          <div style="font-size:20px;font-weight:800;">${mhFmtWon(totalInvest)}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;">
+          <div style="font-size:11px;color:#6b7280;margin-bottom:8px;font-weight:600;">총 평가금액</div>
+          <div style="font-size:20px;font-weight:800;color:#60a5fa;">${hasAnyPrice ? mhFmtWon(totalEval) : '-'}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;">
+          <div style="font-size:11px;color:#6b7280;margin-bottom:8px;font-weight:600;">총 손익</div>
+          <div style="font-size:20px;font-weight:800;color:${pnlColor};">${hasAnyPrice ? (totalPnl >= 0 ? '+' : '') + mhFmtWon(totalPnl) : '-'}</div>
+          ${hasAnyPrice ? `<div style="font-size:12px;color:${pnlColor};margin-top:3px;">${totalPnlPct >= 0 ? '+' : ''}${totalPnlPct.toFixed(1)}%</div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function loadMyHoldings() {
+    renderMyHoldings();
   }
 
   // ── Util ──
