@@ -2706,6 +2706,7 @@
   let _mhSimHoldYears = 20;
   let _mhSimChart = null;
   let _mhSimEnriched = [];
+  let _mhSimLastHoldings = null;   // 마지막 실행 holdings 캐시 (비교 시뮬레이터 재사용용)
 
   // ── 툴팁 ─────────────────────────────────────────────────────────────────
   (function() {
@@ -2862,7 +2863,10 @@
       </div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;">
         <div style="font-size:12px;font-weight:700;color:#a5b4fc;margin-bottom:6px;">🔄 교체 후 시뮬레이션</div>
-        <div style="font-size:11px;color:#6b7280;margin-bottom:12px;">위에서 선택한 교체 종목 기준 · 기간: 20년 · 배당 CAGR/주가 CAGR은 등급별 추정값 적용</div>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:12px;">
+          위에서 선택한 교체 종목 기준 · 기간: 20년<br>
+          <span style="color:#4ade80;">✔ "현재 포트폴리오" 수치는 위 시뮬레이터의 실행 결과와 동일합니다</span>
+        </div>
         <button onclick="mhRecRunSim()"
           style="padding:9px 22px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.02em;">
           📊 교체 후 비교 실행
@@ -2873,7 +2877,14 @@
 
   function mhRecRunSim() {
     if (!_mhRecData) return;
-    const currentHoldings = mhSimGetInputs();
+    // _mhSimLastHoldings: 위 시뮬레이터에서 "실행" 버튼을 클릭했을 때 캐시된 데이터.
+    // 이 데이터를 재사용해야 "현재 포트폴리오" 수치가 메인 시뮬레이터와 완전히 일치한다.
+    if (!_mhSimLastHoldings) {
+      // 아직 메인 시뮬레이터를 실행하지 않은 경우 자동 실행
+      mhSimRun();
+      if (!_mhSimLastHoldings) { alert('먼저 위 시뮬레이터에서 "시뮬레이션 실행"을 클릭해주세요.'); return; }
+    }
+    const currentHoldings = _mhSimLastHoldings;
     if (!currentHoldings.length) { alert('먼저 위 시뮬레이터를 로드해주세요.'); return; }
     const candidates = _mhRecData.candidates || [];
     const years = 20;
@@ -3096,6 +3107,7 @@
       alert('먼저 보유 종목을 추가해주세요.');
       return;
     }
+    _mhSimLastHoldings = holdings;   // 비교 시뮬레이터용 캐시
 
     const reinvest   = document.getElementById('mhSimReinvest')?.checked ?? true;
     const years      = _mhSimHoldYears;
