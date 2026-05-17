@@ -117,10 +117,12 @@ async def get_stock_price(ticker: str):
     close = naver.get("close")
 
     return {
-        "ticker": ticker,
-        "name":   naver.get("name") or cached_name or ticker,
-        "close":  close,
-        "grade":  grade,
+        "ticker":         ticker,
+        "name":           naver.get("name") or cached_name or ticker,
+        "close":          close,
+        "grade":          grade,
+        "dividend_yield": cached.get("dividend_yield") if cached else None,
+        "per":            cached.get("per") if cached else None,
     }
 
 
