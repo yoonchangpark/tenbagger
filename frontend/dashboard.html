@@ -2760,6 +2760,26 @@
     WATCHLIST:  { priceCagr: 7,  divCagr: 5  },
     AVOID:      { priceCagr: 5,  divCagr: 3  },
   };
+
+  // 종목별 주가 CAGR 추정 (우선순위: EPS실적 → 매출성장 → 성장점수 → 등급기본값)
+  function mhEstimateCagr(c) {
+    const cap = (v, lo, hi) => Math.round(Math.min(hi, Math.max(lo, v)) * 10) / 10;
+    // ① EPS 5년 성장률 (가장 신뢰도 높음)
+    if (c.eps_cagr_5y != null && c.eps_cagr_5y > 0)
+      return { value: cap(c.eps_cagr_5y, 3, 25), basis: 'EPS 실적' };
+    // ② 매출 5년 성장률 (EPS 없을 때 대리)
+    if (c.revenue_cagr_5y != null && c.revenue_cagr_5y > 0)
+      return { value: cap(c.revenue_cagr_5y * 0.85, 3, 20), basis: '매출 실적' };
+    // ③ 성장점수 기반 추정 (점수 0~10 → CAGR 4~20%)
+    if (c.growth_score != null)
+      return { value: cap(4 + c.growth_score * 1.6, 4, 20), basis: '성장점수' };
+    // ④ 총점 기반 추정 (점수 0~10 → CAGR 5~18%)
+    if (c.total_score != null)
+      return { value: cap(5 + c.total_score * 1.3, 5, 18), basis: '종합점수' };
+    // ⑤ 등급 기본값 (데이터 없음)
+    const def = { TENBAGGER: 12, COMPOUNDER: 9, WATCHLIST: 6, AVOID: 4 };
+    return { value: def[c.grade] ?? 7, basis: '등급 추정' };
+  }
   const _GRADE_COLOR = {
     TENBAGGER:'#10b981', COMPOUNDER:'#3b82f6',
     WATCHLIST:'#f59e0b', AVOID:'#ef4444', UNKNOWN:'#6b7280',
@@ -2824,30 +2844,29 @@
 
     // 후보 카드
     const candCards = candidates.slice(0, 6).map(c => {
-      const color      = _GRADE_COLOR[c.grade] || '#6b7280';
-      const gradeDef   = _GRADE_CAGR[c.grade]  || { priceCagr: 7, divCagr: 5 };
-      // 주가CAGR: eps_cagr_5y 실적 데이터 우선, 없으면 등급 기본값
-      const rawEpsCagr = c.eps_cagr_5y != null ? Math.min(30, Math.max(3, c.eps_cagr_5y)) : null;
-      const priceCagr  = rawEpsCagr != null ? rawEpsCagr.toFixed(1) : gradeDef.priceCagr;
-      const cagrBasis  = rawEpsCagr != null ? '실적' : '추정';
+      const color    = _GRADE_COLOR[c.grade] || '#6b7280';
+      const cagrEst  = mhEstimateCagr(c);
+      // 근거별 배지 색상
+      const basisBg  = { 'EPS 실적':'rgba(16,185,129,.2)', '매출 실적':'rgba(59,130,246,.2)', '성장점수':'rgba(99,102,241,.2)', '종합점수':'rgba(139,92,246,.2)', '등급 추정':'rgba(245,158,11,.2)' };
+      const basisClr = { 'EPS 실적':'#6ee7b7', '매출 실적':'#93c5fd', '성장점수':'#a5b4fc', '종합점수':'#c4b5fd', '등급 추정':'#fcd34d' };
       // 배당: 0과 null 구분 (null=미확인, 0=무배당)
       const div = c.dividend_yield == null ? '<span style="color:#6b7280">미확인</span>'
                 : c.dividend_yield  >  0   ? `<b style="color:var(--text)">${c.dividend_yield.toFixed(2)}%</b>`
-                :                            `<b style="color:#6b7280">0% (무배당)</b>`;
+                :                            `<b style="color:#6b7280">무배당</b>`;
       const score = c.total_score != null ? c.total_score.toFixed(1) : '-';
       const price = c.close       != null ? c.close.toLocaleString() + '원' : '-';
       return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 12px;">
         <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${escHtml(c.name)}</div>
         <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">${c.ticker}</div>
-        <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:6px;">${_GRADE_LABEL[c.grade] || c.grade}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;color:#9ca3af;margin-bottom:6px;">
+        <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:8px;">${_GRADE_LABEL[c.grade] || c.grade}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:11px;color:#9ca3af;">
           <span>점수 <b style="color:var(--text)">${score}</b></span>
           <span>배당 ${div}</span>
           <span>주가 <b style="color:var(--text)">${price}</b></span>
-          <span style="display:flex;align-items:center;gap:3px;">
-            주가CAGR <b style="color:var(--text)">${priceCagr}%</b>
-            <span style="font-size:9px;padding:1px 4px;background:${rawEpsCagr!=null?'rgba(16,185,129,.15)':'rgba(245,158,11,.15)'};color:${rawEpsCagr!=null?'#6ee7b7':'#fcd34d'};border-radius:4px;">${cagrBasis}</span>
-          </span>
+          <div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;">
+            <span>CAGR <b style="color:var(--text)">${cagrEst.value}%</b></span>
+            <span style="font-size:9px;padding:1px 5px;background:${basisBg[cagrEst.basis]||'rgba(107,114,128,.2)'};color:${basisClr[cagrEst.basis]||'#9ca3af'};border-radius:4px;white-space:nowrap;">${cagrEst.basis}</span>
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -2911,13 +2930,10 @@
       if (!cand || !cand.close) return h;
       const invest = h.qty * (h.avgPrice || h.close);
       const newQty = Math.max(1, Math.floor(invest / cand.close));
-      const gradeDef  = _GRADE_CAGR[cand.grade] || { priceCagr: 9, divCagr: 6 };
-      // eps_cagr_5y 실적 데이터 우선 (3~25% 범위로 제한)
-      const priceCagr = cand.eps_cagr_5y != null
-          ? Math.min(25, Math.max(3, cand.eps_cagr_5y))
-          : gradeDef.priceCagr;
+      const cagrEst  = mhEstimateCagr(cand);
+      const gradeDef = _GRADE_CAGR[cand.grade] || { priceCagr: 9, divCagr: 6 };
       return { ...h, ticker: cand.ticker, name: cand.name, qty: newQty, close: cand.close,
-               divYield: cand.dividend_yield || 0, priceCagr, divCagr: gradeDef.divCagr };
+               divYield: cand.dividend_yield || 0, priceCagr: cagrEst.value, divCagr: gradeDef.divCagr };
     });
 
     const curData  = mhSimCalcPortfolio(currentHoldings, years, reinvest);

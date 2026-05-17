@@ -312,13 +312,15 @@ async def portfolio_recommend(tickers: str = Query(..., description="쉼표로 �
     for t in ticker_list:
         cached = get_score_cached(t)
         current.append({
-            "ticker": t,
-            "name":          cached.get("name") if cached else t,
-            "grade":         cached.get("grade") if cached else "UNKNOWN",
-            "total_score":   cached.get("total_score") if cached else None,
-            "close":         cached.get("close") if cached else None,
-            "dividend_yield":cached.get("dividend_yield") if cached else None,
-            "eps_cagr_5y":   cached.get("eps_cagr_5y") if cached else None,
+            "ticker":         t,
+            "name":           cached.get("name")          if cached else t,
+            "grade":          cached.get("grade")         if cached else "UNKNOWN",
+            "total_score":    cached.get("total_score")   if cached else None,
+            "growth_score":   cached.get("growth_score")  if cached else None,
+            "close":          cached.get("close")         if cached else None,
+            "dividend_yield": cached.get("dividend_yield")if cached else None,
+            "eps_cagr_5y":    cached.get("eps_cagr_5y")  if cached else None,
+            "revenue_cagr_5y":cached.get("revenue_cagr_5y") if cached else None,
         })
 
     # TENBAGGER → COMPOUNDER 순으로 상위 후보 (보유 중이지 않은 것)
@@ -331,13 +333,15 @@ async def portfolio_recommend(tickers: str = Query(..., description="쉼표로 �
         for s in pool:
             if s["ticker"] not in held_set:
                 candidates.append({
-                    "ticker":        s["ticker"],
-                    "name":          s.get("name"),
-                    "grade":         s.get("grade"),
-                    "total_score":   s.get("total_score"),
-                    "close":         s.get("close"),
-                    "dividend_yield":s.get("dividend_yield"),
-                    "eps_cagr_5y":   s.get("eps_cagr_5y"),
+                    "ticker":         s["ticker"],
+                    "name":           s.get("name"),
+                    "grade":          s.get("grade"),
+                    "total_score":    s.get("total_score"),
+                    "growth_score":   s.get("growth_score"),
+                    "close":          s.get("close"),
+                    "dividend_yield": s.get("dividend_yield"),
+                    "eps_cagr_5y":    s.get("eps_cagr_5y"),
+                    "revenue_cagr_5y":s.get("revenue_cagr_5y"),
                 })
             if len(candidates) >= 10:
                 break
