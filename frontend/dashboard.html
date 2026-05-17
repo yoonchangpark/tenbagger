@@ -2803,8 +2803,10 @@
     const diagRows = current.map(c => {
       const color = _GRADE_COLOR[c.grade] || '#6b7280';
       const label = _GRADE_LABEL[c.grade] || c.grade;
-      const score = c.total_score != null ? c.total_score.toFixed(1) : '-';
-      const scoreColor = c.total_score >= 7.5 ? '#10b981' : c.total_score >= 5 ? '#f59e0b' : '#ef4444';
+      const score = c.total_score != null ? c.total_score.toFixed(1) : '미분석';
+      const scoreColor = c.total_score == null ? '#6b7280'
+                       : c.total_score >= 7.5  ? '#10b981'
+                       : c.total_score >= 5    ? '#f59e0b' : '#ef4444';
       const needsSwap = c.grade === 'AVOID' || c.grade === 'UNKNOWN' || c.grade === 'WATCHLIST';
       const swapSel = needsSwap ? `
         <select onchange="_mhRecSwaps['${c.ticker}']=this.value"
@@ -2822,20 +2824,30 @@
 
     // 후보 카드
     const candCards = candidates.slice(0, 6).map(c => {
-      const color = _GRADE_COLOR[c.grade] || '#6b7280';
-      const cagr  = _GRADE_CAGR[c.grade] || { priceCagr: 7, divCagr: 5 };
-      const div   = c.dividend_yield != null ? c.dividend_yield.toFixed(2) + '%' : '-';
-      const score = c.total_score    != null ? c.total_score.toFixed(1) : '-';
-      const price = c.close          != null ? c.close.toLocaleString() + '원' : '-';
+      const color      = _GRADE_COLOR[c.grade] || '#6b7280';
+      const gradeDef   = _GRADE_CAGR[c.grade]  || { priceCagr: 7, divCagr: 5 };
+      // 주가CAGR: eps_cagr_5y 실적 데이터 우선, 없으면 등급 기본값
+      const rawEpsCagr = c.eps_cagr_5y != null ? Math.min(30, Math.max(3, c.eps_cagr_5y)) : null;
+      const priceCagr  = rawEpsCagr != null ? rawEpsCagr.toFixed(1) : gradeDef.priceCagr;
+      const cagrBasis  = rawEpsCagr != null ? '실적' : '추정';
+      // 배당: 0과 null 구분 (null=미확인, 0=무배당)
+      const div = c.dividend_yield == null ? '<span style="color:#6b7280">미확인</span>'
+                : c.dividend_yield  >  0   ? `<b style="color:var(--text)">${c.dividend_yield.toFixed(2)}%</b>`
+                :                            `<b style="color:#6b7280">0% (무배당)</b>`;
+      const score = c.total_score != null ? c.total_score.toFixed(1) : '-';
+      const price = c.close       != null ? c.close.toLocaleString() + '원' : '-';
       return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 12px;">
         <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${escHtml(c.name)}</div>
         <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">${c.ticker}</div>
         <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:6px;">${_GRADE_LABEL[c.grade] || c.grade}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:11px;color:#9ca3af;margin-bottom:6px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;color:#9ca3af;margin-bottom:6px;">
           <span>점수 <b style="color:var(--text)">${score}</b></span>
-          <span>배당 <b style="color:var(--text)">${div}</b></span>
+          <span>배당 ${div}</span>
           <span>주가 <b style="color:var(--text)">${price}</b></span>
-          <span>주가CAGR <b style="color:var(--text)">${cagr.priceCagr}%</b></span>
+          <span style="display:flex;align-items:center;gap:3px;">
+            주가CAGR <b style="color:var(--text)">${priceCagr}%</b>
+            <span style="font-size:9px;padding:1px 4px;background:${rawEpsCagr!=null?'rgba(16,185,129,.15)':'rgba(245,158,11,.15)'};color:${rawEpsCagr!=null?'#6ee7b7':'#fcd34d'};border-radius:4px;">${cagrBasis}</span>
+          </span>
         </div>
       </div>`;
     }).join('');
@@ -2899,9 +2911,13 @@
       if (!cand || !cand.close) return h;
       const invest = h.qty * (h.avgPrice || h.close);
       const newQty = Math.max(1, Math.floor(invest / cand.close));
-      const cagr = _GRADE_CAGR[cand.grade] || { priceCagr: 9, divCagr: 6 };
+      const gradeDef  = _GRADE_CAGR[cand.grade] || { priceCagr: 9, divCagr: 6 };
+      // eps_cagr_5y 실적 데이터 우선 (3~25% 범위로 제한)
+      const priceCagr = cand.eps_cagr_5y != null
+          ? Math.min(25, Math.max(3, cand.eps_cagr_5y))
+          : gradeDef.priceCagr;
       return { ...h, ticker: cand.ticker, name: cand.name, qty: newQty, close: cand.close,
-               divYield: cand.dividend_yield || 0, priceCagr: cagr.priceCagr, divCagr: cagr.divCagr };
+               divYield: cand.dividend_yield || 0, priceCagr, divCagr: gradeDef.divCagr };
     });
 
     const curData  = mhSimCalcPortfolio(currentHoldings, years, reinvest);
