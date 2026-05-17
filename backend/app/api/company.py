@@ -300,6 +300,51 @@ async def simulate_company(
     return response
 
 
+@router.get("/portfolio-recommend")
+async def portfolio_recommend(tickers: str = Query(..., description="쉼표로 구분된 종목코드")):
+    """보유 종목 등급 진단 및 교체 후보 추천"""
+    ticker_list = [t.strip() for t in tickers.split(",") if t.strip()]
+    if not ticker_list:
+        raise HTTPException(status_code=400, detail="tickers 파라미터가 필요합니다")
+
+    # 각 보유 종목 스코어 조회
+    current = []
+    for t in ticker_list:
+        cached = get_score_cached(t)
+        current.append({
+            "ticker": t,
+            "name":          cached.get("name") if cached else t,
+            "grade":         cached.get("grade") if cached else "UNKNOWN",
+            "total_score":   cached.get("total_score") if cached else None,
+            "close":         cached.get("close") if cached else None,
+            "dividend_yield":cached.get("dividend_yield") if cached else None,
+            "eps_cagr_5y":   cached.get("eps_cagr_5y") if cached else None,
+        })
+
+    # TENBAGGER → COMPOUNDER 순으로 상위 후보 (보유 중이지 않은 것)
+    held_set = set(ticker_list)
+    candidates: list[dict] = []
+    for grade in ["TENBAGGER", "COMPOUNDER"]:
+        if len(candidates) >= 10:
+            break
+        pool = query_scores(grades=[grade], limit=20)
+        for s in pool:
+            if s["ticker"] not in held_set:
+                candidates.append({
+                    "ticker":        s["ticker"],
+                    "name":          s.get("name"),
+                    "grade":         s.get("grade"),
+                    "total_score":   s.get("total_score"),
+                    "close":         s.get("close"),
+                    "dividend_yield":s.get("dividend_yield"),
+                    "eps_cagr_5y":   s.get("eps_cagr_5y"),
+                })
+            if len(candidates) >= 10:
+                break
+
+    return {"current": current, "candidates": candidates}
+
+
 @router.get("/{query}")
 async def analyze_company(
     query: str,

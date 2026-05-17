@@ -561,6 +561,20 @@
     </div>
   </div>
 
+  <!-- ── 종목 교체 분석 섹션 ── -->
+  <div id="mhRecSection" style="margin-top:20px;display:none;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+        <div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:4px;">🔄 종목 교체 분석</div>
+          <div style="font-size:12px;color:var(--muted);">현재 보유 종목을 진단하고, TENBAGGER 후보로 교체 시 포트폴리오 변화를 비교합니다</div>
+        </div>
+        <button onclick="mhRecLoad()" style="padding:7px 14px;background:rgba(99,102,241,.15);border:1px solid #6366f1;border-radius:8px;color:#a5b4fc;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">🔍 분석 새로고침</button>
+      </div>
+      <div id="mhRecContent"><div style="text-align:center;padding:24px;color:var(--muted);font-size:13px;">보유 종목 로드 후 자동으로 분석됩니다</div></div>
+    </div>
+  </div>
+
   <!-- ── TAB: 포트폴리오 시뮬레이터 ── -->
   <div class="tab-panel" id="tab-portfolio">
     <div class="section-header">
@@ -2681,6 +2695,7 @@
       </div>`;
 
     mhSimBuildTable(enriched);
+    mhRecLoad();
   }
 
   function loadMyHoldings() {
@@ -2731,6 +2746,223 @@
     const priceCagr = parseFloat(document.getElementById('mhSimDefaultPriceCagr')?.value) || 7;
     document.querySelectorAll('[data-sim-field="divCagr"]').forEach(el => el.value = divCagr);
     document.querySelectorAll('[data-sim-field="priceCagr"]').forEach(el => el.value = priceCagr);
+  }
+
+  // ── 종목 교체 분석 ────────────────────────────────────────────────────────
+  let _mhRecData      = null;   // {current:[], candidates:[]}
+  let _mhRecSwaps     = {};     // {fromTicker: candidateTicker}
+  let _mhRecCmpChart  = null;
+
+  const _GRADE_CAGR = {
+    TENBAGGER: { priceCagr: 12, divCagr: 8  },
+    COMPOUNDER: { priceCagr: 9,  divCagr: 6  },
+    WATCHLIST:  { priceCagr: 7,  divCagr: 5  },
+    AVOID:      { priceCagr: 5,  divCagr: 3  },
+  };
+  const _GRADE_COLOR = {
+    TENBAGGER:'#10b981', COMPOUNDER:'#3b82f6',
+    WATCHLIST:'#f59e0b', AVOID:'#ef4444', UNKNOWN:'#6b7280',
+  };
+  const _GRADE_LABEL = {
+    TENBAGGER:'🟢 TENBAGGER', COMPOUNDER:'🔵 COMPOUNDER',
+    WATCHLIST:'🟡 WATCHLIST',  AVOID:'🔴 AVOID', UNKNOWN:'⚪ 미분석',
+  };
+
+  async function mhRecLoad() {
+    const holdings = JSON.parse(localStorage.getItem('mh_holdings') || '[]');
+    if (!holdings.length) return;
+    const section = document.getElementById('mhRecSection');
+    if (section) section.style.display = '';
+    const el = document.getElementById('mhRecContent');
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">⏳ 분석 중...</div>';
+    try {
+      const tickers = holdings.map(h => h.ticker).join(',');
+      const data = await fetch(`${API}/api/company/portfolio-recommend?tickers=${encodeURIComponent(tickers)}`).then(r => r.json());
+      _mhRecData = data;
+      _mhRecSwaps = {};
+      // 기본 교체 설정: AVOID 종목 → 1위 후보로 자동 매핑
+      const top = data.candidates[0];
+      if (top) {
+        for (const c of data.current) {
+          if (c.grade === 'AVOID' || c.grade === 'UNKNOWN') _mhRecSwaps[c.ticker] = top.ticker;
+        }
+      }
+      mhRecRender(data);
+    } catch(e) {
+      el.innerHTML = `<div style="text-align:center;padding:20px;color:#ef4444;">분석 실패: ${e.message}</div>`;
+    }
+  }
+
+  function mhRecRender(data) {
+    const el = document.getElementById('mhRecContent');
+    const candidates = data.candidates || [];
+    const current    = data.current    || [];
+
+    // 진단 테이블
+    const diagRows = current.map(c => {
+      const color = _GRADE_COLOR[c.grade] || '#6b7280';
+      const label = _GRADE_LABEL[c.grade] || c.grade;
+      const score = c.total_score != null ? c.total_score.toFixed(1) : '-';
+      const scoreColor = c.total_score >= 7.5 ? '#10b981' : c.total_score >= 5 ? '#f59e0b' : '#ef4444';
+      const needsSwap = c.grade === 'AVOID' || c.grade === 'UNKNOWN' || c.grade === 'WATCHLIST';
+      const swapSel = needsSwap ? `
+        <select onchange="_mhRecSwaps['${c.ticker}']=this.value"
+          style="font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:3px 6px;max-width:140px;">
+          <option value="">교체 안 함</option>
+          ${candidates.map(cd => `<option value="${cd.ticker}" ${_mhRecSwaps[c.ticker]===cd.ticker?'selected':''}>${escHtml(cd.name)} (${cd.grade})</option>`).join('')}
+        </select>` : `<span style="font-size:11px;color:#6b7280;">유지 권장</span>`;
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:9px 12px;font-size:13px;font-weight:600;">${escHtml(c.name)}<br><span style="font-size:11px;color:#6b7280;">${c.ticker}</span></td>
+        <td style="padding:9px 12px;text-align:center;"><span style="font-size:11px;font-weight:700;color:${color};">${label}</span></td>
+        <td style="padding:9px 12px;text-align:center;font-size:13px;font-weight:700;color:${scoreColor};">${score}</td>
+        <td style="padding:9px 12px;text-align:center;">${swapSel}</td>
+      </tr>`;
+    }).join('');
+
+    // 후보 카드
+    const candCards = candidates.slice(0, 6).map(c => {
+      const color = _GRADE_COLOR[c.grade] || '#6b7280';
+      const cagr  = _GRADE_CAGR[c.grade] || { priceCagr: 7, divCagr: 5 };
+      const div   = c.dividend_yield != null ? c.dividend_yield.toFixed(2) + '%' : '-';
+      const score = c.total_score    != null ? c.total_score.toFixed(1) : '-';
+      const price = c.close          != null ? c.close.toLocaleString() + '원' : '-';
+      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 12px;">
+        <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${escHtml(c.name)}</div>
+        <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">${c.ticker}</div>
+        <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:6px;">${_GRADE_LABEL[c.grade] || c.grade}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:11px;color:#9ca3af;margin-bottom:6px;">
+          <span>점수 <b style="color:var(--text)">${score}</b></span>
+          <span>배당 <b style="color:var(--text)">${div}</b></span>
+          <span>주가 <b style="color:var(--text)">${price}</b></span>
+          <span>주가CAGR <b style="color:var(--text)">${cagr.priceCagr}%</b></span>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div style="margin-bottom:20px;">
+        <div style="font-size:12px;font-weight:700;color:#a5b4fc;margin-bottom:10px;">📋 내 포트폴리오 진단</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr style="background:var(--surface2);">
+              <th style="text-align:left;padding:9px 12px;font-size:11px;color:#6b7280;font-weight:600;">종목</th>
+              <th style="padding:9px 12px;font-size:11px;color:#6b7280;font-weight:600;">등급</th>
+              <th style="padding:9px 12px;font-size:11px;color:#6b7280;font-weight:600;">점수</th>
+              <th style="padding:9px 12px;font-size:11px;color:#6b7280;font-weight:600;">교체 후보 선택</th>
+            </tr>
+            ${diagRows}
+          </table>
+        </div>
+      </div>
+      <div style="margin-bottom:20px;">
+        <div style="font-size:12px;font-weight:700;color:#a5b4fc;margin-bottom:10px;">⭐ 추천 교체 후보 (TENBAGGER · COMPOUNDER)</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+          ${candCards || '<div style="color:var(--muted);font-size:13px;">추천 종목 데이터가 없습니다. ETL을 실행해주세요.</div>'}
+        </div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <div style="font-size:12px;font-weight:700;color:#a5b4fc;margin-bottom:6px;">🔄 교체 후 시뮬레이션</div>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:12px;">위에서 선택한 교체 종목 기준 · 기간: 20년 · 배당 CAGR/주가 CAGR은 등급별 추정값 적용</div>
+        <button onclick="mhRecRunSim()"
+          style="padding:9px 22px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.02em;">
+          📊 교체 후 비교 실행
+        </button>
+      </div>
+      <div id="mhRecResult" style="margin-top:20px;display:none;"></div>`;
+  }
+
+  function mhRecRunSim() {
+    if (!_mhRecData) return;
+    const currentHoldings = mhSimGetInputs();
+    if (!currentHoldings.length) { alert('먼저 위 시뮬레이터를 로드해주세요.'); return; }
+    const candidates = _mhRecData.candidates || [];
+    const years = 20;
+    const reinvest = document.getElementById('mhSimReinvest')?.checked ?? true;
+    const savingsRate = (parseFloat(document.getElementById('mhSimSavingsRate')?.value) || 3.5) / 100;
+
+    // 교체 포트폴리오 구성
+    const proposed = currentHoldings.map(h => {
+      const swapTicker = _mhRecSwaps[h.ticker];
+      if (!swapTicker) return h;
+      const cand = candidates.find(c => c.ticker === swapTicker);
+      if (!cand || !cand.close) return h;
+      const invest = h.qty * (h.avgPrice || h.close);
+      const newQty = Math.max(1, Math.floor(invest / cand.close));
+      const cagr = _GRADE_CAGR[cand.grade] || { priceCagr: 9, divCagr: 6 };
+      return { ...h, ticker: cand.ticker, name: cand.name, qty: newQty, close: cand.close,
+               divYield: cand.dividend_yield || 0, priceCagr: cagr.priceCagr, divCagr: cagr.divCagr };
+    });
+
+    const curData  = mhSimCalcPortfolio(currentHoldings, years, reinvest);
+    const propData = mhSimCalcPortfolio(proposed,         years, reinvest);
+    const initVal  = curData[0].value || 1;
+    const totalInvest = currentHoldings.reduce((s, h) => s + h.qty * (h.avgPrice || h.close), 0);
+
+    // 마일스톤 비교 카드
+    const cards = [5, 10, 20].map(n => {
+      const cur  = curData[n]  || curData[curData.length - 1];
+      const prop = propData[n] || propData[propData.length - 1];
+      const diff = prop.value - cur.value;
+      const dColor = diff >= 0 ? '#10b981' : '#ef4444';
+      const dSign  = diff >= 0 ? '▲' : '▼';
+      const curRet  = ((cur.value  - initVal) / initVal * 100).toFixed(0);
+      const propRet = ((prop.value - initVal) / initVal * 100).toFixed(0);
+      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <div style="font-size:11px;color:#6b7280;font-weight:700;text-align:center;margin-bottom:12px;">${n}년 후</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
+          <div style="text-align:center;">
+            <div style="font-size:10px;color:#6b7280;margin-bottom:3px;">현재 포트폴리오</div>
+            <div style="font-size:16px;font-weight:800;color:#60a5fa;">${simFmtWon(cur.value)}</div>
+            <div style="font-size:11px;color:#10b981;">+${curRet}%</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:10px;color:#a5b4fc;margin-bottom:3px;">교체 후 포트폴리오</div>
+            <div style="font-size:16px;font-weight:800;color:#a5b4fc;">${simFmtWon(prop.value)}</div>
+            <div style="font-size:11px;color:#10b981;">+${propRet}%</div>
+          </div>
+        </div>
+        <div style="text-align:center;padding:5px 8px;background:${diff>=0?'rgba(16,185,129,.1)':'rgba(239,68,68,.1)'};border-radius:6px;">
+          <span style="font-size:12px;font-weight:700;color:${dColor};">${dSign} ${simFmtWon(Math.abs(diff))} 차이</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    // 연도별 비교 차트
+    const labels = Array.from({ length: years + 1 }, (_, i) => i === 0 ? '현재' : i + '년');
+    const savingsVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1 + savingsRate, i)));
+    const resultEl = document.getElementById('mhRecResult');
+    resultEl.style.display = '';
+    resultEl.innerHTML = `
+      <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:#a5b4fc;">📊 비교 시뮬레이션 결과 (20년)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">${cards}</div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <div style="font-size:12px;font-weight:700;margin-bottom:12px;">📈 연도별 포트폴리오 가치 비교</div>
+        <canvas id="mhRecCanvas" height="220"></canvas>
+      </div>`;
+
+    if (_mhRecCmpChart) { _mhRecCmpChart.destroy(); _mhRecCmpChart = null; }
+    _mhRecCmpChart = new Chart(document.getElementById('mhRecCanvas'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: '교체 후 포트폴리오', data: propData.map(r=>r.value), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,.08)', fill: true, tension: .3, borderWidth: 2.5 },
+          { label: '현재 포트폴리오',    data: curData.map(r=>r.value),  borderColor: '#3b82f6', tension: .3, borderDash: [5,3], borderWidth: 2 },
+          { label: `적금 ${(savingsRate*100).toFixed(1)}%`, data: savingsVals, borderColor: '#f59e0b', tension: .3, borderWidth: 1.5 },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 14 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${simFmtWon(ctx.raw)}` } },
+        },
+        scales: {
+          x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.04)' } },
+          y: { ticks: { color: '#6b7280', font: { size: 10 }, callback: v => simFmtWon(v) }, grid: { color: 'rgba(255,255,255,.06)' } },
+        },
+      },
+    });
   }
 
   // 재투자 토글 UI 동기화
