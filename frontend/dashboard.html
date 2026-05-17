@@ -469,8 +469,48 @@
     <!-- 포트폴리오 배당 성장 시뮬레이터 -->
     <div id="mhSimSection" style="margin-top:24px;">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;">
-        <div style="font-size:15px;font-weight:700;margin-bottom:4px;">📊 포트폴리오 배당 성장 시뮬레이터</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">보유 종목 전체의 주가 성장 + 배당 복리 효과를 5년·10년·20년으로 시뮬레이션합니다</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+          <div>
+            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">📊 포트폴리오 배당 성장 시뮬레이터</div>
+            <div style="font-size:12px;color:var(--muted);">보유 종목 전체의 주가 성장 + 배당 복리 효과를 5년·10년·20년으로 시뮬레이션합니다</div>
+          </div>
+          <button onclick="mhSimToggleSettings()" id="mhSimSettingsBtn" title="시뮬레이터 설정"
+            style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:7px 11px;cursor:pointer;font-size:17px;line-height:1;color:var(--muted);transition:.2s;flex-shrink:0;"
+            onmouseenter="this.style.color='var(--text)';this.style.borderColor='var(--blue)'"
+            onmouseleave="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">⚙️</button>
+        </div>
+
+        <!-- 설정 패널 -->
+        <div id="mhSimSettingsPanel" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:20px;">
+          <div style="font-size:12px;font-weight:700;color:#60a5fa;margin-bottom:14px;">⚙️ 시뮬레이터 기본 설정</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:14px;">
+            <div>
+              <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">배당 CAGR 기본값 (%)</label>
+              <input type="number" id="mhSimDefaultDivCagr" value="5" min="0" max="30" step="1"
+                class="mh-input" style="width:100%;text-align:center;padding:7px 10px;" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">주가 CAGR 기본값 (%)</label>
+              <input type="number" id="mhSimDefaultPriceCagr" value="7" min="-20" max="50" step="1"
+                class="mh-input" style="width:100%;text-align:center;padding:7px 10px;" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">벤치마크 — 적금 금리 (%)</label>
+              <input type="number" id="mhSimSavingsRate" value="3.5" min="0" max="20" step="0.5"
+                class="mh-input" style="width:100%;text-align:center;padding:7px 10px;" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">벤치마크 — 아파트 수익률 (%)</label>
+              <input type="number" id="mhSimAptRate" value="6" min="0" max="20" step="0.5"
+                class="mh-input" style="width:100%;text-align:center;padding:7px 10px;" />
+            </div>
+          </div>
+          <button onclick="mhSimApplyDefaults()"
+            style="padding:7px 18px;background:rgba(59,130,246,.15);border:1px solid var(--blue);border-radius:8px;color:#60a5fa;font-size:12px;font-weight:700;cursor:pointer;">
+            ✅ 전체 종목에 적용
+          </button>
+          <span style="font-size:11px;color:var(--muted);margin-left:10px;">배당·주가 CAGR 기본값을 모든 종목 행에 일괄 적용</span>
+        </div>
 
         <!-- 종목별 가정 입력 테이블 -->
         <div id="mhSimTableWrap" style="overflow-x:auto;margin-bottom:20px;">
@@ -2652,6 +2692,47 @@
   let _mhSimChart = null;
   let _mhSimEnriched = [];
 
+  // ── 툴팁 ─────────────────────────────────────────────────────────────────
+  (function() {
+    const tip = document.createElement('div');
+    tip.id = 'mhTooltip';
+    tip.style.cssText = 'display:none;position:fixed;z-index:9999;background:#111827;border:1px solid #374151;color:#f9fafb;padding:12px 14px;border-radius:10px;font-size:12px;line-height:1.75;max-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.6);pointer-events:none;white-space:pre-line;';
+    document.body.appendChild(tip);
+  })();
+
+  function mhShowTip(e, text) {
+    const tip = document.getElementById('mhTooltip');
+    if (!tip) return;
+    tip.textContent = text;
+    tip.style.display = 'block';
+    const x = e.clientX, y = e.clientY;
+    const tipW = 280, tipH = tip.offsetHeight || 160;
+    tip.style.left = Math.min(x + 14, window.innerWidth - tipW - 10) + 'px';
+    tip.style.top  = Math.max(y - tipH - 10, 10) + 'px';
+  }
+  function mhHideTip() {
+    const tip = document.getElementById('mhTooltip');
+    if (tip) tip.style.display = 'none';
+  }
+
+  // ── 설정 패널 ────────────────────────────────────────────────────────────
+  function mhSimToggleSettings() {
+    const panel = document.getElementById('mhSimSettingsPanel');
+    const btn   = document.getElementById('mhSimSettingsBtn');
+    if (!panel) return;
+    const open = panel.style.display === 'none';
+    panel.style.display = open ? '' : 'none';
+    btn.style.background = open ? 'rgba(59,130,246,.15)' : 'var(--surface2)';
+    btn.style.borderColor = open ? 'var(--blue)' : 'var(--border)';
+  }
+
+  function mhSimApplyDefaults() {
+    const divCagr   = parseFloat(document.getElementById('mhSimDefaultDivCagr')?.value)   || 5;
+    const priceCagr = parseFloat(document.getElementById('mhSimDefaultPriceCagr')?.value) || 7;
+    document.querySelectorAll('[data-sim-field="divCagr"]').forEach(el => el.value = divCagr);
+    document.querySelectorAll('[data-sim-field="priceCagr"]').forEach(el => el.value = priceCagr);
+  }
+
   // 재투자 토글 UI 동기화
   document.addEventListener('DOMContentLoaded', () => {
     const cb = document.getElementById('mhSimReinvest');
@@ -2695,8 +2776,18 @@
       <th style="text-align:right;padding:10px 12px;font-size:11px;color:#6b7280;font-weight:600;">현재가</th>
       <th style="text-align:right;padding:10px 12px;font-size:11px;color:#6b7280;font-weight:600;">평가금액</th>
       <th style="text-align:center;padding:10px 12px;font-size:11px;color:#6b7280;font-weight:600;">배당수익률(%)</th>
-      <th style="text-align:center;padding:10px 12px;font-size:11px;color:#6b7280;font-weight:600;">배당 CAGR(%)</th>
-      <th style="text-align:center;padding:10px 12px;font-size:11px;color:#6b7280;font-weight:600;">주가 CAGR(%)</th>
+      <th style="text-align:center;padding:10px 12px;font-size:11px;color:#6b7280;font-weight:600;white-space:nowrap;">
+        배당 CAGR(%)
+        <span onmouseenter="mhShowTip(event,'📈 배당 CAGR (연평균 배당 성장률)\n\n기업이 매년 배당금을 인상하는 연평균 성장률입니다.\n\n예) 배당수익률 2%, 배당CAGR 5%\n→ 1년 후 2.10%, 5년 후 2.55%,\n   15년 후 4.16%로 복리 상승\n\n배당을 안 올리면 0%, 공격적 배당주는 10%+ 입력')"
+          onmouseleave="mhHideTip()"
+          style="display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;background:rgba(96,165,250,.2);color:#60a5fa;border-radius:50%;font-size:10px;font-weight:700;cursor:help;margin-left:4px;vertical-align:middle;">?</span>
+      </th>
+      <th style="text-align:center;padding:10px 12px;font-size:11px;color:#6b7280;font-weight:600;white-space:nowrap;">
+        주가 CAGR(%)
+        <span onmouseenter="mhShowTip(event,'📊 주가 CAGR (연평균 주가 성장률)\n\n보유 종목의 주가가 매년 성장할 것으로\n예상되는 연평균 성장률입니다.\n\n예) 7% → 10년 후 주가 약 2배\n    10% → 10년 후 주가 약 2.6배\n\n보수적 추정: 5~7%\n기대 수익률: 10~15%')"
+          onmouseleave="mhHideTip()"
+          style="display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;background:rgba(96,165,250,.2);color:#60a5fa;border-radius:50%;font-size:10px;font-weight:700;cursor:help;margin-left:4px;vertical-align:middle;">?</span>
+      </th>
     </tr>`;
     const rows = valid.map((h, i) => {
       const divYield = h.dividend_yield != null ? h.dividend_yield.toFixed(2) : '0';
@@ -2799,9 +2890,11 @@
     const pfValues = yearly.map(r => r.value);
     // 배당 재투자 없는 순수 주가 성장 (비교용)
     const noReinvest = mhSimCalcPortfolio(holdings, years, false).map(r => r.value);
-    // 벤치마크 (총 투자원금 기준)
-    const savingsVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1.035, i)));
-    const housingVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1.06,  i)));
+    // 벤치마크 (총 투자원금 기준, 설정값 반영)
+    const savingsRate = (parseFloat(document.getElementById('mhSimSavingsRate')?.value) || 3.5) / 100;
+    const aptRate     = (parseFloat(document.getElementById('mhSimAptRate')?.value)     || 6.0) / 100;
+    const savingsVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1 + savingsRate, i)));
+    const housingVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1 + aptRate,     i)));
 
     if (_mhSimChart) { _mhSimChart.destroy(); _mhSimChart = null; }
     _mhSimChart = new Chart(document.getElementById('mhSimCanvas'), {
@@ -2811,8 +2904,8 @@
         datasets: [
           { label: reinvest ? '포트폴리오 (배당 재투자)' : '포트폴리오 (배당 미재투자)', data: pfValues,      borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.08)', tension: .3, fill: true, borderWidth: 2.5 },
           ...(reinvest ? [{ label: '포트폴리오 (재투자 없음)', data: noReinvest, borderColor: '#60a5fa', tension: .3, borderDash: [5,3], borderWidth: 1.5, pointRadius: 2 }] : []),
-          { label: '서울아파트 (6%/년)',    data: housingVals, borderColor: '#8b5cf6', tension: .3, borderWidth: 2 },
-          { label: '적금 (3.5%/년)',       data: savingsVals, borderColor: '#f59e0b', tension: .3, borderWidth: 2 },
+          { label: `서울아파트 (${(aptRate*100).toFixed(1)}%/년)`,  data: housingVals, borderColor: '#8b5cf6', tension: .3, borderWidth: 2 },
+          { label: `적금 (${(savingsRate*100).toFixed(1)}%/년)`, data: savingsVals, borderColor: '#f59e0b', tension: .3, borderWidth: 2 },
         ],
       },
       options: {
