@@ -87,37 +87,28 @@ def _parse_num(val, cast):
         return None
 
 
-_DIV_FIELDS = [
-    "dividendYieldRatio", "dividendYield", "dvr", "dvrRatio",
-    "dividendRate", "dvRatio", "dyRatio",
-    "totalDividendYieldRatio", "expectDividendYield",
-    "annualDividendYield", "yieldRatio", "forwardDividendYield",
-]
-
-
-def _find_dividend_recursive(obj, depth: int = 0) -> float | None:
-    """모든 nested dict/list를 탐색해 배당수익률을 찾는다."""
-    if depth > 6:
-        return None
-    if isinstance(obj, dict):
-        for f in _DIV_FIELDS:
-            v = _parse_num(obj.get(f), float)
-            if v is not None and 0.01 < v < 50:  # 0.01~50% 범위만 유효
-                return v
-        for v in obj.values():
-            found = _find_dividend_recursive(v, depth + 1)
-            if found is not None:
-                return found
-    elif isinstance(obj, list):
-        for item in obj[:20]:  # 리스트는 상위 20개만 탐색
-            found = _find_dividend_recursive(item, depth + 1)
-            if found is not None:
-                return found
-    return None
+def _parse_naver_total_infos(infos: list) -> dict:
+    """Naver totalInfos 배열 → {code: 숫자값} 딕셔너리
+    예: {"code":"dividendYieldRatio","value":"1.43%"} → {"dividendYieldRatio": 1.43}
+    """
+    result = {}
+    for item in (infos or []):
+        if not isinstance(item, dict):
+            continue
+        code = item.get("code")
+        raw  = str(item.get("value") or "")
+        # 한국어 단위 제거: 배, 원, %, 콤마, 공백
+        cleaned = raw.replace(",", "").replace("%", "").replace("배", "").replace("원", "").strip()
+        if code and cleaned and cleaned not in ("-", "N/A"):
+            try:
+                result[code] = float(cleaned)
+            except (ValueError, TypeError):
+                pass
+    return result
 
 
 async def _fetch_price_naver(ticker: str) -> dict:
-    """Naver Finance 모바일 API로 현재가/PER/PBR/배당수익률 조회 (글로벌 접근 가능)"""
+    """Naver Finance 모바일 API로 현재가/PER/PBR/배당수익률 조회"""
     try:
         async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
             results = await asyncio.gather(
@@ -140,18 +131,20 @@ async def _fetch_price_naver(ticker: str) -> dict:
             else:
                 d_integ = payload
 
-        dividend_yield = _find_dividend_recursive(d_basic) or _find_dividend_recursive(d_integ)
+        # totalInfos 배열 파싱 (per/pbr/배당수익률 모두 여기에 있음)
+        infos = _parse_naver_total_infos(d_integ.get("totalInfos", []))
 
-        if dividend_yield is None and (d_basic or d_integ):
-            print(f"[Naver] {ticker} 배당 미발견 — basic_keys: {list(d_basic.keys())[:15]}")
+        dividend_yield = infos.get("dividendYieldRatio")
+        if dividend_yield is not None and not (0.01 < dividend_yield < 50):
+            dividend_yield = None
 
         merged = {**d_integ, **d_basic}
 
         return {
             "name":           merged.get("stockName") or merged.get("name"),
             "close":          _parse_num(merged.get("closePrice"), int),
-            "per":            _parse_num(merged.get("per"), float),
-            "pbr":            _parse_num(merged.get("pbr"), float),
+            "per":            infos.get("per") or infos.get("cnsPer"),
+            "pbr":            infos.get("pbr"),
             "dividend_yield": dividend_yield,
         }
     except Exception as e:
