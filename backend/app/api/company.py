@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
+import asyncio
 import datetime
 import httpx
 from pykrx import stock
