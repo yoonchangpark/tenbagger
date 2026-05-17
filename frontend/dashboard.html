@@ -2870,18 +2870,60 @@
     const yearly     = mhSimCalcPortfolio(holdings, years, reinvest);
     const totalInvest = holdings.reduce((s, h) => s + h.qty * h.avgPrice, 0);
 
+    // ── 벤치마크 (마일스톤 카드보다 먼저 계산) ────────────────────────────
+    const savingsRate = (parseFloat(document.getElementById('mhSimSavingsRate')?.value) || 3.5) / 100;
+    const aptRate     = (parseFloat(document.getElementById('mhSimAptRate')?.value)     || 6.0) / 100;
+    const savingsVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1 + savingsRate, i)));
+    const housingVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1 + aptRate,     i)));
+
     // ── 마일스톤 카드 ──────────────────────────────────────────────────────
     const milestones = [5, 10, 20].filter(n => n <= years);
     const initVal    = yearly[0].value;
     document.getElementById('mhSimMilestones').innerHTML = milestones.map(n => {
-      const row   = yearly[n] || yearly[yearly.length - 1];
-      const ret   = initVal > 0 ? ((row.value - initVal) / initVal * 100).toFixed(0) : 0;
-      const color = ret >= 0 ? '#10b981' : '#ef4444';
-      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;">
-        <div style="font-size:11px;color:#6b7280;margin-bottom:6px;font-weight:600;">${n}년 후</div>
-        <div style="font-size:20px;font-weight:800;color:#60a5fa;">${simFmtWon(row.value)}</div>
-        <div style="font-size:13px;color:${color};margin-top:4px;font-weight:700;">${ret >= 0 ? '+' : ''}${ret}%</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:4px;">연배당 ${simFmtWon(row.dividend)}</div>
+      const row      = yearly[n] || yearly[yearly.length - 1];
+      const pfRet    = initVal > 0 ? ((row.value    - initVal) / initVal * 100).toFixed(0) : 0;
+      const savRet   = initVal > 0 ? ((savingsVals[n] - initVal) / initVal * 100).toFixed(0) : 0;
+      const aptRet   = initVal > 0 ? ((housingVals[n] - initVal) / initVal * 100).toFixed(0) : 0;
+      const pfColor  = pfRet  >= 0 ? '#10b981' : '#ef4444';
+      const pfVsApt  = row.value - housingVals[n];
+      const vsColor  = pfVsApt >= 0 ? '#10b981' : '#f87171';
+      const vsSign   = pfVsApt >= 0 ? '▲' : '▼';
+      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px 16px;">
+        <div style="font-size:11px;color:#6b7280;margin-bottom:10px;font-weight:700;text-align:center;">${n}년 후</div>
+        <!-- 포트폴리오 -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:#60a5fa;font-weight:600;">💼 내 포트폴리오</span>
+          <span style="font-size:11px;color:#6b7280;">${reinvest ? '재투자' : '미재투자'}</span>
+        </div>
+        <div style="text-align:center;margin-bottom:2px;">
+          <span style="font-size:22px;font-weight:800;color:#60a5fa;">${simFmtWon(row.value)}</span>
+        </div>
+        <div style="text-align:center;margin-bottom:12px;">
+          <span style="font-size:13px;color:${pfColor};font-weight:700;">${pfRet >= 0 ? '+' : ''}${pfRet}%</span>
+          <span style="font-size:11px;color:#6b7280;margin-left:6px;">연배당 ${simFmtWon(row.dividend)}</span>
+        </div>
+        <!-- 구분선 -->
+        <div style="border-top:1px solid var(--border);margin-bottom:10px;"></div>
+        <!-- 벤치마크 비교 -->
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:11px;color:#8b5cf6;">🏠 서울아파트</span>
+            <div style="text-align:right;">
+              <span style="font-size:12px;font-weight:600;color:#c4b5fd;">${simFmtWon(housingVals[n])}</span>
+              <span style="font-size:10px;color:#8b5cf6;margin-left:4px;">+${aptRet}%</span>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:11px;color:#f59e0b;">🏦 적금 ${(savingsRate*100).toFixed(1)}%</span>
+            <div style="text-align:right;">
+              <span style="font-size:12px;font-weight:600;color:#fcd34d;">${simFmtWon(savingsVals[n])}</span>
+              <span style="font-size:10px;color:#f59e0b;margin-left:4px;">+${savRet}%</span>
+            </div>
+          </div>
+          <div style="margin-top:4px;padding:5px 8px;background:${pfVsApt >= 0 ? 'rgba(16,185,129,.1)' : 'rgba(248,113,113,.1)'};border-radius:6px;text-align:center;">
+            <span style="font-size:11px;color:${vsColor};font-weight:700;">${vsSign} 아파트 대비 ${simFmtWon(Math.abs(pfVsApt))} ${pfVsApt >= 0 ? '더 많음' : '더 적음'}</span>
+          </div>
+        </div>
       </div>`;
     }).join('');
 
@@ -2890,11 +2932,6 @@
     const pfValues = yearly.map(r => r.value);
     // 배당 재투자 없는 순수 주가 성장 (비교용)
     const noReinvest = mhSimCalcPortfolio(holdings, years, false).map(r => r.value);
-    // 벤치마크 (총 투자원금 기준, 설정값 반영)
-    const savingsRate = (parseFloat(document.getElementById('mhSimSavingsRate')?.value) || 3.5) / 100;
-    const aptRate     = (parseFloat(document.getElementById('mhSimAptRate')?.value)     || 6.0) / 100;
-    const savingsVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1 + savingsRate, i)));
-    const housingVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1 + aptRate,     i)));
 
     if (_mhSimChart) { _mhSimChart.destroy(); _mhSimChart = null; }
     _mhSimChart = new Chart(document.getElementById('mhSimCanvas'), {
