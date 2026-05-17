@@ -79,11 +79,47 @@ async def _fetch_market_data(ticker: str) -> dict:
     }
 
 
+def _parse_num(val, cast):
+    s = str(val or "").replace(",", "").replace("%", "").strip()
+    try:
+        return cast(s) if s and s not in ("-", "N/A") else None
+    except (ValueError, TypeError):
+        return None
+
+
+_DIV_FIELDS = [
+    "dividendYieldRatio", "dividendYield", "dvr", "dvrRatio",
+    "dividendRate", "dvRatio", "dyRatio",
+    "totalDividendYieldRatio", "expectDividendYield",
+    "annualDividendYield", "yieldRatio", "forwardDividendYield",
+]
+
+
+def _find_dividend_recursive(obj, depth: int = 0) -> float | None:
+    """모든 nested dict/list를 탐색해 배당수익률을 찾는다."""
+    if depth > 6:
+        return None
+    if isinstance(obj, dict):
+        for f in _DIV_FIELDS:
+            v = _parse_num(obj.get(f), float)
+            if v is not None and 0.01 < v < 50:  # 0.01~50% 범위만 유효
+                return v
+        for v in obj.values():
+            found = _find_dividend_recursive(v, depth + 1)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj[:20]:  # 리스트는 상위 20개만 탐색
+            found = _find_dividend_recursive(item, depth + 1)
+            if found is not None:
+                return found
+    return None
+
+
 async def _fetch_price_naver(ticker: str) -> dict:
     """Naver Finance 모바일 API로 현재가/PER/PBR/배당수익률 조회 (글로벌 접근 가능)"""
     try:
         async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
-            # basic + integration 병렬 호출 (integration이 더 풍부한 데이터 포함)
             results = await asyncio.gather(
                 client.get(f"https://m.stock.naver.com/api/stock/{ticker}/basic"),
                 client.get(f"https://m.stock.naver.com/api/stock/{ticker}/integration"),
@@ -104,46 +140,11 @@ async def _fetch_price_naver(ticker: str) -> dict:
             else:
                 d_integ = payload
 
-        def _parse_num(val, cast):
-            s = str(val or "").replace(",", "").replace("%", "").strip()
-            try:
-                return cast(s) if s and s not in ("-", "N/A") else None
-            except (ValueError, TypeError):
-                return None
+        dividend_yield = _find_dividend_recursive(d_basic) or _find_dividend_recursive(d_integ)
 
-        # ── 배당수익률 추출 (여러 필드명 시도) ────────────────────────────────
-        DIV_FIELDS = [
-            "dividendYieldRatio", "dividendYield", "dvr", "dvrRatio",
-            "dividendRate", "dvRatio", "dyRatio", "dividend",
-            "totalDividendYieldRatio", "expectDividendYield",
-        ]
-
-        def _find_dividend(d: dict) -> float | None:
-            if not isinstance(d, dict):
-                return None
-            for f in DIV_FIELDS:
-                v = _parse_num(d.get(f), float)
-                if v is not None and v > 0:
-                    return v
-            # 중첩된 dict에서 탐색 (integration 응답은 deeper)
-            for key in ("dividendInfo", "dividend", "fundamental", "valuation"):
-                nested = d.get(key)
-                if isinstance(nested, dict):
-                    found = _find_dividend(nested)
-                    if found is not None:
-                        return found
-            return None
-
-        dividend_yield = _find_dividend(d_basic) or _find_dividend(d_integ)
-
-        # 디버깅: 못 찾으면 후보 필드 로그
         if dividend_yield is None and (d_basic or d_integ):
-            div_keys_basic = [k for k in (d_basic or {}).keys() if "div" in k.lower() or "yield" in k.lower()]
-            div_keys_integ = [k for k in (d_integ or {}).keys() if "div" in k.lower() or "yield" in k.lower()]
-            if div_keys_basic or div_keys_integ:
-                print(f"[Naver] {ticker} 배당 후보 — basic: {div_keys_basic}, integration: {div_keys_integ}")
+            print(f"[Naver] {ticker} 배당 미발견 — basic_keys: {list(d_basic.keys())[:15]}")
 
-        # name/close/per/pbr — basic 우선, 없으면 integration
         merged = {**d_integ, **d_basic}
 
         return {
@@ -156,6 +157,28 @@ async def _fetch_price_naver(ticker: str) -> dict:
     except Exception as e:
         print(f"[Company] Naver 가격 조회 실패 {ticker}: {e}")
         return {}
+
+
+@router.get("/{ticker}/naver-debug")
+async def naver_debug(ticker: str):
+    """Naver API 원본 응답 확인용 (디버그 전용)"""
+    try:
+        async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
+            results = await asyncio.gather(
+                client.get(f"https://m.stock.naver.com/api/stock/{ticker}/basic"),
+                client.get(f"https://m.stock.naver.com/api/stock/{ticker}/integration"),
+                return_exceptions=True,
+            )
+        basic_status = results[0].status_code if not isinstance(results[0], Exception) else str(results[0])
+        integ_status = results[1].status_code if not isinstance(results[1], Exception) else str(results[1])
+        basic_body = results[0].json() if not isinstance(results[0], Exception) and results[0].status_code == 200 else None
+        integ_body = results[1].json() if not isinstance(results[1], Exception) and results[1].status_code == 200 else None
+        return {
+            "basic": {"status": basic_status, "body": basic_body},
+            "integration": {"status": integ_status, "body": integ_body},
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @router.get("/{ticker}/price")
