@@ -79,27 +79,78 @@ async def _fetch_market_data(ticker: str) -> dict:
 
 
 async def _fetch_price_naver(ticker: str) -> dict:
-    """Naver Finance 모바일 API로 현재가/PER/PBR 조회 (글로벌 접근 가능)"""
+    """Naver Finance 모바일 API로 현재가/PER/PBR/배당수익률 조회 (글로벌 접근 가능)"""
     try:
-        url = f"https://m.stock.naver.com/api/stock/{ticker}/basic"
         async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
-            r = await client.get(url)
-            if r.status_code != 200:
-                return {}
-            d = r.json()
+            # basic + integration 병렬 호출 (integration이 더 풍부한 데이터 포함)
+            results = await asyncio.gather(
+                client.get(f"https://m.stock.naver.com/api/stock/{ticker}/basic"),
+                client.get(f"https://m.stock.naver.com/api/stock/{ticker}/integration"),
+                return_exceptions=True,
+            )
+
+        d_basic = {}
+        d_integ = {}
+        for r, target in zip(results, ("basic", "integration")):
+            if isinstance(r, Exception) or r.status_code != 200:
+                continue
+            try:
+                payload = r.json()
+            except Exception:
+                continue
+            if target == "basic":
+                d_basic = payload
+            else:
+                d_integ = payload
 
         def _parse_num(val, cast):
-            s = str(val or "").replace(",", "").strip()
+            s = str(val or "").replace(",", "").replace("%", "").strip()
             try:
                 return cast(s) if s and s not in ("-", "N/A") else None
             except (ValueError, TypeError):
                 return None
 
+        # ── 배당수익률 추출 (여러 필드명 시도) ────────────────────────────────
+        DIV_FIELDS = [
+            "dividendYieldRatio", "dividendYield", "dvr", "dvrRatio",
+            "dividendRate", "dvRatio", "dyRatio", "dividend",
+            "totalDividendYieldRatio", "expectDividendYield",
+        ]
+
+        def _find_dividend(d: dict) -> float | None:
+            if not isinstance(d, dict):
+                return None
+            for f in DIV_FIELDS:
+                v = _parse_num(d.get(f), float)
+                if v is not None and v > 0:
+                    return v
+            # 중첩된 dict에서 탐색 (integration 응답은 deeper)
+            for key in ("dividendInfo", "dividend", "fundamental", "valuation"):
+                nested = d.get(key)
+                if isinstance(nested, dict):
+                    found = _find_dividend(nested)
+                    if found is not None:
+                        return found
+            return None
+
+        dividend_yield = _find_dividend(d_basic) or _find_dividend(d_integ)
+
+        # 디버깅: 못 찾으면 후보 필드 로그
+        if dividend_yield is None and (d_basic or d_integ):
+            div_keys_basic = [k for k in (d_basic or {}).keys() if "div" in k.lower() or "yield" in k.lower()]
+            div_keys_integ = [k for k in (d_integ or {}).keys() if "div" in k.lower() or "yield" in k.lower()]
+            if div_keys_basic or div_keys_integ:
+                print(f"[Naver] {ticker} 배당 후보 — basic: {div_keys_basic}, integration: {div_keys_integ}")
+
+        # name/close/per/pbr — basic 우선, 없으면 integration
+        merged = {**d_integ, **d_basic}
+
         return {
-            "name":  d.get("stockName"),
-            "close": _parse_num(d.get("closePrice"), int),
-            "per":   _parse_num(d.get("per"), float),
-            "pbr":   _parse_num(d.get("pbr"), float),
+            "name":           merged.get("stockName") or merged.get("name"),
+            "close":          _parse_num(merged.get("closePrice"), int),
+            "per":            _parse_num(merged.get("per"), float),
+            "pbr":            _parse_num(merged.get("pbr"), float),
+            "dividend_yield": dividend_yield,
         }
     except Exception as e:
         print(f"[Company] Naver 가격 조회 실패 {ticker}: {e}")
@@ -108,21 +159,26 @@ async def _fetch_price_naver(ticker: str) -> dict:
 
 @router.get("/{ticker}/price")
 async def get_stock_price(ticker: str):
-    """현재가 빠른 조회 (내 주식 탭용) — Naver Finance 기반"""
+    """현재가 빠른 조회 (내 주식 탭용) — Naver Finance 우선, DB 캐시 fallback"""
     cached = get_score_cached(ticker)
     grade = cached.get("grade", "") if cached else ""
     cached_name = cached.get("name") if cached else None
+    cached_div  = cached.get("dividend_yield") if cached else None
+    cached_per  = cached.get("per") if cached else None
 
     naver = await _fetch_price_naver(ticker)
-    close = naver.get("close")
+
+    # Naver 우선, 없으면 DB 캐시
+    dividend_yield = naver.get("dividend_yield") if naver.get("dividend_yield") is not None else cached_div
+    per            = naver.get("per") if naver.get("per") is not None else cached_per
 
     return {
         "ticker":         ticker,
         "name":           naver.get("name") or cached_name or ticker,
-        "close":          close,
+        "close":          naver.get("close"),
         "grade":          grade,
-        "dividend_yield": cached.get("dividend_yield") if cached else None,
-        "per":            cached.get("per") if cached else None,
+        "dividend_yield": dividend_yield,
+        "per":            per,
     }
 
 
