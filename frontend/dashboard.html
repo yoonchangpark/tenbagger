@@ -3262,11 +3262,43 @@
           style="display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;background:rgba(96,165,250,.2);color:#60a5fa;border-radius:50%;font-size:10px;font-weight:700;cursor:help;margin-left:4px;vertical-align:middle;">?</span>
       </th>
     </tr>`;
+    // ETF 배당수익률 기준값 (pykrx로 못 가져오는 ETF 대비 하드코딩)
+    const ETF_DIV = {
+      '487950': 3.8,   // KODEX 대만테크고배당다우존스
+      '441640': 9.5,   // KODEX 미국배당커버드콜엑티브
+      '458730': 8.5,   // TIGER 미국배당+3%프리미엄다우30
+      '402970': 3.5,   // ACE 미국배당다우존스
+      '448290': 4.0,   // KODEX 미국배당다우존스
+      '280930': 5.5,   // KODEX 한국배당가치
+      '395160': 3.2,   // TIGER 배당성장
+    };
+
+    // 총 평가금액 (집중도 경고용)
+    const totalEval = valid.reduce((s, h) => s + h.qty * h.close, 0);
+
     const rows = valid.map((h, i) => {
-      const divYield = h.dividend_yield != null ? h.dividend_yield.toFixed(2) : '0';
+      // 배당수익률: DB값 우선 → ETF 매핑 → 0
+      const divYield = h.dividend_yield != null && h.dividend_yield > 0
+        ? h.dividend_yield.toFixed(2)
+        : (ETF_DIV[h.ticker] != null ? ETF_DIV[h.ticker].toFixed(2) : '0');
+      const divYieldSource = h.dividend_yield != null && h.dividend_yield > 0 ? '' :
+        ETF_DIV[h.ticker] != null ? ' 🔵' : ' ⚠️';   // 🔵=ETF추정, ⚠️=수동입력필요
+
+      // 주가 CAGR: mhEstimateCagr 기반 자동 추정
+      const cagrEst = mhEstimateCagr(h);
+      const priceCagrDefault = cagrEst.value;
+      const priceCagrLabel   = cagrEst.basis;
+
+      // 배당 CAGR: 등급별 기본값 (ETF는 0)
+      const isEtf = ETF_DIV[h.ticker] != null || (!h.grade && h.dividend_yield == null);
+      const divCagrDefault = isEtf ? 0 : (_GRADE_CAGR[h.grade]?.divCagr ?? 5);
+
       const evalAmt  = (h.qty * h.close).toLocaleString();
+      const weight   = totalEval > 0 ? (h.qty * h.close) / totalEval * 100 : 0;
+      const concWarn = weight > 25 ? ` <span title="단일 종목 ${weight.toFixed(0)}% 집중 — 25% 이하 권장" style="color:#f59e0b;font-size:10px;cursor:help;">⚠️${weight.toFixed(0)}%</span>` : '';
+
       return `<tr style="border-bottom:1px solid var(--border);">
-        <td style="padding:10px 12px;font-size:13px;font-weight:600;">${escHtml(h.name)}<br>
+        <td style="padding:10px 12px;font-size:13px;font-weight:600;">${escHtml(h.name)}${concWarn}<br>
           <span style="font-size:11px;color:#6b7280;">${h.ticker}</span></td>
         <td style="text-align:right;padding:10px 12px;font-size:13px;">${h.qty.toLocaleString()}주</td>
         <td style="text-align:right;padding:10px 12px;font-size:13px;">${h.close.toLocaleString()}원</td>
@@ -3274,16 +3306,17 @@
         <td style="text-align:center;padding:6px 8px;">
           <input type="number" class="mh-input" data-sim-idx="${i}" data-sim-field="divYield"
             value="${divYield}" min="0" max="30" step="0.1"
-            style="width:70px;text-align:center;padding:6px 8px;" />
+            title="${divYieldSource ? (ETF_DIV[h.ticker] != null ? 'ETF 추정값 — 필요시 직접 수정' : '데이터 없음 — 직접 입력하세요') : 'DART 기반 실측값'}"
+            style="width:70px;text-align:center;padding:6px 8px;${divYieldSource && !ETF_DIV[h.ticker] ? 'border-color:#f59e0b;' : ''}" />${divYieldSource}
         </td>
         <td style="text-align:center;padding:6px 8px;">
           <input type="number" class="mh-input" data-sim-idx="${i}" data-sim-field="divCagr"
-            value="5" min="-20" max="30" step="1"
+            value="${divCagrDefault}" min="-20" max="30" step="1"
             style="width:70px;text-align:center;padding:6px 8px;" />
         </td>
-        <td style="text-align:center;padding:6px 8px;">
+        <td style="text-align:center;padding:6px 8px;" title="추정 근거: ${priceCagrLabel}">
           <input type="number" class="mh-input" data-sim-idx="${i}" data-sim-field="priceCagr"
-            value="7" min="-20" max="50" step="1"
+            value="${priceCagrDefault}" min="-20" max="50" step="1"
             style="width:70px;text-align:center;padding:6px 8px;" />
         </td>
       </tr>`;
