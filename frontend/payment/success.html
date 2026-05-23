@@ -2,39 +2,97 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>결제 완료 — 텐배거 헌터</title>
+  <!-- GA4: 아래 G-XXXXXXXXXX를 실제 GA4 측정 ID로 교체하세요 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer=window.dataLayer||[];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js',new Date());
+    gtag('config','G-XXXXXXXXXX');
+  </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .card { background: #1a2332; border: 1px solid #34d39944; border-radius: 1rem; padding: 3rem; text-align: center; max-width: 420px; width: 90%; }
+    body { font-family: 'Pretendard', -apple-system, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { background: #1a2332; border: 1px solid #34d39944; border-radius: 1rem; padding: 3rem 2.5rem; text-align: center; max-width: 460px; width: 100%; }
     .icon { font-size: 4rem; margin-bottom: 1rem; }
     h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; color: #34d399; }
-    p { color: #94a3b8; margin-bottom: 1.5rem; line-height: 1.6; }
-    .btn { display: inline-block; padding: 0.85rem 2rem; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border-radius: 0.5rem; text-decoration: none; font-weight: 600; }
-    .loading { color: #60a5fa; font-size: 0.9rem; margin-bottom: 1rem; }
+    .status-msg { color: #94a3b8; margin-bottom: 1.5rem; line-height: 1.6; font-size: 0.9rem; }
+    .status-msg.loading { color: #60a5fa; }
+    .status-msg.error { color: #f87171; }
+    .info-box { background: #0f1117; border: 1px solid #1e3a2a; border-radius: 0.75rem; padding: 1.25rem 1.5rem; margin-bottom: 1.75rem; text-align: left; }
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0; font-size: 0.85rem; }
+    .info-row .label { color: #94a3b8; }
+    .info-row .value { color: #e2e8f0; font-weight: 600; }
+    .info-row .value.tier { background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1rem; }
+    .benefits { margin-bottom: 1.75rem; }
+    .benefits-title { font-size: 0.8rem; color: #94a3b8; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 0.75rem; }
+    .benefit-list { display: flex; flex-direction: column; gap: 8px; }
+    .benefit-item { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: #cbd5e1; background: rgba(52,211,153,.06); border: 1px solid rgba(52,211,153,.15); border-radius: 8px; padding: 9px 14px; }
+    .benefit-item .check { color: #34d399; font-weight: 700; }
+    .btn-primary { display: block; width: 100%; padding: 0.9rem; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border-radius: 0.5rem; text-decoration: none; font-weight: 700; font-size: 1rem; margin-bottom: 0.75rem; cursor: pointer; border: none; transition: opacity .2s; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary { display: block; width: 100%; padding: 0.75rem; background: transparent; color: #60a5fa; border: 1px solid #60a5fa44; border-radius: 0.5rem; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: background .2s; }
+    .btn-secondary:hover { background: #60a5fa11; }
   </style>
 </head>
 <body>
 <div class="card">
   <div class="icon">🎉</div>
   <h1>결제 완료!</h1>
-  <p id="msg" class="loading">결제를 확인하는 중입니다...</p>
-  <a href="/index.html" class="btn">분석 시작하기</a>
+  <p id="statusMsg" class="status-msg loading">결제를 확인하는 중입니다...</p>
+
+  <!-- 구독 정보 (성공 후 표시) -->
+  <div id="infoBox" class="info-box" style="display:none;">
+    <div class="info-row"><span class="label">구독 플랜</span><span class="value tier" id="tierName">—</span></div>
+    <div class="info-row"><span class="label">만료일</span><span class="value" id="expiresAt">—</span></div>
+    <div class="info-row"><span class="label">다음 결제일</span><span class="value" id="nextBilling">—</span></div>
+  </div>
+
+  <!-- 혜택 목록 (성공 후 표시) -->
+  <div id="benefitsBox" class="benefits" style="display:none;">
+    <div class="benefits-title">이제 사용 가능한 기능</div>
+    <div class="benefit-list" id="benefitList"></div>
+  </div>
+
+  <div id="ctaArea">
+    <a href="/index.html" class="btn-secondary">나중에 시작하기</a>
+  </div>
 </div>
 
 <script>
   const API = "";
 
+  const TIER_BENEFITS = {
+    pro: [
+      "🤖 AI 정성 분석 (기업 리서치 + 투자위원회)",
+      "📊 스크리너 전체 종목 무제한",
+      "⭐ 관심종목 20개 저장",
+      "📬 월간 투자 리포트",
+    ],
+    premium: [
+      "🤖 AI 정성 분석 (기업 리서치 + 투자위원회)",
+      "📊 스크리너 전체 종목 무제한",
+      "⭐ 관심종목 무제한",
+      "💬 카카오톡 실시간 알림",
+      "🧪 백테스트 무제한",
+      "🔌 API 직접 접근",
+    ],
+  };
+
+  const TIER_LABELS = { pro: "Pro", premium: "Premium" };
+
   async function confirmPayment() {
     const params = new URLSearchParams(window.location.search);
     const paymentKey = params.get("paymentKey");
-    const orderId = params.get("orderId");
-    const amount = parseInt(params.get("amount"));
-    const tier = params.get("tier");
-    const token = localStorage.getItem("access_token");
+    const orderId    = params.get("orderId");
+    const amount     = parseInt(params.get("amount"));
+    const tier       = params.get("tier");
+    const token      = localStorage.getItem("access_token");
 
     if (!paymentKey || !orderId || !amount || !tier) {
-      document.getElementById("msg").textContent = "결제 정보가 없습니다.";
+      setStatus("결제 정보가 없습니다.", "error");
       return;
     }
 
@@ -47,15 +105,43 @@
 
       const data = await res.json();
       if (res.ok) {
-        document.getElementById("msg").textContent = `${data.message} 만료일: ${new Date(data.expires_at).toLocaleDateString("ko-KR")}`;
-        document.getElementById("msg").style.color = "#34d399";
+        gtag('event','payment_complete',{plan:tier,value:amount});
+        setStatus(`${TIER_LABELS[tier] || tier} 구독이 시작됐습니다. 바로 이용해 보세요!`, "");
+
+        // 구독 정보 표시
+        const expires = new Date(data.expires_at);
+        const nextBilling = new Date(data.expires_at);
+        document.getElementById("tierName").textContent = TIER_LABELS[tier] || tier;
+        document.getElementById("expiresAt").textContent = expires.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+        document.getElementById("nextBilling").textContent = nextBilling.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+        document.getElementById("infoBox").style.display = "block";
+
+        // 혜택 목록 표시
+        const benefits = TIER_BENEFITS[tier] || [];
+        if (benefits.length) {
+          document.getElementById("benefitList").innerHTML = benefits.map(b =>
+            `<div class="benefit-item"><span class="check">✓</span>${b}</div>`
+          ).join("");
+          document.getElementById("benefitsBox").style.display = "block";
+        }
+
+        // CTA: 지금 AI 분석 시작하기
+        document.getElementById("ctaArea").innerHTML = `
+          <a href="/index.html" class="btn-primary">🤖 지금 AI 분석 시작하기</a>
+          <a href="/dashboard.html" class="btn-secondary">내 대시보드로 이동</a>
+        `;
       } else {
-        document.getElementById("msg").textContent = `오류: ${data.detail}`;
-        document.getElementById("msg").style.color = "#ef4444";
+        setStatus(`오류: ${data.detail}`, "error");
       }
     } catch (e) {
-      document.getElementById("msg").textContent = "네트워크 오류가 발생했습니다.";
+      setStatus("네트워크 오류가 발생했습니다.", "error");
     }
+  }
+
+  function setStatus(msg, type) {
+    const el = document.getElementById("statusMsg");
+    el.textContent = msg;
+    el.className = "status-msg" + (type ? " " + type : "");
   }
 
   confirmPayment();

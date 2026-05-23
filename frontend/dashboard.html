@@ -213,6 +213,24 @@
     .tenbagger-badge{background:rgba(16,185,129,.2);color:#10b981;border:1px solid rgba(16,185,129,.4);font-size:11px;padding:3px 8px;border-radius:6px;display:inline-block;}
 
     .ai-panel{background:linear-gradient(135deg,rgba(16,185,129,.06),rgba(59,130,246,.06));border:1px solid rgba(16,185,129,.2);border-radius:20px;padding:24px 28px;margin-bottom:20px;}
+    /* 분기비교 패널 */
+    .qc-panel{background:linear-gradient(135deg,rgba(139,92,246,.06),rgba(59,130,246,.06));border:1px solid rgba(139,92,246,.25);border-radius:20px;padding:24px 28px;margin-bottom:20px;}
+    .qc-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+    .qc-panel-title{font-size:16px;font-weight:700;}
+    .qc-labels{font-size:12px;color:var(--muted);margin-bottom:12px;}
+    .qc-indices-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+    .qc-idx-item{background:var(--surface2);border-radius:10px;padding:10px 14px;min-width:120px;border:1px solid var(--border);}
+    .qc-idx-item.down{border-color:rgba(239,68,68,.3);}
+    .qc-idx-item.up{border-color:rgba(16,185,129,.3);}
+    .qc-idx-nm{font-size:11px;color:var(--muted);margin-bottom:4px;}
+    .qc-idx-vals{font-size:13px;font-weight:600;}
+    .qc-md{font-size:13px;line-height:1.75;color:var(--text);white-space:pre-wrap;word-break:break-word;}
+    /* 공시탭 고정 예시 카드 */
+    .qc-pinned-card{background:linear-gradient(135deg,rgba(139,92,246,.08),rgba(59,130,246,.05));border:1px solid rgba(139,92,246,.3);border-radius:16px;padding:18px 20px;margin-bottom:16px;}
+    .qc-pinned-label{font-size:13px;font-weight:700;color:#c4b5fd;margin-bottom:4px;}
+    .qc-pinned-meta{font-size:11px;color:var(--muted);margin-bottom:12px;}
+    .qc-summary{font-size:12px;color:var(--text);margin:10px 0;}
+    .qc-actions{display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;}
     .ai-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
     .ai-panel-title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;}
     .ai-v2-badge{font-size:10px;font-weight:700;background:linear-gradient(135deg,#10b981,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;border:1px solid rgba(16,185,129,.4);border-radius:8px;padding:2px 8px;}
@@ -258,6 +276,14 @@
       .rank-bars{display:none;}
       .section-header{flex-direction:column;align-items:flex-start;}
       .section-header > div:last-child{align-self:flex-end;}
+      body{padding-bottom:64px;}
+    }
+    .mobile-tab-bar{display:none;}
+    @media(max-width:640px){
+      .mobile-tab-bar{display:flex;position:fixed;bottom:0;left:0;right:0;background:rgba(17,24,39,.97);border-top:1px solid var(--border);z-index:200;backdrop-filter:blur(10px);padding-bottom:env(safe-area-inset-bottom,0px);}
+      .mobile-tab-bar a{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;color:var(--muted);text-decoration:none;font-size:10px;font-weight:600;gap:3px;transition:color .15s;}
+      .mobile-tab-bar a.active{color:#60a5fa;}
+      .mobile-tab-bar a .t-icon{font-size:18px;line-height:1;}
     }
     @keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
   </style>
@@ -320,6 +346,24 @@
         <button class="filter-btn" id="cls-kospi" onclick="setCorpCls('Y',this)">KOSPI</button>
         <button class="filter-btn" id="cls-kosdaq" onclick="setCorpCls('K',this)">KOSDAQ</button>
         <button class="refresh-btn" id="discRefreshBtn" onclick="loadDisclosures()">새로고침</button>
+      </div>
+    </div>
+    <!-- 분기비교 예시 고정 카드 -->
+    <div class="qc-pinned-card">
+      <div class="qc-pinned-label">📌 분기비교 분석 예시 · 삼성전자(005930)</div>
+      <div class="qc-pinned-meta">2024 사업보고서(연간) → 2025 1분기보고서</div>
+      <div class="qc-indices-row">
+        <div class="qc-idx-item down"><div class="qc-idx-nm">ROE</div><div class="qc-idx-vals">8.997% → 2.033%</div></div>
+        <div class="qc-idx-item down"><div class="qc-idx-nm">매출총이익률</div><div class="qc-idx-vals">37.993% → 35.545%</div></div>
+        <div class="qc-idx-item down"><div class="qc-idx-nm">순이익률</div><div class="qc-idx-vals">11.451% → 10.39%</div></div>
+      </div>
+      <div class="qc-summary">ROE 급락(8.9%→2.0%) · 원가 부담 확대 · 반도체 업황 모니터링 필요</div>
+      <div class="qc-actions">
+        <span style="font-size:11px;color:var(--muted);">관심종목·텐배거 종목은 종목 분석 하단에서 분기비교 자동 조회</span>
+        <button onclick="switchTab('analysis',document.querySelector('.tab-btn[onclick*=\'analysis\']'));document.getElementById('stockInput').value='005930';analyzeStock()"
+          style="padding:4px 12px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;">
+          삼성전자 분석 →
+        </button>
       </div>
     </div>
     <div class="disc-list" id="discList">
@@ -958,6 +1002,41 @@
           <!-- 52주 스파크라인 -->
           <canvas id="spark-${s.ticker}" width="240" height="48"
             style="width:100%;height:48px;display:block;margin-bottom:10px;border-radius:6px;"></canvas>
+          <!-- 매수가 / 수익률 -->
+          ${s.entry_price && s.return_pct != null
+            ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;margin-bottom:10px;background:${s.return_pct >= 0 ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.08)'};border:1px solid ${s.return_pct >= 0 ? 'rgba(16,185,129,.25)' : 'rgba(239,68,68,.2)'};">
+                <span style="font-size:11px;color:var(--muted);">매수가 ₩${s.entry_price.toLocaleString()}</span>
+                <span style="font-size:14px;font-weight:800;color:${s.return_pct >= 0 ? '#10b981' : '#ef4444'};">${s.return_pct >= 0 ? '▲' : '▼'}${Math.abs(s.return_pct).toFixed(2)}%</span>
+              </div>`
+            : ''}
+          <!-- 매수가 입력 -->
+          <div id="entry-row-${s.ticker}" style="display:flex;gap:6px;margin-bottom:10px;align-items:center;">
+            <input type="number" id="ep-${s.ticker}" placeholder="매수가 (원)" value="${s.entry_price || ''}"
+              style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;min-width:0;"
+              onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'" />
+            <input type="date" id="ed-${s.ticker}" value="${s.entry_date || ''}"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 8px;color:var(--text);font-size:12px;outline:none;width:126px;"
+              onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'" />
+            <button onclick="saveEntryPrice('${s.ticker}')"
+              style="background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.35);border-radius:7px;padding:7px 10px;color:#93c5fd;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">저장</button>
+          </div>
+          <!-- 목표가 / 알림 설정 -->
+          <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;">
+            <input type="number" id="tp-${s.ticker}" placeholder="목표가 (원)" value="${s.target_price || ''}"
+              style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;min-width:0;"
+              onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='var(--border)'" />
+            <button onclick="saveTargetPrice('${s.ticker}')"
+              style="background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:7px;padding:7px 10px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">🎯 저장</button>
+            <button id="alert-btn-${s.ticker}" onclick="toggleAlert('${s.ticker}',this)"
+              style="background:${s.alert_enabled ? 'rgba(16,185,129,.2)' : 'rgba(55,65,81,.5)'};border:1px solid ${s.alert_enabled ? 'rgba(16,185,129,.4)' : 'var(--border)'};border-radius:7px;padding:7px 9px;color:${s.alert_enabled ? '#34d399' : 'var(--muted)'};font-size:13px;cursor:pointer;"
+              title="${s.alert_enabled ? '카카오 알림 ON — 클릭해 끄기' : '카카오 알림 OFF — 클릭해 켜기'}">${s.alert_enabled ? '🔔' : '🔕'}</button>
+          </div>
+          ${s.target_price && s.live_price ? \`
+          <div style="padding:7px 12px;border-radius:7px;margin-bottom:10px;font-size:12px;background:\${s.target_reached ? 'rgba(16,185,129,.1)' : 'rgba(245,158,11,.07)'};border:1px solid \${s.target_reached ? 'rgba(16,185,129,.3)' : 'rgba(245,158,11,.2)'};">
+            \${s.target_reached
+              ? '<span style="color:#10b981;font-weight:700;">🎯 목표가 달성! ₩' + s.target_price.toLocaleString() + ' 도달</span>'
+              : '<span style="color:#fbbf24;">목표가까지 ' + (((s.target_price - s.live_price) / s.live_price) * 100).toFixed(1) + '% 남음 (₩' + s.target_price.toLocaleString() + ')</span>'}
+          </div>\` : ''}
           <button onclick="analyzeFromWatchlist('${s.ticker}')"
             style="width:100%;padding:8px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:8px;color:#93c5fd;font-size:12px;font-weight:600;cursor:pointer;">
             🔬 상세 분석 보기
@@ -1438,6 +1517,55 @@
       const d = await res.json();
       wlMsg(d.detail || '삭제 실패', 'error');
     }
+  }
+
+  async function saveEntryPrice(ticker) {
+    const priceEl = document.getElementById('ep-' + ticker);
+    const dateEl  = document.getElementById('ed-' + ticker);
+    const price   = priceEl ? parseFloat(priceEl.value) : null;
+    const date    = dateEl  ? dateEl.value : null;
+
+    if (!price || price <= 0) { wlMsg('매수가를 올바르게 입력해주세요.', 'error'); return; }
+
+    const res = await authFetch(API + '/api/v2/watchlist/' + ticker, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entry_price: price, entry_date: date || null }),
+    });
+    if (res.ok) {
+      wlMsg('매수가가 저장됐습니다.', 'success');
+      loadWatchlist();
+    } else {
+      const d = await res.json();
+      wlMsg(d.detail || '저장 실패', 'error');
+    }
+  }
+
+  async function saveTargetPrice(ticker) {
+    const el    = document.getElementById('tp-' + ticker);
+    const price = el ? parseFloat(el.value) : null;
+    if (!price || price <= 0) { wlMsg('목표가를 올바르게 입력해주세요.', 'error'); return; }
+    const res = await authFetch(API + '/api/v2/watchlist/' + ticker, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_price: price }),
+    });
+    if (res.ok) { wlMsg('목표가가 저장됐습니다. 🎯', 'success'); loadWatchlist(); }
+    else { const d = await res.json(); wlMsg(d.detail || '저장 실패', 'error'); }
+  }
+
+  async function toggleAlert(ticker, btn) {
+    const current = btn.textContent.trim() === '🔔';
+    const next    = !current;
+    const res = await authFetch(API + '/api/v2/watchlist/' + ticker, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alert_enabled: next }),
+    });
+    if (res.ok) {
+      wlMsg(next ? '카카오 목표가 알림이 켜졌습니다. 🔔' : '카카오 알림이 꺼졌습니다.', 'success');
+      loadWatchlist();
+    } else { const d = await res.json(); wlMsg(d.detail || '설정 실패', 'error'); }
   }
 
   function analyzeFromWatchlist(ticker) {
@@ -1927,6 +2055,15 @@
     html += '<button class="ai-load-btn" id="dashAiBtn" onclick="dashLoadAI(\'' + esc(d.ticker) + '\')">AI 분석 불러오기</button>';
     html += '</div><div id="dashAiContent" class="ai-content"></div></div>';
 
+    // Quarter compare panel
+    html += '<div class="qc-panel" id="qcPanel">';
+    html += '<div class="qc-panel-header">';
+    html += '<div class="qc-panel-title">📊 분기 비교 분석 <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px;">DART 재무지표 · GPT 분석</span></div>';
+    html += '<button class="ai-load-btn" id="qcLoadBtn" onclick="loadQuarterCompare(\'' + esc(d.ticker) + '\')">불러오기</button>';
+    html += '</div>';
+    html += '<div id="qcContent"></div>';
+    html += '</div>';
+
     document.getElementById("analysisResult").innerHTML = html;
 
     // Draw charts
@@ -2086,6 +2223,57 @@
       showToast("시뮬레이션 오류: " + e.message, 'error');
     } finally {
       btn.textContent = "🚀 시뮬레이션 실행"; btn.disabled = false;
+    }
+  }
+
+  async function loadQuarterCompare(ticker, forceRefresh) {
+    const btn = document.getElementById("qcLoadBtn");
+    const content = document.getElementById("qcContent");
+    if (!btn || !content) return;
+    btn.disabled = true;
+    btn.textContent = "조회 중…";
+    content.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;"><span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span> DART + GPT 분기 비교 분석 중… (10~20초)</div>';
+
+    try {
+      const url = API + "/api/v2/company/" + encodeURIComponent(ticker) + "/quarter-compare" + (forceRefresh ? "?refresh=true" : "");
+      const r = await fetch(url);
+      const d = await r.json();
+
+      if (d.error) {
+        content.innerHTML = '<div style="padding:12px 16px;color:#f87171;font-size:13px;">⚠️ ' + escHtml(d.error) + '</div>';
+        btn.disabled = false; btn.textContent = "다시 시도";
+        return;
+      }
+
+      const KEY_NAMES = ["매출액증가율", "영업이익증가율", "순이익증가율", "순이익률", "매출총이익률", "ROE"];
+      const prev = d.prev_indices || {};
+      const curr = d.curr_indices || {};
+
+      let idxHtml = KEY_NAMES.filter(k => prev[k] || curr[k]).map(k => {
+        const pv = prev[k] ? parseFloat(prev[k]) : null;
+        const cv = curr[k] ? parseFloat(curr[k]) : null;
+        const dir = (pv !== null && cv !== null) ? (cv > pv ? "up" : cv < pv ? "down" : "flat") : "flat";
+        const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "—";
+        const col = dir === "up" ? "#10b981" : dir === "down" ? "#ef4444" : "#6b7280";
+        return '<div class="qc-idx-item ' + dir + '"><div class="qc-idx-nm">' + escHtml(k) + '</div>'
+          + '<div class="qc-idx-vals">' + (pv !== null ? pv.toFixed(2) + "%" : "-") + ' <span style="color:' + col + '">' + arrow + '</span> ' + (cv !== null ? cv.toFixed(2) + "%" : "-") + '</div></div>';
+      }).join("");
+
+      const md = escHtml(d.analysis_md || "").replace(/\n/g, "<br>").replace(/## (.+?)(<br>|$)/g, '<strong style="color:#c4b5fd;">$1</strong><br>').replace(/\| (.+?) \|/g, function(m) { return m; });
+
+      let h = '<div class="qc-labels">' + escHtml(d.prev_label || "") + ' → ' + escHtml(d.curr_label || "") + '</div>';
+      if (idxHtml) h += '<div class="qc-indices-row">' + idxHtml + '</div>';
+      h += '<div class="qc-md">' + md + '</div>';
+      h += '<div style="margin-top:10px;text-align:right;">';
+      if (d.updated_at) h += '<span style="font-size:11px;color:var(--muted);">캐시: ' + d.updated_at.slice(0,16).replace("T"," ") + '</span> ';
+      h += '<button onclick="loadQuarterCompare(\'' + escHtml(ticker) + '\',true)" style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);border-radius:6px;color:#a78bfa;font-size:11px;cursor:pointer;">🔄 재분석</button>';
+      h += '</div>';
+
+      content.innerHTML = h;
+      btn.textContent = "✅ 완료"; btn.disabled = false;
+    } catch(e) {
+      content.innerHTML = '<div style="padding:12px 16px;color:#f87171;font-size:13px;">오류: ' + escHtml(e.message) + '</div>';
+      btn.disabled = false; btn.textContent = "다시 시도";
     }
   }
 
@@ -3426,5 +3614,11 @@
   </div>
 </footer>
 
+<nav class="mobile-tab-bar">
+  <a href="index.html"><span class="t-icon">🏠</span>종목분석</a>
+  <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
+  <a href="dashboard.html" class="active"><span class="t-icon">📡</span>대시보드</a>
+  <a href="pricing.html"><span class="t-icon">💎</span>구독</a>
+</nav>
 </body>
 </html>

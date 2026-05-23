@@ -10,7 +10,12 @@ backend/app/api/auth.py
   GET  /api/v2/auth/kakao/callback   카카오 OAuth 콜백 처리
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
-from datetime import datetime
+import os
+import secrets
+import smtplib
+from datetime import datetime, timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
 
 import httpx
@@ -401,3 +406,107 @@ async def kakao_callback(
 
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url=redirect_url)
+
+
+# ── 비밀번호 재설정 ───────────────────────────────────────────────
+
+def _send_reset_email(to: str, reset_link: str) -> bool:
+    sender = os.environ.get("EMAIL_SENDER", "")
+    password = os.environ.get("EMAIL_PASSWORD", "")
+    if not sender or not password:
+        return False
+    html = f"""
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;">
+      <h2 style="color:#10b981;">텐배거 헌터 비밀번호 재설정</h2>
+      <p style="color:#374151;margin:16px 0;">아래 버튼을 클릭해 새 비밀번호를 설정하세요. 링크는 24시간 후 만료됩니다.</p>
+      <a href="{reset_link}" style="display:inline-block;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;">비밀번호 재설정하기</a>
+      <p style="color:#9ca3af;font-size:12px;margin-top:24px;">본인이 요청하지 않으셨다면 이 이메일을 무시하세요.</p>
+    </div>"""
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "[텐배거 헌터] 비밀번호 재설정 안내"
+        msg["From"] = sender
+        msg["To"] = to
+        msg.attach(MIMEText(html, "html", "utf-8"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender, password)
+            server.sendmail(sender, to, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"[AUTH] 비밀번호 재설정 이메일 발송 실패: {e}")
+        return False
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+@router.post("/forgot-password", summary="비밀번호 재설정 이메일 발송")
+def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    row = db.execute(
+        text("SELECT id, email FROM users WHERE email = :email AND password_hash IS NOT NULL"),
+        {"email": body.email},
+    ).fetchone()
+
+    # 존재하지 않아도 동일 응답 (이메일 열거 방지)
+    if row:
+        token = secrets.token_hex(32)
+        expires = datetime.utcnow() + timedelta(hours=24)
+        db.execute(
+            text("UPDATE users SET reset_token = :tok, reset_token_expires_at = :exp WHERE id = :uid"),
+            {"tok": token, "exp": expires, "uid": row.id},
+        )
+        db.commit()
+
+        base = os.environ.get("FRONTEND_BASE_URL", "http://localhost:8000")
+        reset_link = f"{base}/reset-password.html?token={token}"
+        _send_reset_email(row.email, reset_link)
+
+    return {"message": "입력하신 이메일로 재설정 링크를 발송했습니다. (이메일 로그인 계정만 지원)"}
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def pw_min(cls, v: str) -> str:
+        if len(v) < 6:
+            raise ValueError("비밀번호는 6자 이상이어야 합니다.")
+        return v
+
+
+@router.post("/reset-password", summary="새 비밀번호 설정")
+def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
+    row = db.execute(
+        text(
+            """
+            SELECT id FROM users
+            WHERE reset_token = :tok
+              AND reset_token_expires_at > NOW()
+            """
+        ),
+        {"tok": body.token},
+    ).fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="유효하지 않거나 만료된 링크입니다. 다시 요청해주세요.",
+        )
+
+    db.execute(
+        text(
+            """
+            UPDATE users
+            SET password_hash = :hash,
+                reset_token = NULL,
+                reset_token_expires_at = NULL
+            WHERE id = :uid
+            """
+        ),
+        {"hash": hash_password(body.new_password), "uid": row.id},
+    )
+    db.commit()
+    return {"message": "비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요."}

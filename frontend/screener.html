@@ -77,7 +77,7 @@
     .summary-card .s-avg { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
     /* 테이블 */
-    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .table-wrap table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .table-wrap th {
       padding: 12px 16px; text-align: right; color: var(--muted);
@@ -121,7 +121,23 @@
       .filter-panel { position: static; }
       .summary-grid { grid-template-columns: repeat(2,1fr); }
     }
+    @media (max-width: 640px) { body { padding-bottom: 64px; } }
+    .mobile-tab-bar { display: none; }
+    @media (max-width: 640px) {
+      .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: rgba(17,24,39,.97); border-top: 1px solid #374151; z-index: 200; backdrop-filter: blur(10px); padding-bottom: env(safe-area-inset-bottom,0px); }
+      .mobile-tab-bar a { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 4px 8px; color: #9ca3af; text-decoration: none; font-size: 10px; font-weight: 600; gap: 3px; transition: color .15s; }
+      .mobile-tab-bar a.active { color: #60a5fa; }
+      .mobile-tab-bar a .t-icon { font-size: 18px; line-height: 1; }
+    }
   </style>
+  <!-- GA4: 아래 G-XXXXXXXXXX를 실제 GA4 측정 ID로 교체하세요 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer=window.dataLayer||[];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js',new Date());
+    gtag('config','G-XXXXXXXXXX');
+  </script>
 </head>
 <body>
 
@@ -246,6 +262,13 @@
 
   </main>
 </div>
+
+<nav class="mobile-tab-bar">
+  <a href="index.html"><span class="t-icon">🏠</span>종목분석</a>
+  <a href="screener.html" class="active"><span class="t-icon">📊</span>스크리너</a>
+  <a href="dashboard.html"><span class="t-icon">📡</span>대시보드</a>
+  <a href="pricing.html"><span class="t-icon">💎</span>구독</a>
+</nav>
 
 <script>
   const API = "";

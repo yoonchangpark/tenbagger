@@ -33,20 +33,41 @@ TARGETS = {
 # ── DB 유틸 ─────────────────────────────────────────────────────────────────
 
 def get_graded_stocks(grade_filter: Optional[str] = None) -> list[dict]:
-    """등급이 매겨진 종목 목록 조회"""
+    """
+    score_history 기준으로 등급별 최초 부여일을 조회.
+    scores.analyzed_at은 ETL마다 덮어쓰이므로 신뢰 불가 — score_history를 사용.
+    score_history가 없으면 scores 폴백.
+    """
     with SessionLocal() as session:
-        where = "WHERE grade IN ('TENBAGGER','COMPOUNDER','WATCHLIST')"
+        grade_cond = "IN ('TENBAGGER','COMPOUNDER','WATCHLIST')"
         if grade_filter:
             grades = [g.strip().upper() for g in grade_filter.split(",")]
             grade_list = ",".join(f"'{g}'" for g in grades)
-            where = f"WHERE grade IN ({grade_list})"
+            grade_cond = f"IN ({grade_list})"
 
+        # score_history: 종목별 해당 등급의 최초 snapshot_date를 기준가 날짜로 사용
         rows = session.execute(text(f"""
-            SELECT ticker, name, grade, total_score, analyzed_at
-            FROM scores
-            {where}
-            ORDER BY grade, total_score DESC
+            SELECT
+                sh.ticker,
+                sh.name,
+                sh.grade,
+                sh.total_score,
+                MIN(sh.snapshot_date) AS analyzed_at
+            FROM score_history sh
+            WHERE sh.grade {grade_cond}
+            GROUP BY sh.ticker, sh.name, sh.grade, sh.total_score
+            ORDER BY sh.grade, sh.total_score DESC
         """)).fetchall()
+
+        if not rows:
+            # 폴백: score_history 미사용 환경에서는 scores 테이블 사용
+            rows = session.execute(text(f"""
+                SELECT ticker, name, grade, total_score, analyzed_at
+                FROM scores
+                WHERE grade {grade_cond}
+                ORDER BY grade, total_score DESC
+            """)).fetchall()
+
     return [dict(r._mapping) for r in rows]
 
 

@@ -76,6 +76,7 @@ def list_watchlist(
 ):
     rows = db.execute(text("""
         SELECT w.ticker, w.name, w.added_at, w.alert_enabled,
+               w.entry_price, w.entry_date, w.target_price, w.alert_sent_at,
                s.total_score, s.grade,
                s.growth_score, s.stability_score, s.cashflow_score,
                s.dividend_score, s.consistency_score,
@@ -100,6 +101,26 @@ def list_watchlist(
             item["live_price"] = int(r.close) if r.close else None
             item["change_pct"] = None
         item["added_at"] = r.added_at.isoformat() if r.added_at else None
+        item["entry_date"] = r.entry_date.isoformat() if r.entry_date else None
+        item["entry_price"]  = float(r.entry_price)  if r.entry_price  else None
+        item["target_price"] = float(r.target_price) if r.target_price else None
+        item["alert_enabled"] = bool(r.alert_enabled) if r.alert_enabled is not None else False
+        item["alert_sent_at"] = r.alert_sent_at.isoformat() if r.alert_sent_at else None
+
+        # 목표가 도달 여부
+        if item["target_price"] and item["live_price"]:
+            item["target_reached"] = item["live_price"] >= item["target_price"]
+        else:
+            item["target_reached"] = False
+
+        # 매수가 대비 수익률 계산
+        if item["entry_price"] and item["live_price"]:
+            item["return_pct"] = round(
+                (item["live_price"] - item["entry_price"]) / item["entry_price"] * 100, 2
+            )
+        else:
+            item["return_pct"] = None
+
         items.append(item)
 
     tier = _get_user_tier(current_user["id"], db, current_user.get("email", ""))
@@ -179,6 +200,58 @@ def add_watchlist(
         print(f"[WATCHLIST] lazy 트리거 실패 (무시): {e}")
 
     return {"success": True, "ticker": ticker, "name": name}
+
+
+# ── 매수가/매수일 업데이트 ──────────────────────────────────────────
+class UpdateWatchlistRequest(BaseModel):
+    entry_price:   float | None = None
+    entry_date:    str | None   = None   # "YYYY-MM-DD"
+    target_price:  float | None = None
+    alert_enabled: bool | None  = None
+
+
+@router.patch("/{ticker}")
+def update_watchlist(
+    ticker: str,
+    body: UpdateWatchlistRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """매수가·매수일·목표가·알림 ON/OFF 저장"""
+    import datetime
+    entry_date = None
+    if body.entry_date:
+        try:
+            entry_date = datetime.date.fromisoformat(body.entry_date)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="entry_date 형식 오류 (YYYY-MM-DD)")
+
+    set_clauses = ["entry_price = :price", "entry_date = :date"]
+    params: dict = {
+        "uid":    current_user["id"],
+        "ticker": ticker.upper(),
+        "price":  body.entry_price,
+        "date":   entry_date,
+    }
+    if body.target_price is not None:
+        set_clauses.append("target_price = :target_price")
+        params["target_price"] = body.target_price
+        # 목표가 변경 시 발송 이력 초기화 (재알림 허용)
+        set_clauses.append("alert_sent_at = NULL")
+    if body.alert_enabled is not None:
+        set_clauses.append("alert_enabled = :alert_enabled")
+        params["alert_enabled"] = body.alert_enabled
+
+    result = db.execute(text(f"""
+        UPDATE watchlist SET {', '.join(set_clauses)}
+        WHERE user_id = :uid AND ticker = :ticker
+    """), params)
+    db.commit()
+
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="관심종목에 없는 종목입니다.")
+
+    return {"success": True, "ticker": ticker.upper()}
 
 
 # ── 종목 삭제 ─────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 """
-v2 대시보드 API - DART 공시 목록 조회 + AI 공시 분석
+v2 대시보드 API - DART 공시 목록 조회 + AI 공시 분석 + 분기 비교 분석
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
 from app.infra.clients.dart_client import _get
@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.database import SessionLocal
 from sqlalchemy import text
 import datetime
+import json
 
 router = APIRouter(prefix="/api/v2", tags=["dashboard"])
 
@@ -114,7 +115,6 @@ confidence: 공시 제목만으로 판단 가능하면 HIGH, 내용 확인 필�
 
     try:
         from openai import AsyncOpenAI
-        import json
         client = AsyncOpenAI(api_key=settings.openai_api_key)
         resp = await client.chat.completions.create(
             model="gpt-4o",
@@ -137,3 +137,118 @@ confidence: 공시 제목만으로 판단 가능하면 HIGH, 내용 확인 필�
         return result
     except Exception as e:
         return {"error": f"분석 실패: {e}"}
+
+
+# ── 분기 비교 분석 ──────────────────────────────────────────────────────────
+
+def _save_compare_cache(result: dict):
+    with SessionLocal() as session:
+        session.execute(text("""
+            INSERT INTO quarter_compare_cache
+                (ticker, corp_name, prev_label, curr_label, prev_indices, curr_indices, analysis_md, updated_at)
+            VALUES
+                (:ticker, :corp_name, :prev_label, :curr_label,
+                 :prev_indices::jsonb, :curr_indices::jsonb, :analysis_md, NOW())
+            ON CONFLICT (ticker) DO UPDATE SET
+                corp_name   = EXCLUDED.corp_name,
+                prev_label  = EXCLUDED.prev_label,
+                curr_label  = EXCLUDED.curr_label,
+                prev_indices = EXCLUDED.prev_indices,
+                curr_indices = EXCLUDED.curr_indices,
+                analysis_md = EXCLUDED.analysis_md,
+                updated_at  = NOW()
+        """), {
+            "ticker": result["ticker"],
+            "corp_name": result["corp_name"],
+            "prev_label": result["prev_label"],
+            "curr_label": result["curr_label"],
+            "prev_indices": json.dumps(result["prev_indices"], ensure_ascii=False),
+            "curr_indices": json.dumps(result["curr_indices"], ensure_ascii=False),
+            "analysis_md": result["analysis_md"],
+        })
+        session.commit()
+
+
+def _load_compare_cache(ticker: str) -> Optional[dict]:
+    with SessionLocal() as session:
+        row = session.execute(text("""
+            SELECT ticker, corp_name, prev_label, curr_label,
+                   prev_indices, curr_indices, analysis_md, updated_at
+            FROM quarter_compare_cache WHERE ticker = :t
+        """), {"t": ticker}).fetchone()
+    if not row:
+        return None
+    return {
+        "ticker": row.ticker,
+        "corp_name": row.corp_name,
+        "prev_label": row.prev_label,
+        "curr_label": row.curr_label,
+        "prev_indices": row.prev_indices or {},
+        "curr_indices": row.curr_indices or {},
+        "analysis_md": row.analysis_md,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        "cached": True,
+    }
+
+
+@router.get("/company/{ticker}/quarter-compare")
+async def get_quarter_compare(
+    ticker: str,
+    refresh: bool = Query(False, description="True이면 캐시 무시 후 재분석"),
+    background_tasks: BackgroundTasks = None,
+):
+    """
+    분기 비교 분석 조회.
+    - 캐시 있으면 즉시 반환
+    - 캐시 없거나 refresh=True이면 DART + GPT 실시간 분석 (10~20초)
+    """
+    if not refresh:
+        cached = _load_compare_cache(ticker)
+        if cached:
+            return cached
+
+    try:
+        from app.agents.dart_report_parser import fetch_quarter_compare
+        result = await fetch_quarter_compare(ticker)
+        _save_compare_cache(result)
+        result["cached"] = False
+        result["updated_at"] = datetime.datetime.utcnow().isoformat()
+        return result
+    except Exception as e:
+        return {"error": str(e), "ticker": ticker}
+
+
+async def _precache_one(ticker: str):
+    try:
+        from app.agents.dart_report_parser import fetch_quarter_compare
+        result = await fetch_quarter_compare(ticker)
+        _save_compare_cache(result)
+        print(f"[QC] {ticker} 캐시 완료")
+    except Exception as e:
+        print(f"[QC] {ticker} 실패: {e}")
+
+
+@router.post("/admin/quarter-compare/precache")
+async def precache_quarter_compare(background_tasks: BackgroundTasks):
+    """
+    관심종목 + TENBAGGER 전종목 분기비교 사전 캐시 (백그라운드 실행).
+    """
+    tickers = []
+    with SessionLocal() as session:
+        rows = session.execute(text("""
+            SELECT DISTINCT ticker FROM (
+                SELECT ticker FROM watchlist
+                UNION
+                SELECT ticker FROM scores WHERE grade = 'TENBAGGER'
+            ) t
+        """)).fetchall()
+        tickers = [r[0] for r in rows]
+
+    async def run_all():
+        import asyncio
+        for ticker in tickers:
+            await _precache_one(ticker)
+            await asyncio.sleep(2)  # DART API 레이트 리밋 배려
+
+    background_tasks.add_task(run_all)
+    return {"message": f"{len(tickers)}개 종목 백그라운드 캐시 시작", "tickers": tickers}

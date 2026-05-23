@@ -282,3 +282,28 @@ CREATE TABLE IF NOT EXISTS committee_cache (
 );
 CREATE INDEX IF NOT EXISTS idx_committee_ticker ON committee_cache(ticker, analyzed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_committee_decision ON committee_cache(decision, analyzed_at DESC);
+
+-- 비밀번호 재설정 토큰 컬럼 (users 테이블에 없으면 추가)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP;
+
+-- 포트폴리오 트래킹: 매수가/매수일 컬럼 (watchlist 테이블에 없으면 추가)
+ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS entry_price NUMERIC(12,2);
+ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS entry_date DATE;
+
+-- 매수 알림: 목표가 컬럼 (watchlist 테이블에 없으면 추가)
+ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS target_price NUMERIC(12,2);
+ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS alert_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS alert_sent_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS quarter_compare_cache (
+    ticker          VARCHAR(10) PRIMARY KEY,
+    corp_name       VARCHAR(100),
+    prev_label      VARCHAR(60),
+    curr_label      VARCHAR(60),
+    prev_indices    JSONB,
+    curr_indices    JSONB,
+    analysis_md     TEXT,
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_qcc_updated ON quarter_compare_cache(updated_at DESC);
