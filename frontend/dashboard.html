@@ -259,9 +259,11 @@
       .section-header{flex-direction:column;align-items:flex-start;}
       .section-header > div:last-child{align-self:flex-end;}
     }
+    @keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
   </style>
 </head>
 <body>
+<div id="toastContainer" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
 <header>
   <a href="index.html" style="text-decoration:none;">
@@ -1334,7 +1336,7 @@
       if (grade === "__WATCHLIST__") {
         // 관심종목 모드
         const token = localStorage.getItem("access_token");
-        if (!token) { alert("로그인이 필요합니다."); if (btn) { btn.textContent = "⚡ 주가 데이터 일괄 로드"; btn.disabled = false; } return; }
+        if (!token) { showToast("로그인이 필요합니다.", 'warn'); if (btn) { btn.textContent = "⚡ 주가 데이터 일괄 로드"; btn.disabled = false; } return; }
         const wlRes = await fetch(`${API}/api/v2/watchlist`, { headers: { Authorization: "Bearer " + token } });
         const wlData = await wlRes.json();
         tickers = (wlData.items || []).map(i => i.ticker);
@@ -1346,7 +1348,7 @@
       }
 
       if (!tickers.length) {
-        alert("등급 종목이 없습니다. ETL을 먼저 실행하세요.");
+        showToast("등급 종목이 없습니다. ETL을 먼저 실행하세요.", 'warn');
         return;
       }
 
@@ -1369,7 +1371,7 @@
       setTimeout(runPortfolioSimulation, 500);
     } catch (e) {
       if (btn) { btn.textContent = "⚡ 주가 데이터 일괄 로드"; btn.disabled = false; }
-      alert("주가 로드 오류: " + e.message);
+      showToast("주가 로드 오류: " + e.message, 'error');
     }
   }
 
@@ -2081,7 +2083,7 @@
 
       document.getElementById("dashSimResult").style.display = "block";
     } catch (e) {
-      alert("시뮬레이션 오류: " + e.message);
+      showToast("시뮬레이션 오류: " + e.message, 'error');
     } finally {
       btn.textContent = "🚀 시뮬레이션 실행"; btn.disabled = false;
     }
@@ -2920,10 +2922,10 @@
     if (!_mhSimLastHoldings) {
       // 아직 메인 시뮬레이터를 실행하지 않은 경우 자동 실행
       mhSimRun();
-      if (!_mhSimLastHoldings) { alert('먼저 위 시뮬레이터에서 "시뮬레이션 실행"을 클릭해주세요.'); return; }
+      if (!_mhSimLastHoldings) { showToast('먼저 위 시뮬레이터에서 "시뮬레이션 실행"을 클릭해주세요.', 'warn'); return; }
     }
     const currentHoldings = _mhSimLastHoldings;
-    if (!currentHoldings.length) { alert('먼저 위 시뮬레이터를 로드해주세요.'); return; }
+    if (!currentHoldings.length) { showToast('먼저 위 시뮬레이터를 로드해주세요.', 'warn'); return; }
     const candidates = _mhRecData.candidates || [];
     const years = 20;
     const reinvest = document.getElementById('mhSimReinvest')?.checked ?? true;
@@ -3143,7 +3145,7 @@
   function mhSimRun() {
     const holdings = mhSimGetInputs();
     if (holdings.length === 0) {
-      alert('먼저 보유 종목을 추가해주세요.');
+      showToast('먼저 보유 종목을 추가해주세요.', 'warn');
       return;
     }
     _mhSimLastHoldings = holdings;   // 비교 시뮬레이터용 캐시
@@ -3402,6 +3404,16 @@
   })();
   loadRanking();
   loadDisclosures();
+
+  function showToast(msg, type='info') {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    const col = {error:'#ef4444', success:'#10b981', info:'#3b82f6', warn:'#f59e0b'};
+    t.style.cssText = `background:#1f2937;border:1px solid ${col[type]||col.info};border-left:4px solid ${col[type]||col.info};border-radius:10px;padding:12px 18px;color:#f9fafb;font-size:13px;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,.5);animation:toastIn .2s ease;pointer-events:auto;`;
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
 </script>
 
 <footer style="margin-top:60px;border-top:1px solid #374151;padding:24px;text-align:center;color:#6b7280;font-size:11px;line-height:1.7;background:#0a0f1e;">

@@ -159,9 +159,11 @@
     .error-box{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:16px 20px;color:#fca5a5;font-size:13px;max-width:640px;margin:20px auto;display:none;}
     .error-box.visible{display:block;}
     @media(max-width:640px){.charts-row{grid-template-columns:1fr;}.company-card{flex-direction:column;}.sim-scenarios{grid-template-columns:1fr;}.nav-links{display:none;}}
+  @keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
   </style>
 </head>
 <body>
+<div id="toastContainer" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
   <header>
     <div>
       <div class="logo">🚀 텐배거 헌터</div>
@@ -434,7 +436,7 @@
       // 시뮬레이터
       html+='<div class="sim-card"><h3>📊 5년 후 시나리오 시뮬레이터</h3>';
       html+='<div class="sim-sliders">';
-      html+='<div class="slider-group"><label>🐻 Bear EPS 성장률 (%/년)</label><div class="slider-val" id="bearVal">5%</div><input type="range" id="bearSlider" min="-10" max="30" value="5" step="1" oninput="document.getElementById(\'bearVal\').textContent=this.value+\'%\'"></div>';
+      html+='<div class="slider-group"><label>🐻 Bear EPS 성장률 (%/년)</label><div class="slider-val" id="bearVal">-5%</div><input type="range" id="bearSlider" min="-10" max="30" value="-5" step="1" oninput="document.getElementById(\'bearVal\').textContent=this.value+\'%\'"></div>';
       html+='<div class="slider-group"><label>📊 Base EPS 성장률 (%/년)</label><div class="slider-val" id="baseVal">15%</div><input type="range" id="baseSlider" min="0" max="50" value="15" step="1" oninput="document.getElementById(\'baseVal\').textContent=this.value+\'%\'"></div>';
       html+='<div class="slider-group"><label>🐂 Bull EPS 성장률 (%/년)</label><div class="slider-val" id="bullVal">25%</div><input type="range" id="bullSlider" min="5" max="80" value="25" step="1" oninput="document.getElementById(\'bullVal\').textContent=this.value+\'%\'"></div>';
       html+='<div class="slider-group"><label>목표 PER (Bear/Base/Bull)</label><div class="slider-val" id="perVal">10 / 15 / 20</div><input type="range" id="perSlider" min="5" max="40" value="15" step="1" oninput="document.getElementById(\'perVal\').textContent=(Math.max(5,parseInt(this.value)-5))+\' / \'+this.value+\' / \'+(parseInt(this.value)+5)"></div>';
@@ -616,7 +618,7 @@
         const r=await fetch(url);
         if(!r.ok)throw new Error((await r.json()).detail);
         renderSim(await r.json());
-      }catch(e){alert("시뮬레이션 오류: "+e.message);}
+      }catch(e){showToast("시뮬레이션 오류: "+e.message, 'error');}
       finally{btn.textContent="🚀 시뮬레이션 실행";btn.disabled=false;}
     }
 
@@ -910,6 +912,16 @@
       });
       html += '</div>';
       return html;
+    }
+
+    function showToast(msg, type='info') {
+      const c = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      const col = {error:'#ef4444', success:'#10b981', info:'#3b82f6', warn:'#f59e0b'};
+      t.style.cssText = `background:#1f2937;border:1px solid ${col[type]||col.info};border-left:4px solid ${col[type]||col.info};border-radius:10px;padding:12px 18px;color:#f9fafb;font-size:13px;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,.5);animation:toastIn .2s ease;pointer-events:auto;`;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => t.remove(), 4000);
     }
 
     // ── 초기화 ──
