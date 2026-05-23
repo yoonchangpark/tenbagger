@@ -1031,12 +1031,12 @@
               style="background:${s.alert_enabled ? 'rgba(16,185,129,.2)' : 'rgba(55,65,81,.5)'};border:1px solid ${s.alert_enabled ? 'rgba(16,185,129,.4)' : 'var(--border)'};border-radius:7px;padding:7px 9px;color:${s.alert_enabled ? '#34d399' : 'var(--muted)'};font-size:13px;cursor:pointer;"
               title="${s.alert_enabled ? '카카오 알림 ON — 클릭해 끄기' : '카카오 알림 OFF — 클릭해 켜기'}">${s.alert_enabled ? '🔔' : '🔕'}</button>
           </div>
-          ${s.target_price && s.live_price ? \`
-          <div style="padding:7px 12px;border-radius:7px;margin-bottom:10px;font-size:12px;background:\${s.target_reached ? 'rgba(16,185,129,.1)' : 'rgba(245,158,11,.07)'};border:1px solid \${s.target_reached ? 'rgba(16,185,129,.3)' : 'rgba(245,158,11,.2)'};">
-            \${s.target_reached
+          ${s.target_price && s.live_price ? `
+          <div style="padding:7px 12px;border-radius:7px;margin-bottom:10px;font-size:12px;background:${s.target_reached ? 'rgba(16,185,129,.1)' : 'rgba(245,158,11,.07)'};border:1px solid ${s.target_reached ? 'rgba(16,185,129,.3)' : 'rgba(245,158,11,.2)'};">
+            ${s.target_reached
               ? '<span style="color:#10b981;font-weight:700;">🎯 목표가 달성! ₩' + s.target_price.toLocaleString() + ' 도달</span>'
               : '<span style="color:#fbbf24;">목표가까지 ' + (((s.target_price - s.live_price) / s.live_price) * 100).toFixed(1) + '% 남음 (₩' + s.target_price.toLocaleString() + ')</span>'}
-          </div>\` : ''}
+          </div>` : ''}
           <button onclick="analyzeFromWatchlist('${s.ticker}')"
             style="width:100%;padding:8px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:8px;color:#93c5fd;font-size:12px;font-weight:600;cursor:pointer;">
             🔬 상세 분석 보기
