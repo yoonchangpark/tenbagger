@@ -254,6 +254,14 @@
       .rank-bars{display:none;}
       .section-header{flex-direction:column;align-items:flex-start;}
       .section-header > div:last-child{align-self:flex-end;}
+      body{padding-bottom:64px;}
+    }
+    .mobile-tab-bar{display:none;}
+    @media(max-width:640px){
+      .mobile-tab-bar{display:flex;position:fixed;bottom:0;left:0;right:0;background:rgba(17,24,39,.97);border-top:1px solid var(--border);z-index:200;backdrop-filter:blur(10px);padding-bottom:env(safe-area-inset-bottom,0px);}
+      .mobile-tab-bar a{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;color:var(--muted);text-decoration:none;font-size:10px;font-weight:600;gap:3px;transition:color .15s;}
+      .mobile-tab-bar a.active{color:#60a5fa;}
+      .mobile-tab-bar a .t-icon{font-size:18px;line-height:1;}
     }
   </style>
 </head>
@@ -766,6 +774,41 @@
           <!-- 52주 스파크라인 -->
           <canvas id="spark-${s.ticker}" width="240" height="48"
             style="width:100%;height:48px;display:block;margin-bottom:10px;border-radius:6px;"></canvas>
+          <!-- 매수가 / 수익률 -->
+          ${s.entry_price && s.return_pct != null
+            ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;margin-bottom:10px;background:${s.return_pct >= 0 ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.08)'};border:1px solid ${s.return_pct >= 0 ? 'rgba(16,185,129,.25)' : 'rgba(239,68,68,.2)'};">
+                <span style="font-size:11px;color:var(--muted);">매수가 ₩${s.entry_price.toLocaleString()}</span>
+                <span style="font-size:14px;font-weight:800;color:${s.return_pct >= 0 ? '#10b981' : '#ef4444'};">${s.return_pct >= 0 ? '▲' : '▼'}${Math.abs(s.return_pct).toFixed(2)}%</span>
+              </div>`
+            : ''}
+          <!-- 매수가 입력 -->
+          <div id="entry-row-${s.ticker}" style="display:flex;gap:6px;margin-bottom:10px;align-items:center;">
+            <input type="number" id="ep-${s.ticker}" placeholder="매수가 (원)" value="${s.entry_price || ''}"
+              style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;min-width:0;"
+              onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'" />
+            <input type="date" id="ed-${s.ticker}" value="${s.entry_date || ''}"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 8px;color:var(--text);font-size:12px;outline:none;width:126px;"
+              onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'" />
+            <button onclick="saveEntryPrice('${s.ticker}')"
+              style="background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.35);border-radius:7px;padding:7px 10px;color:#93c5fd;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">저장</button>
+          </div>
+          <!-- 목표가 / 알림 설정 -->
+          <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;">
+            <input type="number" id="tp-${s.ticker}" placeholder="목표가 (원)" value="${s.target_price || ''}"
+              style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;min-width:0;"
+              onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='var(--border)'" />
+            <button onclick="saveTargetPrice('${s.ticker}')"
+              style="background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:7px;padding:7px 10px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">🎯 저장</button>
+            <button id="alert-btn-${s.ticker}" onclick="toggleAlert('${s.ticker}',this)"
+              style="background:${s.alert_enabled ? 'rgba(16,185,129,.2)' : 'rgba(55,65,81,.5)'};border:1px solid ${s.alert_enabled ? 'rgba(16,185,129,.4)' : 'var(--border)'};border-radius:7px;padding:7px 9px;color:${s.alert_enabled ? '#34d399' : 'var(--muted)'};font-size:13px;cursor:pointer;"
+              title="${s.alert_enabled ? '카카오 알림 ON — 클릭해 끄기' : '카카오 알림 OFF — 클릭해 켜기'}">${s.alert_enabled ? '🔔' : '🔕'}</button>
+          </div>
+          ${s.target_price && s.live_price ? \`
+          <div style="padding:7px 12px;border-radius:7px;margin-bottom:10px;font-size:12px;background:\${s.target_reached ? 'rgba(16,185,129,.1)' : 'rgba(245,158,11,.07)'};border:1px solid \${s.target_reached ? 'rgba(16,185,129,.3)' : 'rgba(245,158,11,.2)'};">
+            \${s.target_reached
+              ? '<span style="color:#10b981;font-weight:700;">🎯 목표가 달성! ₩' + s.target_price.toLocaleString() + ' 도달</span>'
+              : '<span style="color:#fbbf24;">목표가까지 ' + (((s.target_price - s.live_price) / s.live_price) * 100).toFixed(1) + '% 남음 (₩' + s.target_price.toLocaleString() + ')</span>'}
+          </div>\` : ''}
           <button onclick="analyzeFromWatchlist('${s.ticker}')"
             style="width:100%;padding:8px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:8px;color:#93c5fd;font-size:12px;font-weight:600;cursor:pointer;">
             🔬 상세 분석 보기
@@ -1246,6 +1289,55 @@
       const d = await res.json();
       wlMsg(d.detail || '삭제 실패', 'error');
     }
+  }
+
+  async function saveEntryPrice(ticker) {
+    const priceEl = document.getElementById('ep-' + ticker);
+    const dateEl  = document.getElementById('ed-' + ticker);
+    const price   = priceEl ? parseFloat(priceEl.value) : null;
+    const date    = dateEl  ? dateEl.value : null;
+
+    if (!price || price <= 0) { wlMsg('매수가를 올바르게 입력해주세요.', 'error'); return; }
+
+    const res = await authFetch(API + '/api/v2/watchlist/' + ticker, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entry_price: price, entry_date: date || null }),
+    });
+    if (res.ok) {
+      wlMsg('매수가가 저장됐습니다.', 'success');
+      loadWatchlist();
+    } else {
+      const d = await res.json();
+      wlMsg(d.detail || '저장 실패', 'error');
+    }
+  }
+
+  async function saveTargetPrice(ticker) {
+    const el    = document.getElementById('tp-' + ticker);
+    const price = el ? parseFloat(el.value) : null;
+    if (!price || price <= 0) { wlMsg('목표가를 올바르게 입력해주세요.', 'error'); return; }
+    const res = await authFetch(API + '/api/v2/watchlist/' + ticker, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_price: price }),
+    });
+    if (res.ok) { wlMsg('목표가가 저장됐습니다. 🎯', 'success'); loadWatchlist(); }
+    else { const d = await res.json(); wlMsg(d.detail || '저장 실패', 'error'); }
+  }
+
+  async function toggleAlert(ticker, btn) {
+    const current = btn.textContent.trim() === '🔔';
+    const next    = !current;
+    const res = await authFetch(API + '/api/v2/watchlist/' + ticker, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alert_enabled: next }),
+    });
+    if (res.ok) {
+      wlMsg(next ? '카카오 목표가 알림이 켜졌습니다. 🔔' : '카카오 알림이 꺼졌습니다.', 'success');
+      loadWatchlist();
+    } else { const d = await res.json(); wlMsg(d.detail || '설정 실패', 'error'); }
   }
 
   function analyzeFromWatchlist(ticker) {
@@ -2098,5 +2190,11 @@
   loadDisclosures();
 </script>
 
+<nav class="mobile-tab-bar">
+  <a href="index.html"><span class="t-icon">🏠</span>종목분석</a>
+  <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
+  <a href="dashboard.html" class="active"><span class="t-icon">📡</span>대시보드</a>
+  <a href="pricing.html"><span class="t-icon">💎</span>구독</a>
+</nav>
 </body>
 </html>

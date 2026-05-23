@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>텐배거 헌터 🚀</title>
+  <!-- GA4: 아래 G-XXXXXXXXXX를 실제 GA4 측정 ID로 교체하세요 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer=window.dataLayer||[];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js',new Date());
+    gtag('config','G-XXXXXXXXXX');
+  </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     :root {
@@ -112,6 +120,21 @@
     .news-topics{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
     .news-topic{font-size:11px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);border-radius:12px;padding:3px 10px;color:#a5b4fc;}
     .news-empty{text-align:center;padding:24px;color:var(--muted);font-size:13px;}
+    /* ── 수급·서프라이즈 패널 ── */
+    .flow-panel{background:linear-gradient(135deg,rgba(59,130,246,.06),rgba(16,185,129,.04));border:1px solid rgba(59,130,246,.2);border-radius:20px;padding:22px 26px;margin-bottom:24px;}
+    .flow-panel h3{font-size:15px;font-weight:700;margin-bottom:14px;}
+    .flow-chips{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+    .flow-chip{display:flex;flex-direction:column;align-items:center;gap:3px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 16px;min-width:80px;}
+    .flow-chip .fc-label{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.04em;}
+    .flow-chip .fc-val{font-size:14px;font-weight:700;}
+    .flow-signal-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;border:1px solid rgba(255,255,255,.1);}
+    .surprise-panel{background:linear-gradient(135deg,rgba(245,158,11,.06),rgba(239,68,68,.04));border:1px solid rgba(245,158,11,.2);border-radius:20px;padding:22px 26px;margin-bottom:24px;}
+    .surprise-panel h3{font-size:15px;font-weight:700;margin-bottom:14px;}
+    .surprise-items{display:flex;flex-direction:column;gap:8px;}
+    .surprise-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.07);flex-wrap:wrap;gap:6px;}
+    .si-metric{font-size:13px;font-weight:600;min-width:80px;}
+    .si-values{font-size:11px;color:var(--muted);}
+    .si-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;}
     .ai-panel{background:linear-gradient(135deg,rgba(16,185,129,.06),rgba(59,130,246,.06));border:1px solid rgba(16,185,129,.2);border-radius:20px;padding:28px 32px;margin-bottom:24px;}
     .ai-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
     .ai-panel-title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;}
@@ -158,7 +181,42 @@
     .fade-up{animation:fadeUp .45s ease;}
     .error-box{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:16px 20px;color:#fca5a5;font-size:13px;max-width:640px;margin:20px auto;display:none;}
     .error-box.visible{display:block;}
-    @media(max-width:640px){.charts-row{grid-template-columns:1fr;}.company-card{flex-direction:column;}.sim-scenarios{grid-template-columns:1fr;}.nav-links{display:none;}}
+    @media(max-width:640px){
+      .charts-row{grid-template-columns:1fr;}
+      .company-card{flex-direction:column;}
+      .sim-scenarios{grid-template-columns:1fr;}
+      .nav-links{display:none;}
+      body{padding-bottom:64px;}
+    }
+    .mobile-tab-bar{display:none;}
+    @media(max-width:640px){
+      .mobile-tab-bar{display:flex;position:fixed;bottom:0;left:0;right:0;background:rgba(17,24,39,.97);border-top:1px solid var(--border);z-index:200;backdrop-filter:blur(10px);padding-bottom:env(safe-area-inset-bottom,0px);}
+      .mobile-tab-bar a{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;color:var(--muted);text-decoration:none;font-size:10px;font-weight:600;gap:3px;transition:color .15s;}
+      .mobile-tab-bar a.active{color:#60a5fa;}
+      .mobile-tab-bar a .t-icon{font-size:18px;line-height:1;}
+    }
+    /* ── 추천 이유 카드 ── */
+    .reason-card{background:linear-gradient(135deg,rgba(16,185,129,.07),rgba(59,130,246,.05));border:1px solid rgba(16,185,129,.22);border-radius:20px;padding:24px 28px;margin-bottom:24px;}
+    .reason-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px;}
+    .reason-card-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;}
+    .reason-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+    @media(max-width:640px){.reason-cols{grid-template-columns:1fr;}}
+    .reason-col-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;}
+    .reason-col-label.strengths{color:#10b981;}
+    .reason-col-label.warnings{color:#f59e0b;}
+    .reason-item{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:13px;line-height:1.5;color:#d1d5db;}
+    .reason-item .ri-dot{font-size:16px;line-height:1.3;flex-shrink:0;}
+    .risk-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06);}
+    .risk-chip{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:5px 12px;font-size:11px;color:var(--muted);}
+    .risk-chip .rc-val{font-weight:700;color:var(--text);margin-left:2px;}
+    /* Sticky 결과 요약 배너 */
+    #stickySummary{display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:40px;padding:10px 22px;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:150;backdrop-filter:blur(12px);align-items:center;gap:14px;font-size:13px;white-space:nowrap;cursor:pointer;transition:opacity .2s;}
+    #stickySummary.visible{display:flex;}
+    #stickySummary:hover{border-color:var(--blue);}
+    #stickySummary .ss-name{font-weight:700;color:var(--text);}
+    #stickySummary .ss-score{font-size:16px;font-weight:800;}
+    #stickySummary .ss-sep{color:var(--border);}
+    @media(max-width:640px){#stickySummary{bottom:72px;font-size:12px;padding:8px 16px;gap:10px;}}
   </style>
 </head>
 <body>
@@ -171,6 +229,8 @@
       <a class="nav-link" href="screener.html">📊 스크리너</a>
       <a class="nav-link" href="backtest.html">🧪 백테스트</a>
       <a class="nav-link" href="dashboard.html">📡 대시보드</a>
+      <a class="nav-link" href="invest.html">💼 투자 플랫폼</a>
+      <a class="nav-link" href="guide.html">📚 가이드</a>
       <a class="nav-link" href="pricing.html" style="border-color:rgba(139,92,246,.4);color:#c4b5fd;">💎 구독</a>
       <!-- 인증 버튼: JS로 토큰 여부 판단 후 교체 -->
       <a class="nav-link" id="authBtn" href="login.html" style="border-color:rgba(59,130,246,.4);color:#60a5fa;">로그인</a>
@@ -197,6 +257,8 @@
             btn.textContent = '👤 ' + data.user.name;
           }
           const tier = data.subscription?.tier || 'free';
+          const fb = document.getElementById('freeBanner');
+          if (fb) fb.style.display = tier === 'free' ? 'block' : 'none';
           if (tier !== 'free') {
             const badge = document.createElement('span');
             badge.style.cssText = 'margin-left:4px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;vertical-align:middle;';
@@ -258,13 +320,28 @@
     </div>
   </div>
 
+  <div id="freeBanner" style="display:none;max-width:640px;margin:12px auto 0;padding:0 24px;">
+    <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:12px;color:#93c5fd;">📊 <strong>무료 플랜</strong> · 기본 재무 분석 제공 &nbsp;·&nbsp; AI 분석은 <strong>Pro</strong> 이상 전용</span>
+      <a href="/pricing.html" style="background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;">Pro 업그레이드 →</a>
+    </div>
+  </div>
+
   <div class="error-box" id="errorBox"></div>
   <div class="loading" id="loading">
     <div class="spinner"></div>
     <div style="color:#a5b4fc;font-weight:600;margin-bottom:4px;">DART 재무데이터 수집 중...</div>
     <div style="color:#6b7280;font-size:12px;">최근 7년치 재무제표를 분석합니다 (약 20~30초)</div>
+    <button onclick="cancelAnalysis()" style="margin-top:16px;background:transparent;border:1px solid #374151;border-radius:8px;padding:7px 20px;color:#9ca3af;font-size:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#6b7280'" onmouseout="this.style.borderColor='#374151'">취소</button>
   </div>
   <div class="result" id="result"></div>
+
+  <nav class="mobile-tab-bar">
+    <a href="index.html" class="active"><span class="t-icon">🏠</span>종목분석</a>
+    <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
+    <a href="dashboard.html"><span class="t-icon">📡</span>대시보드</a>
+    <a href="pricing.html"><span class="t-icon">💎</span>구독</a>
+  </nav>
 
   <script>
     const API = "";
@@ -327,28 +404,97 @@
 
     // ── 분석 ──
     let _last=null;
+    let _abortCtrl=null;
+    let _analyzeTimer=null;
+    let _simHoldYears=5;
+
+    // Bear < Base < Bull 최소 5p 간격 강제 (사용자 슬라이더 조작 시)
+    function syncSliders(changed){
+      const bear=document.getElementById('bearSlider');
+      const base=document.getElementById('baseSlider');
+      const bull=document.getElementById('bullSlider');
+      if(!bear||!base||!bull)return;
+      let bv=parseInt(bear.value),bsv=parseInt(base.value),blv=parseInt(bull.value);
+      if(changed==='bear'){
+        if(bsv<bv+5){bsv=Math.min(50,bv+5);base.value=bsv;}
+        if(blv<bsv+5){blv=Math.min(80,bsv+5);bull.value=blv;}
+      }else if(changed==='base'){
+        if(bv>bsv-5){bv=Math.max(-10,bsv-5);bear.value=bv;}
+        if(blv<bsv+5){blv=Math.min(80,bsv+5);bull.value=blv;}
+      }else if(changed==='bull'){
+        if(bsv>blv-5){bsv=Math.max(0,blv-5);base.value=bsv;}
+        if(bv>bsv-5){bv=Math.max(-10,bsv-5);bear.value=bv;}
+      }
+      document.getElementById('bearVal').textContent=bv+'%';
+      document.getElementById('baseVal').textContent=bsv+'%';
+      document.getElementById('bullVal').textContent=blv+'%';
+    }
+
+    function setHoldYears(n){
+      _simHoldYears=n;
+      [3,5,7].forEach(y=>{
+        const btn=document.getElementById('hy'+y);
+        if(btn)btn.style.cssText=y===n
+          ?'background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer;'
+          :'background:rgba(255,255,255,.04);color:#9ca3af;border:1px solid #374151;border-radius:6px;padding:5px 14px;font-size:11px;font-weight:600;cursor:pointer;';
+      });
+      const t=document.getElementById('simYearsTitle');
+      if(t)t.textContent=n;
+    }
+
+    function cancelAnalysis(){
+      if(_abortCtrl){_abortCtrl.abort();}
+      clearTimeout(_analyzeTimer);
+      _abortCtrl=null;
+      document.getElementById("loading").classList.remove("visible");
+      document.getElementById("searchBtn").disabled=false;
+    }
+
     async function analyze(){
       const ticker=inp.value.trim();
       if(!ticker)return;
+      gtag('event','search_company',{ticker});
+
+      // 이전 요청 취소
+      cancelAnalysis();
+
+      _abortCtrl=new AbortController();
+      const signal=_abortCtrl.signal;
       const btn=document.getElementById("searchBtn");
       btn.disabled=true;
       document.getElementById("loading").classList.add("visible");
       document.getElementById("result").classList.remove("visible");
       document.getElementById("errorBox").classList.remove("visible");
+
+      // 30초 타임아웃
+      _analyzeTimer=setTimeout(()=>{
+        if(_abortCtrl){_abortCtrl.abort();}
+        document.getElementById("loading").classList.remove("visible");
+        const box=document.getElementById("errorBox");
+        box.textContent="⚠️ 분석에 시간이 오래 걸립니다. 잠시 후 다시 시도해 주세요.";
+        box.classList.add("visible");
+        btn.disabled=false;
+        _abortCtrl=null;
+      },30000);
+
       try{
-        const r=await fetch(API+"/api/company/"+encodeURIComponent(ticker));
+        const r=await fetch(API+"/api/company/"+encodeURIComponent(ticker),{signal});
+        clearTimeout(_analyzeTimer);
         if(!r.ok)throw new Error((await r.json()).detail||"HTTP "+r.status);
         const d=await r.json();
         _last=d;
         addHistory(d.ticker,d.name);
         renderResult(d);
       }catch(e){
+        clearTimeout(_analyzeTimer);
+        if(e.name==="AbortError")return; // 사용자 취소
         const box=document.getElementById("errorBox");
         box.textContent="⚠️ "+e.message;
         box.classList.add("visible");
       }finally{
         btn.disabled=false;
         document.getElementById("loading").classList.remove("visible");
+        _abortCtrl=null;
       }
     }
 
@@ -385,7 +531,9 @@
       html+='<div style="margin-top:14px;display:flex;gap:8px;">';
       html+='<a href="backtest.html?ticker='+d.ticker+'" style="font-size:12px;color:#a78bfa;text-decoration:none;border:1px solid rgba(167,139,250,.3);border-radius:6px;padding:4px 10px;">🧪 백테스트</a>';
       html+='<a href="screener.html" style="font-size:12px;color:#60a5fa;text-decoration:none;border:1px solid rgba(96,165,250,.3);border-radius:6px;padding:4px 10px;">📊 스크리너</a>';
-      html+='</div></div>';
+      html+='</div>';
+      if(d.analyzed_at){const _dt=new Date(d.analyzed_at);html+='<div style="font-size:10px;color:#6b7280;margin-top:8px;">분석 기준일: '+_dt.toLocaleDateString("ko-KR")+'</div>';}
+      html+='</div>';
       html+='<div class="total-score-wrap"><div class="total-score" style="color:'+color+'">'+sc.total_score+'</div>';
       html+='<div style="font-size:11px;color:#6b7280;margin-top:2px;">/ 10점</div>';
       html+='<div class="grade-badge grade-'+sc.grade+'">'+(gl[sc.grade]||sc.grade)+'</div></div></div>';
@@ -399,6 +547,48 @@
         html+='<div class="bar"><div class="bar-fill" style="width:'+(v*10)+'%;background:'+c.color+'"></div></div></div>';
       });
       html+='</div>';
+
+      // ── 추천 이유 카드 ──────────────────────────────────────────
+      function _reasons(s){
+        const r=[];
+        if(s.eps_cagr_5y!=null&&s.eps_cagr_5y>=15) r.push({t:'강점',txt:'EPS CAGR +'+s.eps_cagr_5y.toFixed(1)+'% — 탁월한 이익 성장세'});
+        if(s.revenue_cagr_5y!=null&&s.revenue_cagr_5y>=10) r.push({t:'강점',txt:'매출 CAGR +'+s.revenue_cagr_5y.toFixed(1)+'% — 꾸준한 사업 확장'});
+        if(s.avg_roe_5y!=null&&s.avg_roe_5y>=15) r.push({t:'강점',txt:'평균 ROE '+s.avg_roe_5y.toFixed(1)+'% — 자본 효율성 우수'});
+        if(s.avg_fcf_margin!=null&&s.avg_fcf_margin>=10) r.push({t:'강점',txt:'FCF 마진 '+s.avg_fcf_margin.toFixed(1)+'% — 현금 창출력 탁월'});
+        if(s.debt_ratio!=null&&s.debt_ratio<=50) r.push({t:'강점',txt:'부채비율 '+s.debt_ratio.toFixed(0)+'% — 재무 건전성 양호'});
+        if(s.dividend_yield!=null&&s.dividend_yield>=2) r.push({t:'강점',txt:'배당수익률 '+s.dividend_yield.toFixed(1)+'% — 안정적 배당 수입'});
+        return r.slice(0,3);
+      }
+      function _warnings(s){
+        const w=[];
+        if(s.debt_ratio!=null&&s.debt_ratio>=150) w.push('부채비율 '+s.debt_ratio.toFixed(0)+'% — 레버리지 리스크 있음');
+        if(s.avg_roe_5y!=null&&s.avg_roe_5y<5&&s.avg_roe_5y>=0) w.push('ROE '+s.avg_roe_5y.toFixed(1)+'% — 자본 효율성 낮음');
+        if(s.eps_cagr_5y!=null&&s.eps_cagr_5y<0) w.push('EPS 성장률 마이너스 — 이익 감소 추세');
+        if(s.avg_fcf_margin!=null&&s.avg_fcf_margin<0) w.push('FCF 마진 음수 — 현금 소진 구간');
+        return w.slice(0,2);
+      }
+      const _r=_reasons(sc), _w=_warnings(sc);
+      if(_r.length>0||_w.length>0){
+        html+='<div class="reason-card">';
+        html+='<div class="reason-card-head">';
+        html+='<div class="reason-card-title">💡 왜 이 종목인가?</div>';
+        html+='</div>';
+        html+='<div class="reason-cols">';
+        html+='<div>';
+        html+='<div class="reason-col-label strengths">✅ 강점</div>';
+        if(_r.length>0){_r.forEach(item=>{html+='<div class="reason-item"><span class="ri-dot">🟢</span><span>'+item.txt+'</span></div>';});}
+        else{html+='<div class="reason-item"><span class="ri-dot">—</span><span style="color:#6b7280">해당 사항 없음</span></div>';}
+        html+='</div>';
+        html+='<div>';
+        html+='<div class="reason-col-label warnings">⚠️ 주의 사항</div>';
+        if(_w.length>0){_w.forEach(w=>{html+='<div class="reason-item"><span class="ri-dot">🟡</span><span>'+w+'</span></div>';});}
+        else{html+='<div class="reason-item"><span class="ri-dot">—</span><span style="color:#6b7280">특이 리스크 없음</span></div>';}
+        html+='</div>';
+        html+='</div>';
+        html+='<div class="risk-row" id="riskChips_'+d.ticker+'"><span style="font-size:11px;color:#6b7280;">리스크 지표 로드 중…</span></div>';
+        html+='</div>';
+      }
+      // ────────────────────────────────────────────────────────────
 
       // 핵심 지표
       const metrics=[
@@ -419,6 +609,14 @@
       });
       html+='</div>';
 
+      // 수급 패널 (자동 로드)
+      html+='<div class="flow-panel"><h3>🏦 기관·외국인 수급 신호</h3>';
+      html+='<div id="flowContent_'+d.ticker+'"><span style="font-size:12px;color:#6b7280;">수급 데이터 로드 중…</span></div></div>';
+
+      // 서프라이즈 패널 (자동 로드)
+      html+='<div class="surprise-panel"><h3>⚡ 실적 서프라이즈 감지</h3>';
+      html+='<div id="surpriseContent_'+d.ticker+'"><span style="font-size:12px;color:#6b7280;">실적 비교 데이터 로드 중…</span></div></div>';
+
       // 뉴스 시그널 패널 (자동 로드)
       html+='<div class="news-panel">';
       html+='<h3>📰 최근 뉴스 감성 분석 (지난 14일)</h3>';
@@ -431,14 +629,50 @@
       html+='<div class="chart-card"><h3>💧 FCF & 순이익 추이 (억원)</h3><canvas id="cashflowChart" height="180"></canvas></div>';
       html+='</div>';
 
-      // 시뮬레이터
-      html+='<div class="sim-card"><h3>📊 5년 후 시나리오 시뮬레이터</h3>';
-      html+='<div class="sim-sliders">';
-      html+='<div class="slider-group"><label>🐻 Bear EPS 성장률 (%/년)</label><div class="slider-val" id="bearVal">5%</div><input type="range" id="bearSlider" min="-10" max="30" value="5" step="1" oninput="document.getElementById(\'bearVal\').textContent=this.value+\'%\'"></div>';
-      html+='<div class="slider-group"><label>📊 Base EPS 성장률 (%/년)</label><div class="slider-val" id="baseVal">15%</div><input type="range" id="baseSlider" min="0" max="50" value="15" step="1" oninput="document.getElementById(\'baseVal\').textContent=this.value+\'%\'"></div>';
-      html+='<div class="slider-group"><label>🐂 Bull EPS 성장률 (%/년)</label><div class="slider-val" id="bullVal">25%</div><input type="range" id="bullSlider" min="5" max="80" value="25" step="1" oninput="document.getElementById(\'bullVal\').textContent=this.value+\'%\'"></div>';
-      html+='<div class="slider-group"><label>목표 PER (Bear/Base/Bull)</label><div class="slider-val" id="perVal">10 / 15 / 20</div><input type="range" id="perSlider" min="5" max="40" value="15" step="1" oninput="document.getElementById(\'perVal\').textContent=(Math.max(5,parseInt(this.value)-5))+\' / \'+this.value+\' / \'+(parseInt(this.value)+5)"></div>';
+      // ── 시뮬레이터 슬라이더 초기값: 과거 실적 기반 자동 설정 ──
+      // eps_cagr_5y 우선, 없으면 revenue_cagr_5y, 없으면 10 fallback
+      const _hasCagr = sc.eps_cagr_5y != null || sc.revenue_cagr_5y != null;
+      const _hisCagr = sc.eps_cagr_5y != null ? sc.eps_cagr_5y
+                     : sc.revenue_cagr_5y != null ? sc.revenue_cagr_5y : 10;
+      // clamp 후 Bear < Base < Bull 최소 5p 간격 보장
+      let sBear = Math.max(-10, Math.min(30,  Math.round(_hisCagr * 0.4)));
+      let sBase = Math.max(0,   Math.min(50,  Math.round(_hisCagr * 0.85)));
+      let sBull = Math.max(5,   Math.min(80,  Math.round(_hisCagr * 1.4)));
+      if(sBase <= sBear + 4) sBase = Math.min(50, sBear + 5);
+      if(sBull <= sBase + 4) sBull = Math.min(80, sBase + 5);
+      const sPer  = sc.per != null ? Math.max(5, Math.min(40, Math.round(sc.per))) : 15;
+      const _cagrSrc = sc.eps_cagr_5y != null ? 'EPS CAGR 5Y'
+                     : sc.revenue_cagr_5y != null ? '매출 CAGR 5Y' : null;
+      const _srcLabel = _cagrSrc
+        ? '📈 ' + _cagrSrc + ' 기반 자동 설정 · 직접 조정 가능'
+        : '⚠️ 과거 데이터 부족 — 기본값 적용됨 · 직접 조정 필요';
+      const _srcStyle = _cagrSrc ? 'color:#9ca3af' : 'color:#f59e0b';
+      const _perRef  = sc.per != null
+        ? '<span style="font-size:10px;color:#6b7280;font-weight:400;margin-left:6px;">현재 PER ' + sc.per.toFixed(1) + 'x 기준</span>'
+        : '';
+
+      html+='<div class="sim-card">';
+      html+='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:18px;">';
+      html+='<h3 style="font-size:16px;font-weight:700;">📊 <span id="simYearsTitle">5</span>년 후 시나리오 시뮬레이터</h3>';
+      html+='<span style="font-size:11px;'+_srcStyle+';background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:3px 10px;">'+_srcLabel+'</span>';
       html+='</div>';
+      html+='<div class="sim-sliders">';
+      html+='<div class="slider-group"><label>🐻 Bear EPS 성장률 (%/년)</label><div class="slider-val" id="bearVal">'+sBear+'%</div><input type="range" id="bearSlider" min="-10" max="30" value="'+sBear+'" step="1" oninput="syncSliders(\'bear\')"></div>';
+      html+='<div class="slider-group"><label>📊 Base EPS 성장률 (%/년) <span id="baseAiTag" style="display:none;font-size:9px;font-weight:700;color:#10b981;border:1px solid rgba(16,185,129,.35);border-radius:4px;padding:1px 5px;margin-left:4px;">AI</span></label><div class="slider-val" id="baseVal">'+sBase+'%</div><input type="range" id="baseSlider" min="0" max="50" value="'+sBase+'" step="1" oninput="syncSliders(\'base\')"></div>';
+      html+='<div class="slider-group"><label>🐂 Bull EPS 성장률 (%/년)</label><div class="slider-val" id="bullVal">'+sBull+'%</div><input type="range" id="bullSlider" min="5" max="80" value="'+sBull+'" step="1" oninput="syncSliders(\'bull\')"></div>';
+      html+='<div class="slider-group"><label>목표 PER — Base 기준 (Bear: Base−5, Bull: Base+5)'+_perRef+'</label><div class="slider-val" id="perVal">'+Math.max(5,sPer-5)+' / '+sPer+' / '+(sPer+5)+'</div><input type="range" id="perSlider" min="5" max="40" value="'+sPer+'" step="1" oninput="document.getElementById(\'perVal\').textContent=(Math.max(5,parseInt(this.value)-5))+\' / \'+this.value+\' / \'+(parseInt(this.value)+5)"></div>';
+      html+='</div>';
+      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
+      html+='<span style="font-size:11px;color:#9ca3af;white-space:nowrap;">보유 기간</span>';
+      const _hyBtnBase='border-radius:6px;padding:5px 14px;font-size:11px;font-weight:600;cursor:pointer;';
+      const _hyActive='background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border:none;'+_hyBtnBase;
+      const _hyInactive='background:rgba(255,255,255,.04);color:#9ca3af;border:1px solid #374151;'+_hyBtnBase;
+      [3,5,7].forEach(y=>{
+        const s=y===_simHoldYears?_hyActive:_hyInactive;
+        html+='<button id="hy'+y+'" style="'+s+'" onclick="setHoldYears('+y+')">'+y+'년</button>';
+      });
+      html+='</div>';
+      html+='<div style="font-size:12px;color:#6b7280;margin-bottom:12px;">슬라이더를 조정해 나만의 시나리오를 설정한 뒤 실행하세요.</div>';
       html+='<button class="sim-run-btn" onclick="runSim()">🚀 시뮬레이션 실행</button>';
       html+='<div id="simResult" style="display:none;"><div class="sim-scenarios" id="simScenarios"></div><div class="sim-required" id="simRequired"></div></div></div>';
 
@@ -484,6 +718,22 @@
       el.classList.add("visible");
       el.scrollIntoView({behavior:"smooth",block:"start"});
 
+      // Sticky 요약 배너
+      const scoreCol = scoreColor(sc.total_score);
+      const gradeLabel = {TENBAGGER:"⭐ 텐배거",COMPOUNDER:"🟢 우량",WATCHLIST:"🟡 관심",AVOID:"🔴 회피"}[sc.grade]||sc.grade;
+      let banner = document.getElementById("stickySummary");
+      if (!banner) { banner = document.createElement("div"); banner.id="stickySummary"; document.body.appendChild(banner); }
+      banner.innerHTML =
+        `<span class="ss-name">${d.name}</span>`+
+        `<span class="ss-sep">|</span>`+
+        `<span class="ss-score" style="color:${scoreCol}">${sc.total_score}</span>`+
+        `<span style="font-size:11px;color:var(--muted)">/ 10</span>`+
+        `<span class="ss-sep">|</span>`+
+        `<span style="font-size:12px;">${gradeLabel}</span>`+
+        `<span style="font-size:11px;color:var(--muted)">↑ 결과 보기</span>`;
+      banner.className = "visible";
+      banner.onclick = () => document.getElementById("result").scrollIntoView({behavior:"smooth",block:"start"});
+
       // 차트
       const opts={responsive:true,plugins:{legend:{labels:{color:"#9ca3af",font:{size:11}}}},scales:{x:{ticks:{color:"#6b7280"},grid:{color:"rgba(255,255,255,.05)"}},y:{ticks:{color:"#6b7280"},grid:{color:"rgba(255,255,255,.05)"}}}};
       new Chart(document.getElementById("revenueChart"),{type:"bar",data:{labels:years,datasets:[
@@ -497,6 +747,95 @@
 
       // 뉴스 시그널 자동 로드
       loadNewsForTicker(d.ticker, d.name);
+      // 리스크 지표 자동 로드
+      loadRiskChips(d.ticker);
+      // 수급·서프라이즈 자동 로드
+      loadFlowData(d.ticker);
+      loadSurpriseData(d.ticker);
+    }
+
+    // ── 리스크 지표 로더 (추천 이유 카드 하단) ──
+    async function loadRiskChips(ticker){
+      const el=document.getElementById("riskChips_"+ticker);
+      if(!el)return;
+      try{
+        const r=await fetch(API+"/api/v2/risk/"+ticker+"?period=1y");
+        if(!r.ok){el.innerHTML='';return;}
+        const d=await r.json();
+        if(d.insufficient_data){el.innerHTML='<span style="font-size:11px;color:#6b7280;">주가 이력 부족 — 리스크 지표 없음</span>';return;}
+        const lvlColor=d.risk_color||'#9ca3af';
+        let chips='';
+        if(d.mdd_pct!=null)chips+='<div class="risk-chip">MDD<span class="rc-val" style="color:#f87171">'+d.mdd_pct.toFixed(1)+'%</span></div>';
+        if(d.annual_vol_pct!=null)chips+='<div class="risk-chip">연간 변동성<span class="rc-val">'+d.annual_vol_pct.toFixed(1)+'%</span></div>';
+        if(d.sharpe_ratio!=null)chips+='<div class="risk-chip">샤프비율<span class="rc-val" style="color:#60a5fa">'+d.sharpe_ratio.toFixed(2)+'</span></div>';
+        if(d.from_high_pct!=null)chips+='<div class="risk-chip">52주 고점 대비<span class="rc-val" style="color:'+((d.from_high_pct<-20)?'#f87171':'#fbbf24')+'">'+d.from_high_pct.toFixed(1)+'%</span></div>';
+        chips+='<div class="risk-chip">리스크<span class="rc-val" style="color:'+lvlColor+'">'+d.risk_level+'</span></div>';
+        el.innerHTML=chips;
+      }catch(e){el.innerHTML='';}
+    }
+
+    // ── 수급 신호 로더 ──
+    async function loadFlowData(ticker){
+      const el=document.getElementById("flowContent_"+ticker);
+      if(!el)return;
+      try{
+        const r=await fetch(API+"/api/v2/flow/"+ticker+"?days=20");
+        const d=await r.json();
+        if(d.no_data){el.innerHTML='<span style="font-size:12px;color:#6b7280;">'+d.message+'</span>';return;}
+        const sm=d.smart_money||{};
+        const s=d.signal||'중립';
+        const sColor=d.signal_color||'#9ca3af';
+        const fmtBil=v=>{const b=v/1e8;return(b>=0?'+':'')+Math.round(b)+'억';};
+        let html='<div class="flow-chips">';
+        if(d.summary){
+          const summ=d.summary;
+          const pairs=[['기관(5일)','institution_5d'],['기관(20일)','institution_20d'],['외국인(5일)','foreign_5d'],['외국인(20일)','foreign_20d']];
+          pairs.forEach(([label,key])=>{
+            const v=summ[key]||0;
+            const c=v>=0?'#34d399':'#f87171';
+            html+='<div class="flow-chip"><div class="fc-label">'+label+'</div><div class="fc-val" style="color:'+c+'">'+fmtBil(v)+'</div></div>';
+          });
+        }
+        html+='</div>';
+        html+='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
+        html+='<div class="flow-signal-badge" style="background:'+sColor+'22;color:'+sColor+';">'+s+'</div>';
+        if(sm['5d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">스마트머니 5일 <strong style="color:'+(sm['5d']>=0?'#34d399':'#f87171')+'">'+fmtBil(sm['5d'])+'</strong></span>';
+        if(sm['20d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">20일 <strong style="color:'+(sm['20d']>=0?'#34d399':'#f87171')+'">'+fmtBil(sm['20d'])+'</strong></span>';
+        html+='</div>';
+        el.innerHTML=html;
+      }catch(e){el.innerHTML='<span style="font-size:12px;color:#6b7280;">수급 데이터를 불러올 수 없습니다</span>';}
+    }
+
+    // ── 실적 서프라이즈 로더 ──
+    async function loadSurpriseData(ticker){
+      const el=document.getElementById("surpriseContent_"+ticker);
+      if(!el)return;
+      try{
+        const r=await fetch(API+"/api/v2/surprise/"+ticker);
+        const d=await r.json();
+        if(d.no_data){el.innerHTML='<span style="font-size:12px;color:#6b7280;">'+d.message+'</span>';return;}
+        const os=d.overall_signal||{};
+        let html='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">';
+        html+='<span class="flow-signal-badge" style="background:'+(os.color||'#9ca3af')+'22;color:'+(os.color||'#9ca3af')+';">'+os.label+'</span>';
+        const src=d.data_source==='quarter'?'(분기 실적 기준)':'(연간 실적 기준)';
+        html+='<span style="font-size:11px;color:#6b7280;">'+d.period_label+' '+src+'</span>';
+        html+='</div>';
+        if(d.surprises&&d.surprises.length){
+          html+='<div class="surprise-items">';
+          d.surprises.forEach(s=>{
+            const prev=s.prev_val!=null?'이전 '+Math.round(s.prev_val/1e8)+'억':'';
+            const curr=s.curr_val!=null?'현재 '+Math.round(s.curr_val/1e8)+'억':'';
+            const chg=(s.chg_pct>=0?'+':'')+s.chg_pct+'%';
+            html+='<div class="surprise-item">';
+            html+='<div class="si-metric">'+s.metric+'</div>';
+            html+='<div class="si-values">'+prev+' → '+curr+'</div>';
+            html+='<span class="si-badge" style="background:'+(s.color||'#9ca3af')+'22;color:'+(s.color||'#9ca3af')+';">'+chg+' '+s.label+'</span>';
+            html+='</div>';
+          });
+          html+='</div>';
+        }else{html+='<span style="font-size:12px;color:#6b7280;">비교 가능한 실적 항목 없음</span>';}
+        el.innerHTML=html;
+      }catch(e){el.innerHTML='<span style="font-size:12px;color:#6b7280;">실적 데이터를 불러올 수 없습니다</span>';}
     }
 
     // ── 뉴스 시그널 로더 ──
@@ -612,7 +951,7 @@
       const btn=document.querySelector(".sim-run-btn");
       btn.textContent="계산 중...";btn.disabled=true;
       try{
-        const url=API+"/api/company/"+_last.ticker+"/simulate?bear_eps_cagr="+bear+"&base_eps_cagr="+base+"&bull_eps_cagr="+bull+"&bear_per="+Math.max(5,bp-5)+"&base_per="+bp+"&bull_per="+(bp+5);
+        const url=API+"/api/company/"+_last.ticker+"/simulate?bear_eps_cagr="+bear+"&base_eps_cagr="+base+"&bull_eps_cagr="+bull+"&bear_per="+Math.max(5,bp-5)+"&base_per="+bp+"&bull_per="+(bp+5)+"&hold_years="+_simHoldYears;
         const r=await fetch(url);
         if(!r.ok)throw new Error((await r.json()).detail);
         renderSim(await r.json());
@@ -633,14 +972,18 @@
           +'<div style="font-size:11px;color:#6b7280;margin-bottom:6px;">CAGR '+(s.cagr>0?"+":"")+s.cagr+'%</div>'+tb+'</div>';
       }).join("");
       const req=sim.tenbagger_required_cagr;
+      const epsSrc=data.eps_source?'<span style="color:#6b7280;margin-left:6px;">(EPS 출처: '+data.eps_source+')</span>':'';
       document.getElementById("simRequired").innerHTML=req!=null
-        ?'⭐ 텐배거(10배) 달성을 위해 EPS <strong>'+(req>0?"+":"")+req+'% CAGR</strong> 이상 유지가 필요합니다.<br><span style="font-size:11px;opacity:.6">현재 주가 ₩'+cur.toLocaleString()+' · 현재 EPS ₩'+data.current_eps.toLocaleString()+'</span>'
+        ?'⭐ 텐배거(10배) 달성을 위해 EPS <strong>'+(req>0?"+":"")+req+'% CAGR</strong> 이상 유지가 필요합니다.<br><span style="font-size:11px;opacity:.6">현재 주가 ₩'+cur.toLocaleString()+' · 현재 EPS ₩'+data.current_eps.toLocaleString()+epsSrc+'</span>'
         :"현재 주가 기준 텐배거 달성 조건을 계산할 수 없습니다.";
       document.getElementById("simResult").style.display="block";
+      const t=document.getElementById('simYearsTitle');
+      if(t)t.textContent=_simHoldYears;
     }
 
     // ── v2.0 AI 정성 분석 ──
     async function loadQualitative(ticker){
+      gtag('event','ai_analysis_click',{ticker});
       const btn=document.getElementById("aiLoadBtn");
       const content=document.getElementById("aiContent");
       btn.disabled=true;
@@ -746,10 +1089,47 @@
       if(ts)html+='<div style="font-size:11px;color:#4b5563;margin-top:12px;text-align:right;">AI 분석 시각: '+ts+'</div>';
 
       content.innerHTML=html;
+
+      // AI 예측 CAGR → Base 슬라이더 동기화
+      if(q.estimated_forward_cagr != null) syncBaseSliderFromAI(q.estimated_forward_cagr);
     }
 
     function escHtml(s){
       return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    // AI 분석 완료 시 Base 슬라이더를 AI 예측 CAGR로 업데이트
+    function syncBaseSliderFromAI(cagr){
+      const slider = document.getElementById("baseSlider");
+      const valEl  = document.getElementById("baseVal");
+      const tag    = document.getElementById("baseAiTag");
+      if(!slider || cagr == null) return;
+      const v = Math.max(0, Math.min(50, Math.round(cagr)));
+      slider.value = v;
+      if(valEl){
+        valEl.textContent = v + "%";
+        // 값 변경 하이라이트
+        valEl.style.transition = "color 0.15s";
+        valEl.style.color = "#10b981";
+        setTimeout(()=>{ valEl.style.color = ""; }, 1800);
+      }
+      if(tag) tag.style.display = "inline";
+      // AI 업데이트 토스트
+      showSimToast("🤖 AI가 Base 슬라이더를 " + v + "%로 업데이트했습니다. 필요 시 직접 조정하세요.");
+    }
+
+    function showSimToast(msg){
+      let t = document.getElementById("simToast");
+      if(!t){
+        t = document.createElement("div");
+        t.id = "simToast";
+        t.style.cssText = "position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:#111827;border:1px solid rgba(16,185,129,.4);border-radius:10px;padding:10px 18px;font-size:12px;color:#34d399;z-index:300;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.6);pointer-events:none;transition:opacity .3s;";
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.style.opacity = "1";
+      clearTimeout(t._timer);
+      t._timer = setTimeout(()=>{ t.style.opacity = "0"; }, 3500);
     }
 
     // ── Phase 6: AI 투자위원회 ──

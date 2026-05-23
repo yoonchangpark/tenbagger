@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>투자 학습 가이드 — 텐배거 헌터</title>
+  <style>
+    :root{
+      --bg:#0a0f1e;--surface:#111827;--surface2:#1f2937;
+      --border:#374151;--text:#f9fafb;--muted:#9ca3af;
+      --green:#10b981;--blue:#3b82f6;--yellow:#f59e0b;
+      --red:#ef4444;--purple:#8b5cf6;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans KR',sans-serif;min-height:100vh;}
+    header{padding:16px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(17,24,39,.9);position:sticky;top:0;z-index:100;backdrop-filter:blur(10px);}
+    .logo{font-size:20px;font-weight:800;background:linear-gradient(135deg,#10b981,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .nav-links{display:flex;gap:8px;}
+    .nav-link{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;font-weight:600;text-decoration:none;transition:all .15s;}
+    .nav-link:hover{border-color:var(--blue);color:#93c5fd;}
+
+    .hero{text-align:center;padding:60px 24px 48px;max-width:800px;margin:0 auto;}
+    .hero h1{font-size:36px;font-weight:800;margin-bottom:14px;background:linear-gradient(135deg,#10b981,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .hero p{font-size:16px;color:var(--muted);line-height:1.7;max-width:600px;margin:0 auto;}
+
+    .wrap{max-width:900px;margin:0 auto;padding:0 24px 80px;}
+
+    /* ── 진행 단계 ── */
+    .steps-row{display:flex;align-items:flex-start;gap:0;margin-bottom:48px;position:relative;}
+    .steps-row::before{content:'';position:absolute;top:28px;left:28px;right:28px;height:2px;background:linear-gradient(90deg,var(--green),var(--blue),var(--purple));opacity:.3;}
+    .step-item{flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;z-index:1;}
+    .step-num{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;margin-bottom:12px;border:2px solid;}
+    .step-num.s1{background:rgba(16,185,129,.15);border-color:var(--green);color:var(--green);}
+    .step-num.s2{background:rgba(59,130,246,.15);border-color:var(--blue);color:var(--blue);}
+    .step-num.s3{background:rgba(139,92,246,.15);border-color:var(--purple);color:var(--purple);}
+    .step-item h3{font-size:14px;font-weight:700;margin-bottom:6px;}
+    .step-item p{font-size:12px;color:var(--muted);line-height:1.5;max-width:160px;}
+    @media(max-width:640px){
+      .steps-row{flex-direction:column;align-items:stretch;gap:16px;}
+      .steps-row::before{display:none;}
+      .step-item{flex-direction:row;text-align:left;gap:14px;}
+      .step-num{flex-shrink:0;}
+      .step-item p{max-width:unset;}
+    }
+
+    /* ── 섹션 카드 ── */
+    section{margin-bottom:40px;}
+    section h2{font-size:18px;font-weight:800;margin-bottom:20px;display:flex;align-items:center;gap:10px;}
+    section h2 .s-line{flex:1;height:1px;background:var(--border);}
+
+    /* ── 개념 카드 그리드 ── */
+    .concept-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;}
+    .concept-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px 24px;}
+    .concept-card .cc-icon{font-size:28px;margin-bottom:10px;}
+    .concept-card h3{font-size:15px;font-weight:700;margin-bottom:8px;}
+    .concept-card p{font-size:13px;color:var(--muted);line-height:1.65;}
+    .concept-card .cc-tag{display:inline-block;margin-top:10px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;}
+    .cc-tag.beginner{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);}
+    .cc-tag.intermediate{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);}
+    .cc-tag.advanced{background:rgba(139,92,246,.15);color:#c4b5fd;border:1px solid rgba(139,92,246,.3);}
+
+    /* ── 스코어 해설 ── */
+    .score-explainer{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;}
+    .se-item{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+    .se-item .se-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+    .se-item .se-weight{font-size:22px;font-weight:800;margin-bottom:6px;}
+    .se-item p{font-size:12px;color:var(--muted);line-height:1.5;}
+
+    /* ── 투자 원칙 체크리스트 ── */
+    .checklist{display:flex;flex-direction:column;gap:10px;}
+    .check-item{display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;transition:border-color .15s;}
+    .check-item:hover{border-color:rgba(99,102,241,.4);}
+    .check-item input[type=checkbox]{width:16px;height:16px;margin-top:2px;accent-color:var(--green);flex-shrink:0;cursor:pointer;}
+    .check-item label{font-size:13px;line-height:1.5;cursor:pointer;}
+    .check-item label strong{color:var(--text);display:block;margin-bottom:2px;}
+    .check-item label span{color:var(--muted);}
+    .check-progress{background:var(--surface2);border-radius:6px;height:6px;margin-bottom:20px;overflow:hidden;}
+    .check-progress-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--green),var(--blue));transition:width .4s;}
+
+    /* ── CTA 버튼 ── */
+    .cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:32px;}
+    .btn-primary{background:linear-gradient(135deg,#059669,#2563eb);border:none;border-radius:12px;padding:12px 28px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;display:inline-block;transition:opacity .15s;}
+    .btn-primary:hover{opacity:.85;}
+    .btn-secondary{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 28px;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .15s;}
+    .btn-secondary:hover{border-color:var(--blue);color:#93c5fd;}
+
+    /* ── FAQ 아코디언 ── */
+    .faq-item{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px;}
+    .faq-q{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;cursor:pointer;font-weight:600;font-size:14px;background:var(--surface);user-select:none;}
+    .faq-q:hover{background:var(--surface2);}
+    .faq-q .arrow{font-size:12px;transition:transform .2s;}
+    .faq-q.open .arrow{transform:rotate(180deg);}
+    .faq-a{max-height:0;overflow:hidden;transition:max-height .3s ease,padding .2s;}
+    .faq-a.open{max-height:300px;padding:14px 20px 16px;}
+    .faq-a p{font-size:13px;color:var(--muted);line-height:1.65;}
+
+    /* ── 모바일 탭바 ── */
+    .mobile-tab-bar{display:none;}
+    @media(max-width:640px){
+      .hero h1{font-size:26px;}
+      .mobile-tab-bar{display:flex;position:fixed;bottom:0;left:0;right:0;background:rgba(17,24,39,.97);border-top:1px solid var(--border);z-index:200;backdrop-filter:blur(10px);padding-bottom:env(safe-area-inset-bottom,0px);}
+      .mobile-tab-bar a{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;color:var(--muted);text-decoration:none;font-size:10px;font-weight:600;gap:3px;transition:color .15s;}
+      .mobile-tab-bar a.active{color:#60a5fa;}
+      .mobile-tab-bar a .t-icon{font-size:18px;line-height:1;}
+      body{padding-bottom:64px;}
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">📚 투자 학습 가이드</div>
+  <div class="nav-links">
+    <a class="nav-link" href="index.html">🔍 종목 분석</a>
+    <a class="nav-link" href="screener.html">📊 스크리너</a>
+    <a class="nav-link" href="invest.html">💼 투자 플랫폼</a>
+  </div>
+</header>
+
+<div class="hero">
+  <h1>텐배거를 찾는 3단계 여정</h1>
+  <p>처음이어도 괜찮습니다. 재무 데이터를 읽고, 종목을 고르고, 포트폴리오를 구성하는 방법을 단계별로 안내합니다.</p>
+</div>
+
+<div class="wrap">
+
+  <!-- 진행 단계 -->
+  <div class="steps-row">
+    <div class="step-item">
+      <div class="step-num s1">1</div>
+      <div>
+        <h3>기초 개념 이해</h3>
+        <p>텐배거란 무엇인가? 재무 지표를 왜 보는가?</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num s2">2</div>
+      <div>
+        <h3>스코어 해석</h3>
+        <p>5가지 카테고리 점수를 읽고 종목을 선별한다</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num s3">3</div>
+      <div>
+        <h3>포트폴리오 구성</h3>
+        <p>분산 투자 + 시뮬레이션으로 실전 연습</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 1: 기초 개념 -->
+  <section>
+    <h2>📖 STEP 1 — 핵심 개념 <span class="s-line"></span></h2>
+    <div class="concept-grid">
+      <div class="concept-card">
+        <div class="cc-icon">🚀</div>
+        <h3>텐배거(Tenbagger)란?</h3>
+        <p>피터 린치가 쓴 『전설로 떠나는 월가의 영웅』에서 유래한 말로, 투자 원금 대비 10배(1000%) 이상 수익을 내는 종목을 뜻합니다. 단기 급등이 아닌 <strong>5~10년 장기 보유</strong>로 달성 가능한 종목이 진짜 텐배거입니다.</p>
+        <span class="cc-tag beginner">입문</span>
+      </div>
+      <div class="concept-card">
+        <div class="cc-icon">📈</div>
+        <h3>EPS CAGR — 이익 성장률</h3>
+        <p>주당순이익(EPS)이 매년 얼마씩 복리로 성장했는지를 나타냅니다. 5년 EPS CAGR이 15% 이상이면 이익이 약 2배로 늘어났다는 뜻입니다. 주가는 장기적으로 이익 성장을 따라갑니다.</p>
+        <span class="cc-tag beginner">입문</span>
+      </div>
+      <div class="concept-card">
+        <div class="cc-icon">💧</div>
+        <h3>잉여현금흐름(FCF)</h3>
+        <p>영업 활동으로 벌어들인 현금에서 설비투자를 뺀 순수 현금입니다. 이익이 좋아도 FCF가 음수라면 실제로 돈을 버는 게 아닐 수 있습니다. FCF 마진이 10% 이상이면 우수한 현금 창출력을 갖춘 것입니다.</p>
+        <span class="cc-tag intermediate">중급</span>
+      </div>
+      <div class="concept-card">
+        <div class="cc-icon">🏦</div>
+        <h3>ROE — 자본수익률</h3>
+        <p>회사가 주주의 돈(자본)으로 얼마나 많은 이익을 냈는지를 측정합니다. ROE 15% 이상이면 자본 효율성이 우수하고, 장기적으로 복리 효과가 발생합니다. 버핏이 즐겨 보는 지표입니다.</p>
+        <span class="cc-tag intermediate">중급</span>
+      </div>
+      <div class="concept-card">
+        <div class="cc-icon">⚖️</div>
+        <h3>부채비율</h3>
+        <p>총부채를 자본으로 나눈 비율입니다. 100% 이하면 안정적이고, 200%를 넘으면 위험 신호입니다. 고성장 기업이라도 부채가 과도하면 금리 상승이나 경기 침체 시 치명적이 될 수 있습니다.</p>
+        <span class="cc-tag beginner">입문</span>
+      </div>
+      <div class="concept-card">
+        <div class="cc-icon">🎯</div>
+        <h3>PER & PBR — 밸류에이션</h3>
+        <p>PER(주가/EPS)은 이익 대비 주가 수준을, PBR(주가/장부가)은 자산 대비 주가 수준을 나타냅니다. 낮다고 항상 싸지 않고, 높다고 항상 비싸지 않습니다. 성장성을 함께 고려해야 합니다.</p>
+        <span class="cc-tag advanced">심화</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: 스코어 해설 -->
+  <section>
+    <h2>📊 STEP 2 — 텐배거 스코어 해석 <span class="s-line"></span></h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;">
+      텐배거 헌터는 5개 카테고리, 각 10점 만점으로 종목을 평가합니다. 총점이 7.5점 이상이고 성장성이 8점 이상일 때 <strong style="color:#10b981;">TENBAGGER</strong> 등급을 받습니다.
+    </p>
+    <div class="score-explainer">
+      <div class="se-item">
+        <div class="se-label" style="color:#10b981;">🚀 성장성</div>
+        <div class="se-weight" style="color:#10b981;">30%</div>
+        <p>매출 CAGR과 EPS CAGR로 측정합니다. 핵심 요소 — 성장 없는 텐배거는 없습니다.</p>
+      </div>
+      <div class="se-item">
+        <div class="se-label" style="color:#3b82f6;">🏦 재무안정성</div>
+        <div class="se-weight" style="color:#3b82f6;">20%</div>
+        <p>ROE, 부채비율, 유동비율을 종합합니다. 성장이 좋아도 재무가 불안하면 리스크가 큽니다.</p>
+      </div>
+      <div class="se-item">
+        <div class="se-label" style="color:#8b5cf6;">💧 현금흐름</div>
+        <div class="se-weight" style="color:#8b5cf6;">20%</div>
+        <p>FCF 마진과 영업현금흐름 안정성으로 실제 현금 창출력을 평가합니다.</p>
+      </div>
+      <div class="se-item">
+        <div class="se-label" style="color:#f59e0b;">💰 배당정책</div>
+        <div class="se-weight" style="color:#f59e0b;">15%</div>
+        <p>배당수익률과 배당성장률로 주주 환원 의지를 측정합니다.</p>
+      </div>
+      <div class="se-item">
+        <div class="se-label" style="color:#ec4899;">📊 실적일관성</div>
+        <div class="se-weight" style="color:#ec4899;">15%</div>
+        <p>흑자 연속 연수와 영업이익률 안정성으로 실적의 신뢰도를 평가합니다.</p>
+      </div>
+    </div>
+
+    <div style="margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 24px;">
+      <p style="font-size:13px;font-weight:700;margin-bottom:14px;">등급 기준</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;">
+        <div style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:10px;padding:10px 16px;">
+          <div style="font-size:12px;font-weight:700;color:#10b981;">⭐ TENBAGGER</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">총점 7.5+ &amp; 성장성 8.0+</div>
+        </div>
+        <div style="background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px 16px;">
+          <div style="font-size:12px;font-weight:700;color:#60a5fa;">🟢 COMPOUNDER</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">총점 6.5 이상</div>
+        </div>
+        <div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px 16px;">
+          <div style="font-size:12px;font-weight:700;color:#fbbf24;">🟡 WATCHLIST</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">총점 5.0 이상</div>
+        </div>
+        <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:10px 16px;">
+          <div style="font-size:12px;font-weight:700;color:#f87171;">🔴 AVOID</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px;">그 외</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: 포트폴리오 -->
+  <section>
+    <h2>💼 STEP 3 — 포트폴리오 구성 원칙 <span class="s-line"></span></h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;">아래 원칙을 체크하며 자신만의 투자 철학을 세워보세요.</p>
+
+    <div class="check-progress"><div class="check-progress-fill" id="checkFill" style="width:0%"></div></div>
+
+    <div class="checklist" id="checklist">
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>분산 투자: 5~10종목 이상</strong>
+          <span>단일 종목에 30% 이상 집중하면 리스크가 급증합니다. 업종도 분산하세요.</span>
+        </label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>장기 보유: 최소 3년 이상</strong>
+          <span>복리 효과는 시간이 만들어냅니다. 단기 변동성에 흔들리지 않는 원칙을 세우세요.</span>
+        </label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>내가 이해하는 사업에만 투자</strong>
+          <span>사업 모델을 이해하지 못하면 어떤 숫자도 믿을 수 없습니다.</span>
+        </label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>재무제표 직접 확인</strong>
+          <span>최소 3년치 매출·이익·FCF 추이를 확인한 뒤 투자를 결정하세요.</span>
+        </label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>목표 수익률과 손절 기준 미리 정하기</strong>
+          <span>감정적 결정을 막으려면 진입 전에 규칙을 세워야 합니다.</span>
+        </label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>시장 하락 시 추가 매수 여력 확보</strong>
+          <span>30% 하락이 왔을 때 살 수 없다면 텐배거 여정이 시작되기 어렵습니다.</span>
+        </label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>배당 재투자 설정</strong>
+          <span>배당은 복리 효과를 가속합니다. 가능하다면 자동 재투자를 설정하세요.</span>
+        </label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>분기별 포트폴리오 점검</strong>
+          <span>매일 확인하는 것은 오히려 독입니다. 3개월에 한 번, 실적 기반으로 점검하세요.</span>
+        </label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>테마/루머 투자 자제</strong>
+          <span>숫자로 검증되지 않은 투자는 투기입니다. 스코어가 낮은 종목은 이유가 있습니다.</span>
+        </label>
+      </div>
+      <div class="check-item" onclick="toggleCheck(this)">
+        <input type="checkbox" />
+        <label>
+          <strong>세금·수수료 포함 수익률 계산</strong>
+          <span>실제 손에 남는 수익은 세후입니다. 시뮬레이터에 이를 반영하세요.</span>
+        </label>
+      </div>
+    </div>
+
+    <div id="checkComplete" style="display:none;margin-top:16px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:12px;padding:14px 18px;font-size:13px;color:#34d399;font-weight:600;">
+      🎉 10가지 원칙을 모두 확인했습니다! 이제 실전 시뮬레이션을 시작할 준비가 됐습니다.
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section>
+    <h2>❓ 자주 묻는 질문 <span class="s-line"></span></h2>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">텐배거 등급을 받아도 반드시 10배 오르나요? <span class="arrow">▼</span></div>
+      <div class="faq-a"><p>아닙니다. 텐배거 등급은 재무 지표 기반의 확률적 선별 결과이며, 미래 수익을 보장하지 않습니다. 당사 정확도 목표는 TENBAGGER 종목 중 2년 내 +50% 이상 비율 30% 이상이며, 이를 초과하도록 지속 개선 중입니다.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">분석 데이터는 얼마나 최신인가요? <span class="arrow">▼</span></div>
+      <div class="faq-a"><p>재무 데이터는 DART 공식 API 기반으로 매일 새벽 2시에 자동 업데이트됩니다. 분석 결과 카드에 표시된 '분석 기준일'을 확인하세요.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">가상 포트폴리오는 실제 계좌에 연결되나요? <span class="arrow">▼</span></div>
+      <div class="faq-a"><p>아닙니다. 가상 포트폴리오(₩1억 시작)는 학습 목적의 시뮬레이터로, 실제 계좌와는 완전히 독립적입니다. 데이터는 브라우저 로컬 스토리지에 저장됩니다.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">KOSDAQ 종목도 분석되나요? <span class="arrow">▼</span></div>
+      <div class="faq-a"><p>네, KOSPI + KOSDAQ 전 종목이 분석 대상입니다. 스크리너에서 시장 필터를 사용해 KOSDAQ만 볼 수 있습니다.</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">AI 정성 분석은 얼마나 신뢰할 수 있나요? <span class="arrow">▼</span></div>
+      <div class="faq-a"><p>AI 분석은 DART 사업보고서와 재무 지표를 기반으로 하며, 투자 참고 자료로 활용하세요. 최종 투자 결정은 본인의 판단과 책임 하에 이루어져야 합니다.</p></div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section>
+    <h2>🎯 지금 바로 시작하기 <span class="s-line"></span></h2>
+    <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:24px;">이론은 충분히 익혔습니다. 실제 종목을 검색하거나 스크리너로 텐배거 후보를 탐색해보세요.</p>
+    <div class="cta-row">
+      <a href="index.html" class="btn-primary">🔍 종목 분석 시작</a>
+      <a href="screener.html" class="btn-secondary">📊 텐배거 스크리너</a>
+      <a href="invest.html" class="btn-secondary">💼 가상 포트폴리오</a>
+    </div>
+  </section>
+
+</div>
+
+<!-- 모바일 탭바 -->
+<nav class="mobile-tab-bar">
+  <a href="index.html"><span class="t-icon">🔍</span>분석</a>
+  <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
+  <a href="invest.html"><span class="t-icon">💼</span>투자</a>
+  <a href="dashboard.html"><span class="t-icon">📡</span>대시보드</a>
+  <a href="guide.html" class="active"><span class="t-icon">📚</span>가이드</a>
+</nav>
+
+<script>
+  function toggleCheck(item){
+    const cb=item.querySelector('input[type=checkbox]');
+    cb.checked=!cb.checked;
+    updateProgress();
+  }
+  function updateProgress(){
+    const all=document.querySelectorAll('#checklist input[type=checkbox]');
+    const done=[...all].filter(c=>c.checked).length;
+    const pct=Math.round(done/all.length*100);
+    document.getElementById('checkFill').style.width=pct+'%';
+    document.getElementById('checkComplete').style.display=done===all.length?'block':'none';
+  }
+  function toggleFaq(el){
+    el.classList.toggle('open');
+    const ans=el.nextElementSibling;
+    ans.classList.toggle('open');
+  }
+</script>
+</body>
+</html>

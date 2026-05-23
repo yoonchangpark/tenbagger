@@ -37,6 +37,8 @@ def _cached_to_response(cached: dict) -> dict:
         "market_cap": cached.get("market_cap"),
         "score": score,
         "financials": fins,
+        "from_cache": True,
+        "analyzed_at": cached.get("analyzed_at").isoformat() if cached.get("analyzed_at") else None,
     }
 
 
@@ -97,8 +99,18 @@ async def simulate_company(
     if not close:
         raise HTTPException(status_code=400, detail="현재 주가 데이터가 없습니다.")
 
-    per = cached.get("per") or 15.0
-    current_eps = round(close / per) if per and per > 0 else None
+    # EPS: 재무데이터 최근 연도 우선, 없으면 주가÷PER 역산 fallback
+    current_eps = None
+    eps_source = "per_derived"
+    fins = get_financials_cached(cached["ticker"])
+    if fins:
+        recent = max(fins, key=lambda f: f.get("year", 0))
+        if recent.get("eps") and recent["eps"] > 0:
+            current_eps = float(recent["eps"])
+            eps_source = f"{recent['year']}년 실적 EPS"
+    if not current_eps:
+        per = cached.get("per") or 15.0
+        current_eps = round(close / per) if per and per > 0 else None
     if not current_eps:
         raise HTTPException(status_code=400, detail="EPS를 계산할 수 없습니다.")
 
@@ -116,6 +128,7 @@ async def simulate_company(
         "name": cached.get("name"),
         "current_price": close,
         "current_eps": current_eps,
+        "eps_source": eps_source,
         "simulation": result,
     }
 
@@ -193,4 +206,6 @@ async def analyze_company(
         "market_cap": mkt.get("market_cap"),
         "score": score,
         "financials": fins,
+        "from_cache": False,
+        "analyzed_at": datetime.datetime.utcnow().isoformat(),
     }

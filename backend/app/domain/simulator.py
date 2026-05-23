@@ -1,6 +1,6 @@
 """
-5년 시나리오 시뮬레이터
-Bear / Base / Bull 3가지 시나리오로 5년 후 예상 주가 및 수익률 계산
+시나리오 시뮬레이터
+Bear / Base / Bull 3가지 시나리오로 N년 후 예상 주가 및 수익률 계산
 텐배거(+900%) 달성을 위한 필요 EPS CAGR 역산
 """
 
@@ -14,35 +14,38 @@ def simulate_5year(
     hold_years: int = 5,
 ) -> dict:
     """
-    5년 후 주가 = EPS_5Y × PER_목표
-    총수익률 = 주가상승률 + 배당 누적 (단순합산)
+    N년 후 주가 = EPS_NY × PER_목표
+    배당 복리 누적: (1 + d%)^N - 1  (배당 재투자 가정)
+    총수익률 = 주가상승률 + 배당 복리 누적
     텐배거 달성 조건: 필요 EPS CAGR 역산 (이진탐색)
     """
     results = {}
+    d = dividend_yield / 100  # 소수 형태
 
     for scenario in ["bear", "base", "bull"]:
         eps_cagr = eps_cagr_scenarios[scenario]
         target_per = per_scenarios[scenario]
 
-        # 5년 후 EPS
-        eps_5y = current_eps * ((1 + eps_cagr / 100) ** hold_years)
+        # N년 후 EPS
+        eps_ny = current_eps * ((1 + eps_cagr / 100) ** hold_years)
 
-        # 5년 후 목표 주가
-        target_price = eps_5y * target_per
+        # N년 후 목표 주가
+        target_price = eps_ny * target_per
 
         # 수익률 계산
         price_return = (target_price / current_price - 1) * 100
-        dividend_total = dividend_yield * hold_years  # 단순 합산 (복리 미적용)
+        # 배당 복리 누적 (재투자 가정): (1+d)^N - 1
+        dividend_total = ((1 + d) ** hold_years - 1) * 100 if d > 0 else 0.0
         total_return = price_return + dividend_total
 
-        # CAGR 계산 (배당 포함 총수익 기준)
-        total_multiplier = target_price / current_price * (1 + dividend_yield / 100) ** hold_years
+        # 총수익 CAGR (배당 복리 포함)
+        total_multiplier = (target_price / current_price) * (1 + d) ** hold_years
         cagr_pct = (total_multiplier ** (1 / hold_years) - 1) * 100 if total_multiplier > 0 else 0
 
         results[scenario] = {
             "eps_cagr": eps_cagr,
             "target_per": target_per,
-            "eps_5y": round(eps_5y, 0),
+            "eps_ny": round(eps_ny, 0),
             "target_price": int(target_price),
             "price_return": round(price_return, 1),
             "dividend_total": round(dividend_total, 1),

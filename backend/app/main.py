@@ -18,6 +18,11 @@ from app.api.admin import router as admin_router
 from app.api.v2_portfolio import router as portfolio_router
 from app.api.v2_committee import router as committee_router
 from app.api.v2_news import router as news_router
+from app.api.accuracy import router as accuracy_router
+from app.api.v2_risk import router as risk_router
+from app.api.v2_rebalance import router as rebalance_router
+from app.api.v2_flow import router as flow_router
+from app.api.v2_surprise import router as surprise_router
 from app.core.database import check_db, SessionLocal
 
 
@@ -71,6 +76,74 @@ def _run_advisor_job():
         print(f"✅ [SCHEDULER] 어드바이저 완료\n{result.stdout[-300:] if result.stdout else ''}")
     except Exception as e:
         print(f"❌ [SCHEDULER] 어드바이저 오류: {e}")
+
+
+def _run_weekly_report_job():
+    """매주 월요일 08:00(KST) 주간 관심종목 리포트 이메일 발송"""
+    import subprocess, sys
+    print("📧 [SCHEDULER] 주간 리포트 발송 시작...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "from app.workers.weekly_report import run_weekly_report; run_weekly_report()"],
+            capture_output=True, text=True, timeout=600,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        print(f"✅ [SCHEDULER] 주간 리포트 완료\n{result.stdout[-300:] if result.stdout else ''}")
+    except Exception as e:
+        print(f"❌ [SCHEDULER] 주간 리포트 오류: {e}")
+
+
+def _run_price_alert_job():
+    """매일 16:00(KST) 목표가 알림 체크 (장 마감 후)"""
+    import subprocess, sys
+    print("🔔 [SCHEDULER] 목표가 알림 체크 시작...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "from app.workers.price_alert import run_price_alerts; run_price_alerts()"],
+            capture_output=True, text=True, timeout=300,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        print(f"✅ [SCHEDULER] 목표가 알림 완료\n{result.stdout[-300:] if result.stdout else ''}")
+        if result.returncode != 0:
+            print(f"⚠️ [SCHEDULER] stderr: {result.stderr[-200:]}")
+    except Exception as e:
+        print(f"❌ [SCHEDULER] 목표가 알림 오류: {e}")
+
+
+def _run_accuracy_job():
+    """매주 일요일 23:00(KST) 정확도 검증 자동 실행"""
+    import subprocess, sys
+    print("📊 [SCHEDULER] 정확도 검증 자동 시작...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "app.agents.accuracy_validator"],
+            capture_output=True, text=True, timeout=1800,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        print(f"✅ [SCHEDULER] 정확도 검증 완료\n{result.stdout[-500:] if result.stdout else ''}")
+        if result.returncode != 0:
+            print(f"⚠️ [SCHEDULER] 정확도 검증 stderr: {result.stderr[-300:]}")
+    except Exception as e:
+        print(f"❌ [SCHEDULER] 정확도 검증 오류: {e}")
+
+
+def _run_weight_tuner_job():
+    """매주 일요일 23:30(KST) 가중치 자동 조정 분석 (정확도 검증 직후)"""
+    import subprocess, sys
+    print("⚖️ [SCHEDULER] 가중치 자동 조정 분석 시작...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "app.agents.weight_tuner"],
+            capture_output=True, text=True, timeout=300,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        print(f"✅ [SCHEDULER] 가중치 분석 완료\n{result.stdout[-500:] if result.stdout else ''}")
+        if result.returncode != 0:
+            print(f"⚠️ [SCHEDULER] 가중치 분석 stderr: {result.stderr[-200:]}")
+    except Exception as e:
+        print(f"❌ [SCHEDULER] 가중치 분석 오류: {e}")
 
 
 async def _run_news_job():
@@ -129,8 +202,44 @@ async def lifespan(app: FastAPI):
             replace_existing=True,
         )
 
+        # 매주 월요일 08:00 KST — 주간 관심종목 리포트
+        scheduler.add_job(
+            lambda: asyncio.get_event_loop().run_in_executor(None, _run_weekly_report_job),
+            CronTrigger(day_of_week="mon", hour=8, minute=0, timezone="Asia/Seoul"),
+            id="weekly_report",
+            name="Weekly Watchlist Report",
+            replace_existing=True,
+        )
+
+        # 매일 16:00 KST — 목표가 알림 (장 마감 후)
+        scheduler.add_job(
+            lambda: asyncio.get_event_loop().run_in_executor(None, _run_price_alert_job),
+            CronTrigger(hour=16, minute=0, timezone="Asia/Seoul"),
+            id="price_alert_daily",
+            name="Daily Price Alert",
+            replace_existing=True,
+        )
+
+        # 매주 일요일 23:00 KST — 정확도 검증
+        scheduler.add_job(
+            lambda: asyncio.get_event_loop().run_in_executor(None, _run_accuracy_job),
+            CronTrigger(day_of_week="sun", hour=23, minute=0, timezone="Asia/Seoul"),
+            id="accuracy_weekly",
+            name="Weekly Accuracy Validation",
+            replace_existing=True,
+        )
+
+        # 매주 일요일 23:30 KST — 가중치 자동 조정 분석 (정확도 검증 30분 후)
+        scheduler.add_job(
+            lambda: asyncio.get_event_loop().run_in_executor(None, _run_weight_tuner_job),
+            CronTrigger(day_of_week="sun", hour=23, minute=30, timezone="Asia/Seoul"),
+            id="weight_tuner_weekly",
+            name="Weekly Weight Tuner Analysis",
+            replace_existing=True,
+        )
+
         scheduler.start()
-        print("✅ [SCHEDULER] 스케줄러 시작: ETL 02:00 | 뉴스 04:00 | 리포트 07:00 KST")
+        print("✅ [SCHEDULER] ETL 02:00 | 뉴스 04:00 | 어드바이저 07:00 | 주간리포트 월 08:00 | 목표가알림 16:00 | 정확도 일 23:00 | 가중치분석 일 23:30 KST")
     except Exception as e:
         print(f"⚠️ [SCHEDULER] 스케줄러 시작 실패 (무시): {e}")
 
@@ -166,6 +275,11 @@ app.include_router(admin_router)
 app.include_router(portfolio_router)
 app.include_router(committee_router)
 app.include_router(news_router)
+app.include_router(accuracy_router)
+app.include_router(risk_router)
+app.include_router(rebalance_router)
+app.include_router(flow_router)
+app.include_router(surprise_router)
 
 
 @app.get("/api/health")

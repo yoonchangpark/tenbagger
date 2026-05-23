@@ -171,6 +171,15 @@
     @media (max-width: 640px) {
       .result-compare { grid-template-columns: 1fr; }
       .grade-summary-grid { grid-template-columns: 1fr 1fr; }
+      .nav-links { display: none; }
+      body { padding-bottom: 64px; }
+    }
+    .mobile-tab-bar { display: none; }
+    @media (max-width: 640px) {
+      .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: rgba(17,24,39,.97); border-top: 1px solid var(--border); z-index: 200; backdrop-filter: blur(10px); padding-bottom: env(safe-area-inset-bottom,0px); }
+      .mobile-tab-bar a { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 4px 8px; color: var(--muted); text-decoration: none; font-size: 10px; font-weight: 600; gap: 3px; transition: color .15s; }
+      .mobile-tab-bar a.active { color: #60a5fa; }
+      .mobile-tab-bar a .t-icon { font-size: 18px; line-height: 1; }
     }
   </style>
 </head>
@@ -1052,5 +1061,11 @@
     }
   });
 </script>
+<nav class="mobile-tab-bar">
+  <a href="index.html"><span class="t-icon">🏠</span>종목분석</a>
+  <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
+  <a href="dashboard.html"><span class="t-icon">📡</span>대시보드</a>
+  <a href="pricing.html"><span class="t-icon">💎</span>구독</a>
+</nav>
 </body>
 </html>

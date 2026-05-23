@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>구독 플랜 — 텐배거 헌터</title>
+  <!-- GA4: 아래 G-XXXXXXXXXX를 실제 GA4 측정 ID로 교체하세요 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer=window.dataLayer||[];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js',new Date());
+    gtag('config','G-XXXXXXXXXX');
+  </script>
   <script src="https://js.tosspayments.com/v1/payment"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -58,6 +66,44 @@
     #toast { position: fixed; bottom: 2rem; right: 2rem; background: #1e3a5f; border: 1px solid #3b82f6; color: #e2e8f0; padding: 1rem 1.5rem; border-radius: 0.5rem; font-size: 0.9rem; display: none; z-index: 999; max-width: 300px; }
     #toast.error { background: #3f1515; border-color: #ef4444; }
     #toast.success { background: #163d2a; border-color: #34d399; }
+
+    /* 기능 비교 테이블 */
+    .compare-section { max-width: 860px; margin: 0 auto 4rem; padding: 0 2rem; }
+    .compare-section h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; text-align: center; }
+    .compare-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; background: #1a2332; border-radius: 1rem; overflow: hidden; }
+    .compare-table th { padding: 14px 18px; text-align: center; font-size: 0.8rem; font-weight: 700; letter-spacing: .04em; color: #94a3b8; background: #111827; border-bottom: 1px solid #1e2a3a; }
+    .compare-table th:first-child { text-align: left; min-width: 160px; }
+    .compare-table th.pro-col { color: #60a5fa; }
+    .compare-table th.premium-col { color: #a78bfa; }
+    .compare-table td { padding: 11px 18px; text-align: center; border-bottom: 1px solid #1e2a3a; color: #cbd5e1; }
+    .compare-table td:first-child { text-align: left; color: #94a3b8; font-size: 0.85rem; }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table tr:hover td { background: rgba(255,255,255,.02); }
+    .check-yes { color: #34d399; font-size: 1.1rem; font-weight: 700; }
+    .check-no  { color: #374151; font-size: 1.1rem; }
+    .check-txt { font-size: 0.8rem; color: #94a3b8; }
+    .check-txt.pro { color: #60a5fa; }
+    .check-txt.premium { color: #a78bfa; }
+
+    /* 모바일 탭바 */
+    .mobile-tab-bar { display: none; }
+    @media (max-width: 640px) {
+      body { padding-bottom: 64px; }
+      .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: rgba(15,17,23,.97); border-top: 1px solid #1e2a3a; z-index: 200; backdrop-filter: blur(10px); padding-bottom: env(safe-area-inset-bottom,0px); }
+      .mobile-tab-bar a { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 4px 8px; color: #94a3b8; text-decoration: none; font-size: 10px; font-weight: 600; gap: 3px; transition: color .15s; }
+      .mobile-tab-bar a.active { color: #60a5fa; }
+      .mobile-tab-bar a .t-icon { font-size: 18px; line-height: 1; }
+    }
+
+    /* 반응형 */
+    @media (max-width: 680px) {
+      .hero h1 { font-size: 1.7rem; }
+      .plans { gap: 1rem; padding: 2rem 1rem; }
+      .plan-card { width: 100%; max-width: 360px; }
+      .compare-section { padding: 0 1rem; }
+      .compare-table { font-size: 0.8rem; }
+      .compare-table th, .compare-table td { padding: 10px 10px; }
+    }
   </style>
 </head>
 <body>
@@ -131,6 +177,76 @@
 
 </div>
 
+<div class="compare-section">
+  <h2>플랜 기능 비교</h2>
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>기능</th>
+        <th>Free</th>
+        <th class="pro-col">Pro</th>
+        <th class="premium-col">Premium</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>종목 분석 (기본 스코어)</td>
+        <td><span class="check-yes">✓</span></td>
+        <td><span class="check-yes">✓</span></td>
+        <td><span class="check-yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>스크리너</td>
+        <td><span class="check-txt">상위 10개</span></td>
+        <td><span class="check-txt pro">전체 무제한</span></td>
+        <td><span class="check-txt premium">전체 무제한</span></td>
+      </tr>
+      <tr>
+        <td>AI 정성 분석 (기업 리서치)</td>
+        <td><span class="check-no">—</span></td>
+        <td><span class="check-yes">✓</span></td>
+        <td><span class="check-yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>AI 투자위원회 (최종 판단)</td>
+        <td><span class="check-no">—</span></td>
+        <td><span class="check-yes">✓</span></td>
+        <td><span class="check-yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>관심종목</td>
+        <td><span class="check-no">—</span></td>
+        <td><span class="check-txt pro">20개</span></td>
+        <td><span class="check-txt premium">무제한</span></td>
+      </tr>
+      <tr>
+        <td>월간 투자 리포트</td>
+        <td><span class="check-no">—</span></td>
+        <td><span class="check-yes">✓</span></td>
+        <td><span class="check-yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>카카오톡 실시간 알림</td>
+        <td><span class="check-no">—</span></td>
+        <td><span class="check-no">—</span></td>
+        <td><span class="check-yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>백테스트</td>
+        <td><span class="check-txt">제한</span></td>
+        <td><span class="check-txt">제한</span></td>
+        <td><span class="check-txt premium">무제한</span></td>
+      </tr>
+      <tr>
+        <td>API 직접 접근</td>
+        <td><span class="check-no">—</span></td>
+        <td><span class="check-no">—</span></td>
+        <td><span class="check-yes">✓</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
 <div class="faq">
   <h2>자주 묻는 질문</h2>
   <div class="faq-item">
@@ -146,6 +262,13 @@
     <p>결제 후 7일 이내 미사용 시 전액 환불이 가능합니다. 고객센터(yoonchang.park@gmail.com)로 문의해주세요.</p>
   </div>
 </div>
+
+<nav class="mobile-tab-bar">
+  <a href="/index.html"><span class="t-icon">🏠</span>종목분석</a>
+  <a href="/screener.html"><span class="t-icon">📊</span>스크리너</a>
+  <a href="/dashboard.html"><span class="t-icon">📡</span>대시보드</a>
+  <a href="/pricing.html" class="active"><span class="t-icon">💎</span>구독</a>
+</nav>
 
 <div id="toast"></div>
 
@@ -210,6 +333,7 @@
       return;
     }
 
+    gtag('event','subscribe_click',{plan:tier});
     const amount = PRICES[tier];
     const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const orderName = `텐배거헌터 ${PLAN_NAMES[tier]} 구독`;
@@ -229,8 +353,28 @@
     });
   }
 
+  let _cancelStep = 0;
+  let _cancelTimer = null;
+
   async function cancelSub() {
-    if (!confirm("구독을 취소하고 Free 플랜으로 전환하시겠습니까?")) return;
+    const area = document.getElementById("free-btn-area");
+    if (_cancelStep === 0) {
+      _cancelStep = 1;
+      area.innerHTML = `
+        <div style="background:#3f1515;border:1px solid #ef444466;border-radius:.5rem;padding:.9rem 1rem;text-align:center;">
+          <div style="color:#fca5a5;font-size:.85rem;margin-bottom:.65rem;">⚠️ 취소 시 남은 기간 동안만 사용 가능하고,<br>이후 Free로 전환됩니다.</div>
+          <button class="btn" style="background:#ef4444;color:white;padding:.6rem 1.2rem;font-size:.85rem;border-radius:.4rem;cursor:pointer;border:none;width:100%;font-weight:700;"
+            onclick="confirmCancelSub()">정말 취소하기</button>
+          <button onclick="resetCancel()" style="margin-top:.5rem;background:none;border:none;color:#94a3b8;font-size:.8rem;cursor:pointer;width:100%;">돌아가기</button>
+        </div>`;
+      _cancelTimer = setTimeout(resetCancel, 10000);
+      return;
+    }
+  }
+
+  async function confirmCancelSub() {
+    clearTimeout(_cancelTimer);
+    _cancelStep = 0;
     const token = localStorage.getItem("access_token");
     const res = await fetch(`${API}/api/v2/payment/cancel`, {
       method: "POST",
@@ -238,11 +382,19 @@
       body: JSON.stringify({ cancel_reason: "사용자 요청" }),
     });
     if (res.ok) {
-      showToast("구독이 취소됐습니다.", "success");
-      setTimeout(() => location.reload(), 1500);
+      showToast("구독이 취소됐습니다. 남은 기간 동안 계속 이용할 수 있습니다.", "success");
+      setTimeout(() => location.reload(), 2000);
     } else {
       showToast("취소 중 오류가 발생했습니다.", "error");
+      resetCancel();
     }
+  }
+
+  function resetCancel() {
+    clearTimeout(_cancelTimer);
+    _cancelStep = 0;
+    const area = document.getElementById("free-btn-area");
+    if (area) area.innerHTML = `<button class="btn btn-outline" onclick="cancelSub()">Free로 다운그레이드</button>`;
   }
 
   function showToast(msg, type = "") {
