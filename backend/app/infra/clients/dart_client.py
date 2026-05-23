@@ -198,6 +198,43 @@ def parse_idx(items: list, keyword: str) -> Optional[float]:
     return None
 
 
+async def fetch_document_text(rcept_no: str, max_chars: int = 8000) -> str:
+    """
+    DART document.json → ZIP 다운로드 → HTML 텍스트 추출.
+    ZIP 응답이 아니거나 실패 시 빈 문자열 반환.
+    """
+    import zipfile, io, re
+    try:
+        params = {"rcpNo": rcept_no, "crtfc_key": settings.dart_api_key}
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            r = await client.get(f"{DART_BASE}/document.json", params=params)
+
+        # ZIP 파일 여부 확인 (PK 매직 바이트)
+        if len(r.content) < 4 or r.content[:2] != b"PK":
+            return ""
+
+        zf = zipfile.ZipFile(io.BytesIO(r.content))
+        text_parts = []
+        for fname in sorted(zf.namelist()):
+            if not fname.lower().endswith((".htm", ".html")):
+                continue
+            raw = zf.read(fname).decode("utf-8", errors="replace")
+            # 스크립트·스타일 제거 후 태그 제거
+            clean = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", raw, flags=re.DOTALL | re.IGNORECASE)
+            clean = re.sub(r"<[^>]+>", " ", clean)
+            clean = re.sub(r"&nbsp;", " ", clean)
+            clean = re.sub(r"&[a-zA-Z]+;", "", clean)
+            clean = re.sub(r"\s{2,}", " ", clean).strip()
+            if len(clean) > 200:
+                text_parts.append(clean)
+
+        combined = "\n\n---\n\n".join(text_parts)
+        return combined[:max_chars]
+    except Exception as e:
+        print(f"[DART] document.json 실패 ({rcept_no}): {e}")
+        return ""
+
+
 async def get_dividend_info(corp_code: str, year: int) -> dict:
     """배당 정보 조회"""
     params = {

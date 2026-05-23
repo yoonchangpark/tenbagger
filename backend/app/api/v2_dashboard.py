@@ -51,18 +51,58 @@ class DisclosureAnalyzeRequest(BaseModel):
     corp_name: str
     report_nm: str
     ticker: Optional[str] = None
+    corp_code: Optional[str] = None
     rcept_dt: Optional[str] = None
+
+
+def _classify_disclosure(report_nm: str) -> str:
+    """공시 제목 키워드 → 유형별 분석 힌트 반환"""
+    nm = report_nm.replace(" ", "")
+    if any(k in nm for k in ["유상증자", "주식발행"]):
+        return "유상증자 공시입니다. 발행 규모(기존 주식 대비 비율), 발행 목적(운영자금/시설투자/부채상환), 발행가 할인율을 중점 분석하세요. 희석 효과와 목적의 질이 핵심입니다."
+    if any(k in nm for k in ["자기주식취득", "자사주매입"]):
+        return "자사주 매입 공시입니다. 매입 규모(시가총액 대비 %), 재원, 취득 후 소각 여부를 분석하세요. 주주환원 신호의 강도가 핵심입니다."
+    if any(k in nm for k in ["전환사채", "신주인수권부사채", "CB발행", "BW발행"]):
+        return "CB/BW 발행 공시입니다. 발행 규모, 전환가격(현재 주가 대비 할인율), 만기, 발행 대상(기관/특수관계인)을 분석하세요. 잠재적 희석 리스크가 핵심입니다."
+    if any(k in nm for k in ["합병", "분할", "인수", "양수도"]):
+        return "M&A/구조조정 공시입니다. 거래 금액, 합병 비율, 피인수 기업의 재무 상태, 시너지 가능성을 분석하세요."
+    if any(k in nm for k in ["횡령", "배임", "사기"]):
+        return "횡령·배임 공시입니다. 피해 금액, 당사자(임원/직원), 회사 전체 자산 대비 비율, 경영진 신뢰도 훼손 가능성을 중점 분석하세요."
+    if any(k in nm for k in ["소송", "분쟁", "제소"]):
+        return "소송·분쟁 공시입니다. 청구 금액, 회사 자기자본 대비 비율, 승소 가능성 추정 근거, 최종 판결 시 재무 영향을 분석하세요."
+    if any(k in nm for k in ["사업보고서", "분기보고서", "반기보고서"]):
+        return "정기 보고서입니다. 실적 변화(매출·영업이익·순이익), 부채비율 추이, 배당 정책 변화, 경영진 코멘트의 톤을 분석하세요."
+    if any(k in nm for k in ["임원변경", "대표이사", "이사선임", "이사해임"]):
+        return "임원 변경 공시입니다. 변경 임원의 경력, 전 직책, 변경 시기(실적 발표 전후), 내부 승진 vs 외부 영입 여부를 분석하세요."
+    if any(k in nm for k in ["배당", "현금배당", "주식배당"]):
+        return "배당 공시입니다. 배당 금액, 배당수익률(현재 주가 대비), 전년 대비 증감률, 배당성향을 분석하세요."
+    if any(k in nm for k in ["대규모내부거래", "특수관계인"]):
+        return "대규모 내부거래 공시입니다. 거래 상대방(계열사명), 거래 금액, 거래 조건이 시장 가격과 공정한지, 소액주주 이익 침해 가능성을 분석하세요."
+    return "공시 원문을 바탕으로 장기투자 관점에서 투자 임팩트를 분석하세요."
 
 
 @router.post("/disclosures/analyze")
 async def analyze_disclosure(body: DisclosureAnalyzeRequest):
     """
-    공시 제목 + 회사 스코어 데이터를 기반으로 GPT-4o가 투자 임팩트를 즉시 분석.
+    DART 공시 원문(document.json) + 회사 스코어 기반 GPT-4o 심층 분석.
+    원문 접근 불가 시 bzSummary + 재무지표로 보완.
     """
     if not settings.openai_api_key:
         return {"error": "OpenAI API 키가 설정되지 않았습니다."}
 
-    # DB에서 회사 스코어 조회 (ticker 있을 때)
+    from app.infra.clients.dart_client import fetch_document_text, get_corp_code
+    import asyncio as _asyncio
+
+    # 1. 원문 텍스트 병렬 수집 시작
+    doc_text_task = _asyncio.create_task(fetch_document_text(body.rcept_no))
+
+    # 2. corp_code 확보
+    corp_code = body.corp_code
+    if not corp_code:
+        query = body.ticker or body.corp_name
+        corp_code, _ = await get_corp_code(query)
+
+    # 3. DB 스코어 조회
     score_context = ""
     if body.ticker:
         try:
@@ -74,12 +114,36 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
                     FROM scores WHERE ticker = :t LIMIT 1
                 """), {"t": body.ticker}).fetchone()
             if row:
-                score_context = f"""
-회사 텐배거 시스템 평가:
-- 등급: {row.grade} | 총점: {row.total_score}/10
-- 성장성: {row.growth_score} | 안정성: {row.stability_score} | 현금흐름: {row.cashflow_score}
-- 매출CAGR(5y): {row.revenue_cagr_5y}% | ROE: {row.avg_roe_5y}% | FCF마진: {row.avg_fcf_margin}%
-- PER: {row.per} | PBR: {row.pbr}"""
+                score_context = (
+                    f"\n[텐배거 시스템 평가]\n"
+                    f"등급: {row.grade} | 총점: {row.total_score}/10\n"
+                    f"성장성: {row.growth_score} | 안정성: {row.stability_score} | 현금흐름: {row.cashflow_score}\n"
+                    f"매출CAGR(5y): {row.revenue_cagr_5y}% | ROE: {row.avg_roe_5y}% | FCF마진: {row.avg_fcf_margin}%\n"
+                    f"PER: {row.per} | PBR: {row.pbr}"
+                )
+        except Exception:
+            pass
+
+    # 4. 원문 결과 대기
+    doc_text = await doc_text_task
+
+    # 5. 원문 없으면 bzSummary + 재무지표로 보완
+    fallback_context = ""
+    if not doc_text and corp_code:
+        try:
+            from app.agents.dart_report_parser import fetch_bz_summary, fetch_financial_indices
+            import datetime as _dt
+            year = str(_dt.date.today().year - 1)
+            bz, indices = await _asyncio.gather(
+                fetch_bz_summary(corp_code, year, "11011"),
+                fetch_financial_indices(corp_code, year, "11011"),
+                return_exceptions=True,
+            )
+            if isinstance(bz, str) and bz:
+                fallback_context += f"\n[사업 개요]\n{bz[:2000]}"
+            if isinstance(indices, dict) and indices:
+                lines = [f"  {k}: {v}%" for k, v in list(indices.items())[:8]]
+                fallback_context += f"\n[주요 재무지표]\n" + "\n".join(lines)
         except Exception:
             pass
 
@@ -87,42 +151,57 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
     if body.rcept_dt and len(body.rcept_dt) == 8:
         date_str = f"{body.rcept_dt[:4]}년 {body.rcept_dt[4:6]}월 {body.rcept_dt[6:]}일"
 
-    prompt = f"""다음 DART 공시를 장기투자 관점에서 분석해주세요.
+    disclosure_hint = _classify_disclosure(body.report_nm)
+    has_doc = bool(doc_text)
 
-공시 정보:
+    if has_doc:
+        content_section = f"\n[공시 원문 전문]\n{doc_text}"
+        analysis_instruction = f"위 공시 원문을 직접 읽고 분석하세요. {disclosure_hint}"
+        confidence_note = "원문 전문을 읽었으면 HIGH, 원문이 불충분하면 MEDIUM"
+    else:
+        content_section = fallback_context or "\n(원문 데이터 없음 — 제목 및 회사 프로필 기반 분석)"
+        analysis_instruction = f"공시 제목과 회사 프로필을 기반으로 분석하세요. {disclosure_hint}"
+        confidence_note = "제목만으로 판단 가능하면 MEDIUM, 내용 확인 필요하면 LOW"
+
+    prompt = f"""다음 DART 공시를 장기투자 관점에서 심층 분석해주세요.
+
+[공시 기본 정보]
 - 회사명: {body.corp_name}
 - 공시 제목: {body.report_nm}
 - 공시 날짜: {date_str or '미상'}
-- DART 접수번호: {body.rcept_no}
+- 접수번호: {body.rcept_no}
 {score_context}
+{content_section}
+
+[분석 지시]
+{analysis_instruction}
 
 아래 JSON 형식으로만 응답하세요:
 {{
-  "summary": "이 공시가 무엇인지 2문장으로 설명 (공시 종류와 의미)",
+  "summary": "이 공시의 핵심 내용 2~3문장 (원문 기반 구체적 수치 포함)",
   "impact": "POSITIVE 또는 NEUTRAL 또는 NEGATIVE 또는 CAUTION 중 하나",
-  "impact_reason": "투자 임팩트 판단 근거 1~2문장",
-  "key_points": ["핵심 포인트 1", "핵심 포인트 2", "핵심 포인트 3"],
+  "impact_reason": "투자 임팩트 판단 근거 1~2문장 (구체적 수치 근거)",
+  "key_points": ["핵심 포인트 1 (수치 포함)", "핵심 포인트 2", "핵심 포인트 3"],
   "action": "장기투자자 관점에서 취할 행동 1문장",
-  "confidence": "HIGH 또는 MEDIUM 또는 LOW"
+  "confidence": "{confidence_note} 중 선택"
 }}
 
-impact 판단 기준:
-- POSITIVE: 실적 호전, 자사주 매입, 배당 증가, 신사업 진출 등 장기 가치 상승 신호
-- NEGATIVE: 실적 악화, 횡령, 소송, 대규모 손실, 유상증자 등 가치 훼손 신호
-- CAUTION: 임원 변경, 대규모 투자, 합병 등 중립이나 모니터링 필요
-- NEUTRAL: 정기 보고서, 소액 공시 등 통상적인 공시
-confidence: 공시 제목만으로 판단 가능하면 HIGH, 내용 확인 필요하면 LOW"""
+impact 기준:
+- POSITIVE: 실적 호전, 자사주 매입, 배당 증가, 신사업 성과 등 장기 가치 상승
+- NEGATIVE: 실적 악화, 횡령, 소송, 대규모 손실, 희석성 유상증자
+- CAUTION: 합병, 대규모 투자, 임원 변경 등 모니터링 필요
+- NEUTRAL: 정기 보고서, 소액 공시 등 통상 공시"""
 
     try:
         from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=settings.openai_api_key)
         resp = await client.chat.completions.create(
             model="gpt-4o",
-            max_tokens=600,
+            max_tokens=800,
             temperature=0.2,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "당신은 한국 주식 DART 공시 전문 분석가입니다. 공시 제목과 맥락을 보고 장기투자자에게 의미 있는 인사이트를 제공합니다. 반드시 JSON 형식으로만 응답하세요."},
+                {"role": "system", "content": "당신은 한국 주식 DART 공시 전문 분석가입니다. 공시 원문을 직접 읽고 구체적인 수치와 함께 장기투자자에게 의미 있는 인사이트를 제공합니다. 반드시 JSON 형식으로만 응답하세요."},
                 {"role": "user", "content": prompt},
             ],
         )
@@ -130,6 +209,7 @@ confidence: 공시 제목만으로 판단 가능하면 HIGH, 내용 확인 필�
         result["corp_name"] = body.corp_name
         result["report_nm"] = body.report_nm
         result["rcept_no"] = body.rcept_no
+        result["has_doc"] = has_doc  # 원문 기반 여부 프론트에 전달
 
         impact_emoji = {"POSITIVE": "✅", "NEGATIVE": "🔴", "CAUTION": "⚠️", "NEUTRAL": "ℹ️"}
         result["impact_emoji"] = impact_emoji.get(result.get("impact", "NEUTRAL"), "ℹ️")

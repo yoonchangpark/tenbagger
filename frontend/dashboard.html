@@ -1792,7 +1792,7 @@
               <a class="disc-title" href="${dartUrl}" target="_blank" rel="noopener">${esc(item.report_nm || "-")}</a>
               <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
                 <div class="disc-type">제출인: ${esc(item.flr_nm || "-")}</div>
-                <button onclick="analyzeDisclosure('${rcept_no}','${esc(item.corp_name)}','${esc(item.report_nm)}','${esc(item.rcept_dt||'')}',this)"
+                <button onclick="analyzeDisclosure('${rcept_no}','${esc(item.corp_name)}','${esc(item.report_nm)}','${esc(item.rcept_dt||'')}','${item.stock_code||''}','${item.corp_code||''}',this)"
                   style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
                   🤖 AI 분석
                 </button>
@@ -1814,7 +1814,7 @@
     return s.slice(0, 4) + "." + s.slice(4, 6) + "." + s.slice(6, 8);
   }
 
-  async function analyzeDisclosure(rcept_no, corp_name, report_nm, rcept_dt, btn) {
+  async function analyzeDisclosure(rcept_no, corp_name, report_nm, rcept_dt, ticker, corp_code, btn) {
     const resultEl = document.getElementById("ai-result-" + rcept_no);
     if (!resultEl) return;
 
@@ -1836,7 +1836,7 @@
       const res = await fetch(API + "/api/v2/disclosures/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rcept_no, corp_name, report_nm, rcept_dt }),
+        body: JSON.stringify({ rcept_no, corp_name, report_nm, rcept_dt, ticker: ticker || null, corp_code: corp_code || null }),
       });
       const d = await res.json();
 
@@ -1859,6 +1859,7 @@
             <span style="font-size:18px;">${d.impact_emoji}</span>
             <span style="font-weight:700;color:${color};">${impact}</span>
             <span style="font-size:11px;color:var(--muted);background:rgba(255,255,255,.06);padding:2px 8px;border-radius:4px;">신뢰도: ${confLabel}</span>
+            ${d.has_doc ? '<span style="font-size:10px;color:#34d399;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);padding:2px 7px;border-radius:4px;">📄 원문 기반</span>' : '<span style="font-size:10px;color:#94a3b8;background:rgba(148,163,184,.08);padding:2px 7px;border-radius:4px;">제목 기반</span>'}
           </div>
           <p style="color:var(--text);margin-bottom:8px;line-height:1.6;">${d.summary || ""}</p>
           <p style="color:${color};margin-bottom:10px;font-weight:600;">${d.impact_reason || ""}</p>
