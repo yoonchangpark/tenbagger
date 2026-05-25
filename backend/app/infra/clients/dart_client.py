@@ -265,26 +265,44 @@ async def _fetch_via_dart_viewer(rcept_no: str, max_chars: int) -> str:
     print(f"[DART] 뷰어 스크래핑 시작 ({rcept_no})")
     try:
         async with httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=True) as client:
-            # 뷰어 메인 페이지에서 dcmNo 추출
-            main_r = await client.get(f"{VIEWER}/dsaf001/main.do", params={"rcpNo": rcept_no})
-            print(f"[DART] 뷰어 응답 ({rcept_no}): HTTP {main_r.status_code}, {len(main_r.text)}자, URL={main_r.url}")
-            main_html = main_r.text
 
-            dcm_no = None
-            for pat in [
-                r'[?&]dcmNo=(\d+)',             # URL 쿼리파라미터 (frame/iframe src, href)
-                r'dcmNo\s*[=:]\s*["\']?(\d+)',  # JS 변수
-                r'"dcm_no"\s*:\s*"?(\d+)"?',    # JSON 스타일
+            # 후보 1: DART SPA가 내부적으로 호출하는 문서 목록 AJAX 엔드포인트 시도
+            for ajax_url, ajax_params in [
+                (f"{VIEWER}/dsaf001/selectToc.do",   {"rcpNo": rcept_no}),
+                (f"{VIEWER}/dsaf001/main.do",        {"rcpNo": rcept_no, "requestType": "ajax"}),
+                (f"{VIEWER}/report/selectDoc.do",    {"rcpNo": rcept_no}),
             ]:
-                m = re.search(pat, main_html, re.IGNORECASE)
-                if m:
-                    dcm_no = m.group(1)
-                    break
+                try:
+                    aj = await client.get(ajax_url, params=ajax_params,
+                                          headers={**headers, "X-Requested-With": "XMLHttpRequest",
+                                                   "Accept": "application/json, text/javascript, */*"})
+                    m = re.search(r'["\']?dcmNo["\']?\s*[=:]\s*["\']?(\d+)', aj.text, re.IGNORECASE)
+                    if not m:
+                        m = re.search(r'[?&]dcmNo=(\d+)', aj.text, re.IGNORECASE)
+                    if m:
+                        dcm_no = m.group(1)
+                        print(f"[DART] AJAX dcmNo 발견 ({rcept_no}): {dcm_no} from {ajax_url}")
+                        break
+                except Exception:
+                    continue
+            else:
+                dcm_no = None
 
+            # 후보 2: 메인 페이지 전체에서 dcmNo 검색
             if not dcm_no:
-                # 디버깅: 실제 HTML 앞부분 로깅
-                print(f"[DART] 뷰어 dcmNo 미발견 ({rcept_no}) HTML: {main_html[:400]!r}")
-                return ""
+                main_r = await client.get(f"{VIEWER}/dsaf001/main.do", params={"rcpNo": rcept_no})
+                main_html = main_r.text
+                for pat in [r'[?&]dcmNo=(\d+)', r'dcmNo\s*[=:]\s*["\']?(\d+)', r'"dcmNo"\s*:\s*"?(\d+)"?']:
+                    m = re.search(pat, main_html, re.IGNORECASE)
+                    if m:
+                        dcm_no = m.group(1)
+                        break
+                if not dcm_no:
+                    # dcmNo가 HTML 어딘가 있는지 확인
+                    pos = main_html.lower().find("dcmno")
+                    ctx = main_html[max(0, pos-30):pos+80] if pos >= 0 else "(없음)"
+                    print(f"[DART] dcmNo 미발견 ({rcept_no}) HTML={len(main_html)}자 ctx={ctx!r}")
+                    return ""
 
             # 문서 본문 가져오기
             doc_r = await client.get(
@@ -297,7 +315,7 @@ async def _fetch_via_dart_viewer(rcept_no: str, max_chars: int) -> str:
                 print(f"[DART] 뷰어 스크래핑 성공 ({rcept_no}): {len(clean):,}자 (dcmNo={dcm_no})")
                 return clean[:max_chars]
 
-            print(f"[DART] 뷰어 텍스트 없음 ({rcept_no}): {len(clean)}자")
+            print(f"[DART] 뷰어 텍스트 없음 ({rcept_no}): {len(clean)}자, dcmNo={dcm_no}")
             return ""
     except Exception as e:
         print(f"[DART] 뷰어 스크래핑 실패 ({rcept_no}): {e}")
