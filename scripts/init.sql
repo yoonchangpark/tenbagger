@@ -307,3 +307,16 @@ CREATE TABLE IF NOT EXISTS quarter_compare_cache (
     updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_qcc_updated ON quarter_compare_cache(updated_at DESC);
+
+-- 실제 보유 종목 (내 종목)
+CREATE TABLE IF NOT EXISTS user_holdings (
+    id          SERIAL PRIMARY KEY,
+    user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    ticker      VARCHAR(10) NOT NULL,
+    name        VARCHAR(100),
+    quantity    INTEGER NOT NULL DEFAULT 0,
+    avg_price   NUMERIC(12,2),
+    added_at    TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (user_id, ticker)
+);
+CREATE INDEX IF NOT EXISTS idx_user_holdings_user ON user_holdings(user_id);

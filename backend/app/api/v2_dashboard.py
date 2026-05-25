@@ -1,7 +1,7 @@
 """
 v2 대시보드 API - DART 공시 목록 조회 + AI 공시 분석 + 분기 비교 분석
 """
-from fastapi import APIRouter, Query, BackgroundTasks
+from fastapi import APIRouter, Query, BackgroundTasks, Request
 from pydantic import BaseModel
 from typing import Optional
 from app.infra.clients.dart_client import _get
@@ -13,13 +13,81 @@ import json
 
 router = APIRouter(prefix="/api/v2", tags=["dashboard"])
 
+# 노이즈 공시 키워드 (숨김)
+_HIDE_KEYWORDS = ["기업설명회", "의결권대리", "파생결합", "펀드공시", "주주총회소집공고", "소액공모"]
+# 반드시 표시할 공시 키워드 (Priority 3 대형주에도 적용)
+_MUST_SHOW_KEYWORDS = [
+    "유상증자", "무상증자", "공개매수", "합병", "분할", "전환사채", "신주인수권부사채",
+    "자기주식취득", "자기주식소각", "단일판매", "타법인주식취득", "타법인주식처분",
+    "영업양수도", "감사의견", "불성실공시", "횡령", "배임",
+]
+
+
+def _is_noise(report_nm: str) -> bool:
+    nm = report_nm.replace(" ", "")
+    return any(k in nm for k in _HIDE_KEYWORDS)
+
+
+def _is_must_show(report_nm: str) -> bool:
+    nm = report_nm.replace(" ", "")
+    return any(k in nm for k in _MUST_SHOW_KEYWORDS)
+
+
+def _get_user_tickers(user_id: int) -> dict:
+    """로그인 유저의 보유종목·관심종목 ticker set 반환"""
+    try:
+        with SessionLocal() as db:
+            holdings = db.execute(text(
+                "SELECT ticker FROM user_holdings WHERE user_id = :uid"
+            ), {"uid": user_id}).fetchall()
+            watchlist = db.execute(text(
+                "SELECT ticker FROM watchlist WHERE user_id = :uid"
+            ), {"uid": user_id}).fetchall()
+        return {
+            "holdings": {r.ticker.upper() for r in holdings},
+            "watchlist": {r.ticker.upper() for r in watchlist},
+        }
+    except Exception:
+        return {"holdings": set(), "watchlist": set()}
+
+
+def _get_high_grade_tickers() -> set:
+    """TENBAGGER / COMPOUNDER 등급 ticker set"""
+    try:
+        with SessionLocal() as db:
+            rows = db.execute(text(
+                "SELECT ticker FROM score_cache WHERE grade IN ('TENBAGGER','COMPOUNDER')"
+            )).fetchall()
+        return {r.ticker.upper() for r in rows}
+    except Exception:
+        return set()
+
+
+def _label_priority(stock_code: str, report_nm: str,
+                    holdings: set, watchlist: set, high_grade: set) -> Optional[str]:
+    """공시 우선순위 라벨 반환. None이면 표시 안 함."""
+    if _is_noise(report_nm):
+        return None
+    ticker = (stock_code or "").upper()
+    if ticker in holdings:
+        return "내종목"
+    if ticker in watchlist:
+        return "관심종목"
+    if ticker in high_grade:
+        return "추천종목"
+    if _is_must_show(report_nm):
+        return "주요공시"
+    return None  # 나머지는 숨김
+
 
 @router.get("/disclosures")
 async def get_disclosures(
+    request: Request,
     corp_cls: str = Query("", description="Y=KOSPI, K=KOSDAQ, 빈값=전체"),
     bgn_de: str = Query(None, description="시작일 YYYYMMDD"),
     end_de: str = Query(None, description="종료일 YYYYMMDD"),
     page_count: int = Query(40, le=100),
+    personalize: bool = Query(True, description="개인화 필터 적용 여부"),
 ):
     today = datetime.date.today()
     if end_de is None:
@@ -30,7 +98,7 @@ async def get_disclosures(
     params = {
         "bgn_de": bgn_de,
         "end_de": end_de,
-        "page_count": str(page_count),
+        "page_count": "100",   # 필터링 여유분 확보
         "sort": "date",
         "sort_mth": "desc",
     }
@@ -39,9 +107,40 @@ async def get_disclosures(
 
     try:
         result = await _get("list.json", params)
-        return result
     except Exception as e:
         return {"status": "error", "message": str(e), "list": []}
+
+    items = result.get("list", [])
+
+    if not personalize:
+        return {**result, "list": items[:page_count]}
+
+    # 로그인 유저 확인
+    user_id = None
+    try:
+        from app.core.auth import decode_token
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            payload = decode_token(auth[7:])
+            user_id = payload.get("uid") or payload.get("id")
+    except Exception:
+        pass
+
+    user_tickers = _get_user_tickers(user_id) if user_id else {"holdings": set(), "watchlist": set()}
+    high_grade = _get_high_grade_tickers()
+
+    priority_order = {"내종목": 0, "관심종목": 1, "추천종목": 2, "주요공시": 3}
+    labeled = []
+    for item in items:
+        stock_code = (item.get("stock_code") or "").upper()
+        report_nm = item.get("report_nm", "")
+        label = _label_priority(stock_code, report_nm,
+                                user_tickers["holdings"], user_tickers["watchlist"], high_grade)
+        if label:
+            labeled.append({**item, "priority_label": label})
+
+    labeled.sort(key=lambda x: priority_order.get(x["priority_label"], 9))
+    return {**result, "list": labeled[:page_count], "personalized": True, "total_filtered": len(labeled)}
 
 
 # ── 공시 AI 분석 ────────────────────────────────────────────────────────────

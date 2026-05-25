@@ -23,6 +23,7 @@ from app.api.v2_risk import router as risk_router
 from app.api.v2_rebalance import router as rebalance_router
 from app.api.v2_flow import router as flow_router
 from app.api.v2_surprise import router as surprise_router
+from app.api.v2_holdings import router as holdings_router
 from app.core.database import check_db, SessionLocal
 
 
@@ -280,6 +281,7 @@ app.include_router(risk_router)
 app.include_router(rebalance_router)
 app.include_router(flow_router)
 app.include_router(surprise_router)
+app.include_router(holdings_router)
 
 
 @app.get("/api/health")

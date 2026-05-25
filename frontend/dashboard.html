@@ -1746,16 +1746,18 @@
     list.innerHTML = '<div class="loading-row"><div class="spinner"></div><div>공시 데이터 로딩 중…</div></div>';
 
     try {
-      const url = API + "/api/v2/disclosures?page_count=40" + (_corpCls ? "&corp_cls=" + _corpCls : "");
-      const r = await fetch(url);
+      const token = localStorage.getItem("access_token");
+      const headers = token ? { "Authorization": "Bearer " + token } : {};
+      const url = API + "/api/v2/disclosures?page_count=40&personalize=true" + (_corpCls ? "&corp_cls=" + _corpCls : "");
+      const r = await fetch(url, { headers });
       const data = await r.json();
 
       if (!data.list || data.list.length === 0) {
-        list.innerHTML = '<div class="empty-row">📭 조회된 공시가 없습니다.</div>';
+        list.innerHTML = '<div class="empty-row">📭 조회된 공시가 없습니다. 관심종목 또는 내 종목을 추가하면 개인화된 공시가 표시됩니다.</div>';
         return;
       }
 
-      // 거래소·시장본부 등 행정 공시 제거 (개별 기업 공시만 표시)
+      // 개인화 피드는 서버에서 이미 필터링됨; 비로그인 시 거래소 공시 제거만
       const EXCHANGE_KEYWORDS = ["시장본부", "거래소", "금융감독원", "예탁결제원", "코스콤"];
       const items = data.list.filter(item => {
         const submitter = item.flr_nm || "";
@@ -1767,18 +1769,30 @@
         return;
       }
 
+      const PRIORITY_BADGE = {
+        "내종목":   { color: "#34d399", bg: "rgba(52,211,153,.15)", icon: "💼" },
+        "관심종목": { color: "#a78bfa", bg: "rgba(167,139,250,.15)", icon: "⭐" },
+        "추천종목": { color: "#fbbf24", bg: "rgba(251,191,36,.15)",  icon: "🔥" },
+        "주요공시": { color: "#60a5fa", bg: "rgba(96,165,250,.15)",  icon: "📌" },
+      };
+
       list.innerHTML = items.map(item => {
         const dartUrl = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=" + encodeURIComponent(item.rcept_no || "");
         const mktCls = item.corp_cls || "N";
         const mktLabel = { Y: "KOSPI", K: "KOSDAQ", N: "비상장", E: "ETC" }[mktCls] || mktCls;
         const dateStr = formatDate(item.rcept_dt || "");
         const rcept_no = item.rcept_no || "";
+        const pl = item.priority_label;
+        const badge = pl && PRIORITY_BADGE[pl]
+          ? `<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:${PRIORITY_BADGE[pl].bg};color:${PRIORITY_BADGE[pl].color};border:1px solid ${PRIORITY_BADGE[pl].color}40;">${PRIORITY_BADGE[pl].icon} ${pl}</span>`
+          : "";
         return `
           <div class="disc-item" id="disc-${rcept_no}">
             <div class="disc-meta">
               <div class="disc-corp">${esc(item.corp_name || "-")}</div>
               <div class="disc-date">${dateStr}</div>
               <span class="disc-market ${mktCls}">${mktLabel}</span>
+              ${badge}
             </div>
             <div class="disc-main">
               <a class="disc-title" href="${dartUrl}" target="_blank" rel="noopener">${esc(item.report_nm || "-")}</a>
