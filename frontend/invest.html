@@ -186,9 +186,11 @@
 
 <div class="tabs-bar">
   <button class="tab-btn active" onclick="switchTab('portfolio',this)">💼 내 포트폴리오</button>
+  <button class="tab-btn" onclick="switchTab('holdings',this)">📦 내 종목</button>
   <button class="tab-btn" onclick="switchTab('recommend',this)">🏆 추천 종목</button>
   <button class="tab-btn" onclick="switchTab('risk',this)">⚠️ 리스크 분석</button>
   <button class="tab-btn" onclick="switchTab('market',this)">📈 시장 비교</button>
+  <button class="tab-btn" onclick="switchTab('dividend',this)">💰 배당 시나리오</button>
   <button class="tab-btn" onclick="switchTab('guide',this)">📚 투자 가이드</button>
 </div>
 
@@ -282,6 +284,59 @@
         <div id="goalHint" style="font-size:12px;color:var(--muted);margin-top:14px;line-height:1.65;border-top:1px solid rgba(255,255,255,.06);padding-top:12px;"></div>
       </div>
     </div>
+  </div>
+
+  <!-- ════════════════ TAB: 내 종목 ════════════════ -->
+  <div class="tab-panel" id="tab-holdings">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <div>
+        <div class="section-title">📦 내 종목 (실제 보유)</div>
+        <div style="font-size:12px;color:var(--muted);">실제 보유 종목을 등록하면 신규공시 개인화 필터에 반영됩니다.</div>
+      </div>
+      <button onclick="showHoldingForm()" id="addHoldingBtn"
+        style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:8px;padding:8px 18px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">
+        + 종목 추가
+      </button>
+    </div>
+
+    <!-- 추가 폼 (기본 숨김) -->
+    <div id="holdingForm" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">종목 등록 / 수정</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">종목코드</label>
+          <input id="hTicker" type="text" placeholder="예: 005930" maxlength="6"
+            style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">종목명 (선택)</label>
+          <input id="hName" type="text" placeholder="자동 입력"
+            style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">보유 수량</label>
+          <input id="hQty" type="number" placeholder="0" min="0"
+            style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">평균 매수가 (원)</label>
+          <input id="hAvgPrice" type="number" placeholder="0" min="0"
+            style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="saveHolding()"
+          style="background:var(--green);border:none;border-radius:8px;padding:8px 18px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">저장</button>
+        <button onclick="hideHoldingForm()"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 18px;color:var(--muted);font-size:13px;cursor:pointer;">취소</button>
+      </div>
+      <div id="holdingFormMsg" style="margin-top:8px;font-size:12px;color:var(--muted);"></div>
+    </div>
+
+    <div id="holdingLoading" style="display:none;text-align:center;padding:32px;color:var(--muted);">
+      <div class="spinner"></div>불러오는 중...
+    </div>
+    <div id="holdingList"></div>
   </div>
 
   <!-- ════════════════ TAB: 추천 종목 ════════════════ -->
@@ -389,6 +444,38 @@
       <p style="font-size:13px;color:var(--muted);line-height:1.7;">알파는 시장(KOSPI) 대비 초과 수익률입니다. 알파가 양수(+)이면 시장을 이기고 있는 것이며, 텐배거 헌터의 핵심 목표입니다. 단순히 시장을 따라가는 ETF가 아닌, <strong style="color:var(--green);">시장을 초과하는 알파를 추구</strong>합니다.</p>
       <div id="alphaDisplay" style="margin-top:14px;font-size:20px;font-weight:800;color:var(--muted);">α = 계산 중…</div>
     </div>
+  </div>
+
+  <!-- ════════════════ TAB: 배당 시나리오 ════════════════ -->
+  <div class="tab-panel" id="tab-dividend">
+    <div style="margin-bottom:20px;">
+      <div class="section-title">💰 배당 시나리오 분석</div>
+      <div style="font-size:12px;color:var(--muted);">한라산불곰 스타일 L1+L2 분석 — 이익수익률·배당수익률·안전마진을 현재가 기준으로 계산합니다.</div>
+    </div>
+
+    <!-- 입력 영역 -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:24px;">
+      <div style="flex:1;min-width:180px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">종목코드 또는 종목명</label>
+        <input id="divTicker" type="text" placeholder="예: 005930 또는 삼성전자"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:14px;outline:none;"
+          onkeydown="if(event.key==='Enter')loadDividendScenario()"/>
+      </div>
+      <div style="min-width:150px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">현재가 직접 입력 (선택)</label>
+        <input id="divPrice" type="number" placeholder="DB 자동 조회"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:14px;outline:none;"/>
+      </div>
+      <button onclick="loadDividendScenario()"
+        style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:8px;padding:9px 20px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;">
+        📊 분석
+      </button>
+    </div>
+
+    <div id="divLoading" style="display:none;text-align:center;padding:32px;color:var(--muted);">
+      <div class="spinner"></div>계산 중...
+    </div>
+    <div id="divResult"></div>
   </div>
 
   <!-- ════════════════ TAB: 투자 가이드 ════════════════ -->
@@ -547,6 +634,126 @@ function switchTab(id, btn) {
   if (id === 'recommend' && !document.getElementById('recContent').dataset.loaded) loadRec('TENBAGGER', document.getElementById('rGradeTB'));
   if (id === 'risk') renderRiskTab();
   if (id === 'market') loadMarketComparison();
+  if (id === 'dividend') { /* 사용자가 직접 입력 후 분석 */ }
+  if (id === 'holdings') loadHoldings();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: 내 종목
+// ══════════════════════════════════════════════════════════════════════════════
+function getAuthHeader() {
+  const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+  return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+}
+
+async function loadHoldings() {
+  const listEl   = document.getElementById('holdingList');
+  const loadEl   = document.getElementById('holdingLoading');
+  loadEl.style.display = 'block';
+  listEl.innerHTML = '';
+  try {
+    const r = await fetch(API + '/api/v2/holdings', { headers: getAuthHeader() });
+    if (r.status === 401) {
+      listEl.innerHTML = '<div style="padding:24px;color:var(--muted);text-align:center;">로그인 후 이용 가능합니다.</div>';
+      return;
+    }
+    const d = await r.json();
+    renderHoldingList(d.holdings || []);
+  } catch (e) {
+    listEl.innerHTML = `<div style="padding:16px;color:#f87171;">⚠️ ${e.message}</div>`;
+  } finally {
+    loadEl.style.display = 'none';
+  }
+}
+
+function renderHoldingList(holdings) {
+  const el = document.getElementById('holdingList');
+  if (!holdings.length) {
+    el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted);">등록된 종목이 없습니다. <br><br>+ 종목 추가 버튼으로 실제 보유 종목을 등록하세요.</div>';
+    return;
+  }
+  const gradeColor = { TENBAGGER:'#10b981', COMPOUNDER:'#60a5fa', WATCHLIST:'#fbbf24', AVOID:'#f87171' };
+  const rows = holdings.map(h => {
+    const pnl = h.pnl_pct != null ? `<span style="color:${h.pnl_pct>=0?'#34d399':'#f87171'};font-weight:700;">${h.pnl_pct>=0?'+':''}${h.pnl_pct.toFixed(1)}%</span>` : '—';
+    const gc = gradeColor[h.grade] || '#94a3b8';
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="min-width:120px;">
+          <div style="font-size:14px;font-weight:700;">${h.name || h.ticker}</div>
+          <div style="font-size:11px;color:var(--muted);">${h.ticker}</div>
+        </div>
+        <div style="flex:1;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;">
+          <div><span style="color:var(--muted);">수량</span><br><b>${(h.quantity||0).toLocaleString()}주</b></div>
+          <div><span style="color:var(--muted);">평균가</span><br><b>${h.avg_price?Number(h.avg_price).toLocaleString()+'원':'—'}</b></div>
+          <div><span style="color:var(--muted);">현재가</span><br><b>${h.current_price?Number(h.current_price).toLocaleString()+'원':'—'}</b></div>
+          <div><span style="color:var(--muted);">수익률</span><br>${pnl}</div>
+          <div><span style="color:var(--muted);">등급</span><br><span style="color:${gc};font-weight:700;">${h.grade||'—'}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="editHolding('${h.ticker}','${h.name||''}',${h.quantity||0},${h.avg_price||0})"
+            style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 12px;color:var(--muted);font-size:12px;cursor:pointer;">수정</button>
+          <button onclick="deleteHolding('${h.ticker}')"
+            style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:5px 12px;color:#f87171;font-size:12px;cursor:pointer;">삭제</button>
+        </div>
+      </div>`;
+  }).join('');
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>`;
+}
+
+function showHoldingForm() {
+  document.getElementById('holdingForm').style.display = 'block';
+  document.getElementById('hTicker').focus();
+}
+
+function hideHoldingForm() {
+  document.getElementById('holdingForm').style.display = 'none';
+  ['hTicker','hName','hQty','hAvgPrice'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('holdingFormMsg').textContent = '';
+}
+
+function editHolding(ticker, name, qty, avgPrice) {
+  showHoldingForm();
+  document.getElementById('hTicker').value    = ticker;
+  document.getElementById('hName').value      = name;
+  document.getElementById('hQty').value       = qty;
+  document.getElementById('hAvgPrice').value  = avgPrice;
+}
+
+async function saveHolding() {
+  const ticker   = document.getElementById('hTicker').value.trim().toUpperCase();
+  const name     = document.getElementById('hName').value.trim();
+  const qty      = parseInt(document.getElementById('hQty').value) || 0;
+  const avgPrice = parseFloat(document.getElementById('hAvgPrice').value) || null;
+  const msgEl    = document.getElementById('holdingFormMsg');
+
+  if (!ticker || !/^\d{6}$/.test(ticker)) { msgEl.textContent = '⚠️ 6자리 종목코드를 입력하세요.'; msgEl.style.color='#f87171'; return; }
+
+  try {
+    const r = await fetch(API + '/api/v2/holdings', {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ ticker, name: name||ticker, quantity: qty, avg_price: avgPrice }),
+    });
+    if (r.status === 401) { msgEl.textContent = '로그인이 필요합니다.'; msgEl.style.color='#f87171'; return; }
+    if (!r.ok) throw new Error('저장 실패');
+    msgEl.textContent = '✅ 저장 완료';
+    msgEl.style.color = '#34d399';
+    setTimeout(() => { hideHoldingForm(); loadHoldings(); }, 800);
+  } catch (e) {
+    msgEl.textContent = '⚠️ ' + e.message;
+    msgEl.style.color = '#f87171';
+  }
+}
+
+async function deleteHolding(ticker) {
+  if (!confirm(`${ticker} 종목을 삭제하시겠습니까?`)) return;
+  try {
+    const r = await fetch(API + '/api/v2/holdings/' + ticker, { method: 'DELETE', headers: getAuthHeader() });
+    if (!r.ok) throw new Error('삭제 실패');
+    loadHoldings();
+  } catch (e) {
+    alert('⚠️ ' + e.message);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -927,6 +1134,127 @@ async function renderRiskTab() {
         <div><div style="font-size:10px;color:var(--muted);">리스크</div><div class="badge" style="background:${r.risk_color||'#374151'}22;color:${r.risk_color||'#9ca3af'};border:1px solid ${r.risk_color||'#374151'}44;">${r.risk_level||'—'}</div></div>
       </div>
     </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 5: 배당 시나리오
+// ══════════════════════════════════════════════════════════════════════════════
+async function loadDividendScenario() {
+  const input = document.getElementById('divTicker').value.trim();
+  const priceInput = document.getElementById('divPrice').value.trim();
+  if (!input) return;
+
+  const loadEl  = document.getElementById('divLoading');
+  const resultEl = document.getElementById('divResult');
+  loadEl.style.display = 'block';
+  resultEl.innerHTML = '';
+
+  try {
+    let ticker = input;
+    // 종목명으로 입력한 경우 → 검색 API로 코드 조회
+    if (!/^\d{6}$/.test(input)) {
+      const sr = await fetch(API + '/api/search?q=' + encodeURIComponent(input));
+      const sj = await sr.json();
+      const hit = (sj.results || sj.companies || [])[0];
+      if (!hit) throw new Error('종목을 찾을 수 없습니다: ' + input);
+      ticker = hit.ticker || hit.stock_code || hit.corp_code;
+    }
+
+    let url = API + '/api/v2/portfolio/dividend-scenario/' + ticker;
+    if (priceInput) url += '?current_price=' + encodeURIComponent(priceInput);
+
+    const r = await fetch(url);
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      throw new Error(e.detail || 'HTTP ' + r.status);
+    }
+    const d = await r.json();
+    renderDividendResult(d);
+  } catch (e) {
+    resultEl.innerHTML = `<div style="padding:16px;color:#f87171;font-size:13px;">⚠️ ${e.message}</div>`;
+  } finally {
+    loadEl.style.display = 'none';
+  }
+}
+
+function renderDividendResult(d) {
+  const el = document.getElementById('divResult');
+  const fmt = (v, unit='') => v != null ? Number(v).toLocaleString() + unit : '—';
+  const pct = (v) => v != null ? v.toFixed(1) + '%' : '—';
+
+  // L1 배지
+  const badgesHtml = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      ${d.earnings_yield != null ? `<span style="background:rgba(52,211,153,.15);color:#34d399;padding:5px 14px;border-radius:10px;font-weight:700;font-size:13px;">이익수익률 ${pct(d.earnings_yield)}</span>` : ''}
+      ${d.dividend_yield != null ? `<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:5px 14px;border-radius:10px;font-weight:700;font-size:13px;">배당수익률 ${pct(d.dividend_yield)}</span>` : ''}
+      ${d.pbr != null ? `<span style="background:rgba(96,165,250,.12);color:#60a5fa;padding:5px 14px;border-radius:10px;font-size:13px;">PBR ${d.pbr.toFixed(2)}x</span>` : ''}
+      ${d.per != null ? `<span style="background:rgba(167,139,250,.12);color:#a78bfa;padding:5px 14px;border-radius:10px;font-size:13px;">PER ${d.per.toFixed(1)}x</span>` : ''}
+    </div>`;
+
+  // L2 시나리오 카드
+  let scHtml = '';
+  if (d.scenarios) {
+    const keys = ['bear','base','bull'];
+    const colors = { bear:'#f87171', base:'#60a5fa', bull:'#34d399' };
+    const bgs    = { bear:'rgba(239,68,68,.1)', base:'rgba(59,130,246,.1)', bull:'rgba(52,211,153,.1)' };
+    const icons  = { bear:'📉', base:'📊', bull:'📈' };
+    const cards  = keys.map(k => {
+      const sc = d.scenarios[k];
+      if (!sc) return '';
+      const dy = sc.div_yield != null ? sc.div_yield.toFixed(1)+'%' : '—';
+      const isBear = k==='bear', dy_val = sc.div_yield;
+      const safeNote = isBear && dy_val != null
+        ? (dy_val >= 3 ? `<div style="font-size:10px;color:#34d399;margin-top:4px;">✅ 안전마진</div>`
+                       : `<div style="font-size:10px;color:#f87171;margin-top:4px;">⚠️ 안전마진 미달</div>`)
+        : '';
+      return `
+        <div style="flex:1;min-width:120px;background:${bgs[k]};border:${k==='base'?'2px':'1px'} solid ${colors[k]};border-radius:14px;padding:16px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:6px;">${icons[k]}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${sc.label || k}</div>
+          <div style="font-size:22px;font-weight:800;color:${colors[k]};">${dy}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">DPS ${fmt(sc.dps,'원')}</div>
+          ${safeNote}
+        </div>`;
+    }).join('');
+    scHtml = `
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">📊 배당 시나리오 — 비관 / 기본 / 낙관</div>
+        <div style="display:flex;gap:10px;">${cards}</div>
+      </div>`;
+  }
+
+  // 안전마진 판단
+  const smColor = d.safety_margin==='있음' ? '#34d399' : d.safety_margin==='없음' ? '#f87171' : '#94a3b8';
+  const smHtml = d.safety_margin ? `
+    <div style="padding:10px 16px;background:rgba(255,255,255,.04);border-radius:10px;font-size:13px;margin-bottom:16px;">
+      안전마진: <span style="color:${smColor};font-weight:700;">${d.safety_margin}</span>
+      ${d.safety_margin_reason ? `<span style="color:var(--muted);font-size:12px;"> — ${d.safety_margin_reason}</span>` : ''}
+    </div>` : '';
+
+  // 기본 수치 테이블
+  const rows = [
+    ['현재가', fmt(d.current_price,'원')],
+    ['EPS (주당순이익)', fmt(d.eps,'원')],
+    ['DPS (주당배당금)', fmt(d.dps,'원')],
+    ['BPS (주당순자산)', fmt(d.bps,'원')],
+  ].map(([k,v]) => `
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;">
+      <span style="color:var(--muted);">${k}</span>
+      <span style="font-weight:600;">${v}</span>
+    </div>`).join('');
+
+  el.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;">
+      <div style="font-size:18px;font-weight:800;margin-bottom:4px;">${d.name || d.ticker}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">${d.ticker}</div>
+      ${badgesHtml}
+      ${scHtml}
+      ${smHtml}
+      <div style="margin-top:4px;">${rows}</div>
+      <div style="margin-top:16px;font-size:11px;color:var(--muted);">
+        💡 이익수익률 = EPS/현재가×100 &nbsp;|&nbsp; 배당수익률 = DPS/현재가×100 &nbsp;|&nbsp; 안전마진 기준: 비관 시나리오 배당수익률 ≥ 3%
+      </div>
+    </div>`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

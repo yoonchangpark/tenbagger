@@ -211,6 +211,7 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
 
     # 3. DB 스코어 조회
     score_context = ""
+    close_price = None
     if body.ticker:
         try:
             with SessionLocal() as session:
@@ -228,6 +229,15 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
                     f"매출CAGR(5y): {row.revenue_cagr_5y}% | ROE: {row.avg_roe_5y}% | FCF마진: {row.avg_fcf_margin}%\n"
                     f"PER: {row.per} | PBR: {row.pbr}"
                 )
+        except Exception:
+            pass
+        try:
+            with SessionLocal() as session:
+                cp_row = session.execute(text(
+                    "SELECT close_price FROM score_cache WHERE ticker = :t LIMIT 1"
+                ), {"t": body.ticker}).fetchone()
+            if cp_row:
+                close_price = float(cp_row.close_price or 0) or None
         except Exception:
             pass
 
@@ -265,9 +275,10 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
         else (fallback_context or "\n(원문 데이터 없음 — 제목 및 회사 프로필 기반 분석)")
     )
 
-    # ── 공개매수 전용 심층 분석 ──────────────────────────────────────────────
+    # ── 공시 유형 분기 ──────────────────────────────────────────────────────
     is_tender = any(k in nm for k in ["공개매수"])
     is_rights = any(k in nm for k in ["유상증자", "주식발행"])
+    is_quarterly = any(k in nm for k in ["분기보고서", "반기보고서", "사업보고서"])
 
     if is_tender:
         prompt = f"""다음 공개매수 공시를 한국 소액주주 투자자 관점에서 철저히 분석하세요.
@@ -379,6 +390,67 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
   "confidence": "HIGH"
 }}"""
 
+    elif is_quarterly:
+        price_ctx = f"\n현재 주가(참고): {int(close_price):,}원" if close_price else ""
+        quarter_label = "Q1" if "1분기" in body.report_nm else ("Q2" if "2분기" in body.report_nm else ("Q3" if "3분기" in body.report_nm else "연간"))
+        prompt = f"""다음 분기/사업보고서를 한라산불곰 스타일의 가치투자 관점에서 분석하세요.
+
+[공시 기본 정보]
+- 회사명: {body.corp_name}
+- 공시 제목: {body.report_nm} ({quarter_label})
+- 공시 날짜: {date_str or '미상'}
+{score_context}{price_ctx}
+{content_section}
+
+[추출·계산 지시 — L1(현재가치) + L2(실적 시나리오)]
+
+L1 — 현재 가치 앵커 (원문 또는 참고 주가로 계산):
+1. EPS = 당기순이익 / 발행주식수 (원)
+2. 이익수익률 = EPS / 현재주가 × 100 (%) — 채권 대비 매력도 척도
+3. DPS = 최근 연간 주당배당금 (원)
+4. 배당수익률 = DPS / 현재주가 × 100 (%)
+5. PBR = 현재주가 / 주당순자산 (BPS)
+6. 자사주 비율 = 자사주수 / 발행주식수 × 100 (%)
+
+L2 — 실적 시나리오 추산 (이번 분기 실적 기반):
+7. 이번 분기 매출, 영업이익, 순이익 수치와 전년 동기 대비 YoY% 계산
+8. 연간 추산 EPS = 이번 분기 순이익 × 4 (분기보고서의 경우)
+9. 배당 시나리오 3가지:
+   - 비관: DPS 50% 삭감 → 배당수익률%
+   - 기본: DPS 유지 → 배당수익률%
+   - 낙관: DPS 30% 증가 → 배당수익률%
+10. 최악 시나리오 판단: 비관 시나리오에서도 배당수익률이 3% 이상이면 "안전마진 있음"
+
+아래 JSON 형식으로만 응답하세요 (모든 숫자 필드는 null 허용):
+{{
+  "summary": "이번 실적 핵심 3문장. 매출·영업이익·순이익 YoY 수치 반드시 포함.",
+  "impact": "POSITIVE 또는 NEUTRAL 또는 NEGATIVE 중 하나",
+  "impact_reason": "실적 방향 판단 근거 1~2문장",
+  "revenue_qtr": 숫자(억원),
+  "op_profit_qtr": 숫자(억원),
+  "net_profit_qtr": 숫자(억원),
+  "revenue_yoy": "YoY%문자열 예: +5.3%",
+  "op_profit_yoy": "YoY%문자열 예: -12.1%",
+  "net_profit_yoy": "YoY%문자열 예: +8.7%",
+  "eps": 숫자(원) 또는 null,
+  "eps_annual_estimate": 숫자(원, 분기×4) 또는 null,
+  "earnings_yield": 숫자(%) 또는 null,
+  "dps": 숫자(원) 또는 null,
+  "dividend_yield": 숫자(%) 또는 null,
+  "pbr": 숫자 또는 null,
+  "treasury_ratio": 숫자(%) 또는 null,
+  "scenarios": {{
+    "bear": {{"dps": 숫자, "div_yield": 숫자, "label": "DPS -50%"}},
+    "base": {{"dps": 숫자, "div_yield": 숫자, "label": "DPS 유지"}},
+    "bull": {{"dps": 숫자, "div_yield": 숫자, "label": "DPS +30%"}}
+  }},
+  "safety_margin": "있음 또는 없음 또는 불확실",
+  "safety_margin_reason": "비관 시나리오 배당수익률 X% → 판단 1문장",
+  "key_points": ["수치포함포인트1","수치포함포인트2","수치포함포인트3","투자자행동"],
+  "action": "장기투자자 보유/매수/매도/관망 판단 1문장 + 근거",
+  "confidence": "HIGH 또는 MEDIUM 또는 LOW"
+}}"""
+
     else:
         disclosure_hint = _classify_disclosure(body.report_nm)
         confidence_note = "HIGH" if has_doc else "제목만으로 판단 가능하면 MEDIUM, 내용 확인 필요하면 LOW"
@@ -429,7 +501,14 @@ impact: POSITIVE=실적호전·자사주·배당증가 / NEGATIVE=실적악화·
         result["report_nm"] = body.report_nm
         result["rcept_no"] = body.rcept_no
         result["has_doc"] = has_doc
-        result["analysis_type"] = "tender_offer" if is_tender else ("rights_offering" if is_rights else "general")
+        if is_tender:
+            result["analysis_type"] = "tender_offer"
+        elif is_rights:
+            result["analysis_type"] = "rights_offering"
+        elif is_quarterly:
+            result["analysis_type"] = "quarterly_report"
+        else:
+            result["analysis_type"] = "general"
 
         impact_emoji = {"POSITIVE": "✅", "NEGATIVE": "🔴", "CAUTION": "⚠️", "NEUTRAL": "ℹ️"}
         result["impact_emoji"] = impact_emoji.get(result.get("impact", "NEUTRAL"), "ℹ️")

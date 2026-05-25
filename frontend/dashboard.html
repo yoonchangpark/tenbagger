@@ -1917,6 +1917,61 @@
           </div>`;
       }
 
+      // ── 분기보고서 전용 렌더링 (한라산불곰 L1+L2 스타일) ─────────────────
+      if (d.analysis_type === "quarterly_report") {
+        // L1 밸류에이션 배지
+        const l1Badges = [
+          d.earnings_yield != null ? `<span style="background:rgba(52,211,153,.15);color:#34d399;padding:3px 10px;border-radius:8px;font-weight:700;">이익수익률 ${d.earnings_yield.toFixed(1)}%</span>` : "",
+          d.dividend_yield != null ? `<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:3px 10px;border-radius:8px;font-weight:700;">배당수익률 ${d.dividend_yield.toFixed(1)}%</span>` : "",
+          d.pbr != null ? `<span style="background:rgba(96,165,250,.12);color:#60a5fa;padding:3px 10px;border-radius:8px;">PBR ${d.pbr.toFixed(2)}x</span>` : "",
+          d.treasury_ratio != null ? `<span style="background:rgba(167,139,250,.12);color:#a78bfa;padding:3px 10px;border-radius:8px;">자사주 ${d.treasury_ratio.toFixed(1)}%</span>` : "",
+        ].filter(Boolean).join("");
+
+        // L1 실적 YoY
+        const yoyColor = (v) => v && v.startsWith("+") ? "#34d399" : v && v.startsWith("-") ? "#f87171" : "#94a3b8";
+        const yoyBadges = [
+          d.revenue_yoy ? `<span style="color:${yoyColor(d.revenue_yoy)};font-weight:700;">매출 ${d.revenue_yoy}</span>` : "",
+          d.op_profit_yoy ? `<span style="color:${yoyColor(d.op_profit_yoy)};font-weight:700;">영업이익 ${d.op_profit_yoy}</span>` : "",
+          d.net_profit_yoy ? `<span style="color:${yoyColor(d.net_profit_yoy)};font-weight:700;">순이익 ${d.net_profit_yoy}</span>` : "",
+        ].filter(Boolean).join('<span style="color:var(--border);"> | </span>');
+
+        // L2 배당 시나리오 카드
+        let scenarioHtml = "";
+        if (d.scenarios) {
+          const cards = ["bear","base","bull"].map(k => {
+            const sc = d.scenarios[k];
+            if (!sc) return "";
+            const isBase = k === "base";
+            const cardColor = k === "bear" ? "#f87171" : k === "bull" ? "#34d399" : "#60a5fa";
+            const cardBg = k === "bear" ? "rgba(239,68,68,.1)" : k === "bull" ? "rgba(52,211,153,.1)" : "rgba(59,130,246,.1)";
+            const border = isBase ? `2px solid ${cardColor}` : `1px solid rgba(255,255,255,.08)`;
+            return `
+              <div style="flex:1;min-width:100px;background:${cardBg};border:${border};border-radius:10px;padding:10px 12px;text-align:center;">
+                <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${sc.label || k}</div>
+                <div style="font-size:14px;font-weight:800;color:${cardColor};">${sc.div_yield != null ? sc.div_yield.toFixed(1)+"%" : "-"}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px;">DPS ${sc.dps != null ? Number(sc.dps).toLocaleString()+"원" : "-"}</div>
+              </div>`;
+          }).join("");
+          scenarioHtml = `
+            <div style="margin:10px 0 6px;font-size:11px;color:var(--muted);">📊 배당 시나리오 (비관 / 기본 / 낙관)</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">${cards}</div>`;
+        }
+
+        // 안전마진 표시
+        const safetyColor = d.safety_margin === "있음" ? "#34d399" : d.safety_margin === "없음" ? "#f87171" : "#94a3b8";
+        const safetyHtml = d.safety_margin ? `
+          <div style="font-size:12px;padding:6px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:10px;">
+            안전마진: <span style="color:${safetyColor};font-weight:700;">${d.safety_margin}</span>
+            ${d.safety_margin_reason ? `<span style="color:var(--muted);"> — ${d.safety_margin_reason}</span>` : ""}
+          </div>` : "";
+
+        specialSection = `
+          ${l1Badges ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:12px;">${l1Badges}</div>` : ""}
+          ${yoyBadges ? `<div style="font-size:12px;margin-bottom:10px;">${yoyBadges}</div>` : ""}
+          ${scenarioHtml}
+          ${safetyHtml}`;
+      }
+
       resultEl.innerHTML = `
         <div style="margin:0 0 8px 0;padding:16px 20px;background:${bg};border-left:3px solid ${color};border-radius:0 0 12px 12px;font-size:13px;">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">

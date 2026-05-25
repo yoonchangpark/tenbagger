@@ -727,3 +727,98 @@ async def parse_portfolio_image(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"이미지 분석 실패: {str(e)}")
+
+
+# ── 배당 시나리오 계산 ────────────────────────────────────────────────────────
+
+@router.get("/portfolio/dividend-scenario/{ticker}")
+def dividend_scenario(
+    ticker: str,
+    current_price: float = Query(None, description="현재가 직접 입력 (없으면 DB 조회)"),
+):
+    """
+    한라산불곰 L1+L2 스타일 배당 시나리오 계산.
+    - 이익수익률, 배당수익률, PBR 계산
+    - 비관(DPS -50%) / 기본(DPS 유지) / 낙관(DPS +30%) 시나리오
+    - 안전마진 판단: 비관 시나리오 배당수익률 >= 3% → "있음"
+    """
+    ticker = ticker.upper()
+    try:
+        with SessionLocal() as session:
+            sc = session.execute(text("""
+                SELECT close_price, pbr, per
+                FROM score_cache WHERE ticker = :t LIMIT 1
+            """), {"t": ticker}).fetchone()
+
+            fd = session.execute(text("""
+                SELECT eps, dps, bps, net_income, shares_outstanding
+                FROM financial_data
+                WHERE ticker = :t
+                ORDER BY year DESC LIMIT 1
+            """), {"t": ticker}).fetchone()
+
+            co = session.execute(text("""
+                SELECT name FROM companies WHERE ticker = :t LIMIT 1
+            """), {"t": ticker}).fetchone()
+
+        price = current_price or (float(sc.close_price) if sc and sc.close_price else None)
+        name = co.name if co else ticker
+
+        eps  = float(fd.eps)  if fd and fd.eps  else None
+        dps  = float(fd.dps)  if fd and fd.dps  else None
+        bps  = float(fd.bps)  if fd and fd.bps  else None
+        per  = float(sc.per)  if sc and sc.per  else None
+        pbr  = float(sc.pbr)  if sc and sc.pbr  else None
+
+        if price:
+            if eps and eps > 0:
+                per = per or round(price / eps, 2)
+            if bps and bps > 0:
+                pbr = pbr or round(price / bps, 2)
+
+        earnings_yield = round(1 / per * 100, 2) if per and per > 0 else None
+        dividend_yield = round(dps / price * 100, 2) if dps and price and price > 0 else None
+
+        def _scenario(dps_val, label):
+            dy = round(dps_val / price * 100, 2) if price and price > 0 else None
+            return {"dps": round(dps_val), "div_yield": dy, "label": label}
+
+        scenarios = None
+        if dps:
+            scenarios = {
+                "bear": _scenario(dps * 0.5,  "DPS -50% (비관)"),
+                "base": _scenario(dps,         "DPS 유지 (기본)"),
+                "bull": _scenario(dps * 1.3,   "DPS +30% (낙관)"),
+            }
+
+        safety_margin = None
+        safety_reason = None
+        if scenarios and scenarios["bear"]["div_yield"] is not None:
+            bear_dy = scenarios["bear"]["div_yield"]
+            if bear_dy >= 3.0:
+                safety_margin = "있음"
+                safety_reason = f"비관 시나리오 배당수익률 {bear_dy:.1f}% — 3% 이상으로 안전마진 확보"
+            else:
+                safety_margin = "없음"
+                safety_reason = f"비관 시나리오 배당수익률 {bear_dy:.1f}% — 3% 미달, 배당 삭감 시 매력 감소"
+        elif not dps:
+            safety_margin = "불확실"
+            safety_reason = "배당 데이터 없음 — 이익수익률로 대체 판단 필요"
+
+        return {
+            "ticker": ticker,
+            "name": name,
+            "current_price": price,
+            "eps": eps,
+            "dps": dps,
+            "bps": bps,
+            "per": per,
+            "pbr": pbr,
+            "earnings_yield": earnings_yield,
+            "dividend_yield": dividend_yield,
+            "scenarios": scenarios,
+            "safety_margin": safety_margin,
+            "safety_margin_reason": safety_reason,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
