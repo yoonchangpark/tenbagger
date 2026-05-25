@@ -3203,10 +3203,12 @@
       totalEval    += eval_;
       if (eval_ > 0) hasAnyPrice = true;
 
-      // 이상 감지: 등급 WATCHLIST/AVOID/UNKNOWN 또는 손실 -10% 이상
+      // 이상 감지: AVOID 무조건 | 등급미달+손실-10% | 심각손실-20%
+      // ETF(grade 없음)·수익 중인 종목은 grade만으로 플래그하지 않음
       const hasAnomaly = h.ticker && (
-        ['WATCHLIST','AVOID','UNKNOWN',''].includes(h.grade || '') ||
-        (pnlPct !== null && pnlPct < -10)
+        h.grade === 'AVOID' ||
+        (['WATCHLIST', 'UNKNOWN'].includes(h.grade || '') && pnlPct !== null && pnlPct < -10) ||
+        (pnlPct !== null && pnlPct < -20)
       );
 
       const pnlColor   = pnl >= 0 ? '#10b981' : '#ef4444';
