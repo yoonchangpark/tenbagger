@@ -1010,35 +1010,91 @@
 
     function renderQualitative(q){
       const content=document.getElementById("aiContent");
-      // long_term_potential: "STRONG / MODERATE / WEAK + 한 줄 설명"
       const potentialRaw = q.long_term_potential || q.ai_investment_opinion || "";
       const potentialWord = potentialRaw.includes("STRONG") ? "STRONG"
-                          : potentialRaw.includes("WEAK")   ? "WEAK"
-                          : "MODERATE";
+                          : potentialRaw.includes("WEAK")   ? "WEAK" : "MODERATE";
       const potentialMeta = {
-        STRONG:   { icon:"🌟", label:"장기 잠재력 STRONG",   bg:"rgba(16,185,129,.15)", color:"#34d399", border:"rgba(16,185,129,.3)" },
-        MODERATE: { icon:"📊", label:"장기 잠재력 MODERATE", bg:"rgba(251,191,36,.12)", color:"#fbbf24", border:"rgba(251,191,36,.3)" },
-        WEAK:     { icon:"⚠️", label:"장기 잠재력 WEAK",     bg:"rgba(239,68,68,.12)",  color:"#f87171", border:"rgba(239,68,68,.3)"  },
+        STRONG:   {icon:"🌟",label:"장기 잠재력 STRONG",  bg:"rgba(16,185,129,.15)",color:"#34d399",border:"rgba(16,185,129,.3)"},
+        MODERATE: {icon:"📊",label:"장기 잠재력 MODERATE",bg:"rgba(251,191,36,.12)",color:"#fbbf24",border:"rgba(251,191,36,.3)"},
+        WEAK:     {icon:"⚠️",label:"장기 잠재력 WEAK",    bg:"rgba(239,68,68,.12)", color:"#f87171",border:"rgba(239,68,68,.3)" },
       }[potentialWord];
 
       let html="";
 
-      // 장기 잠재력 배지 (투자 타이밍 아님 명시)
+      // ① 최종 투자 판단 (BUY/HOLD/AVOID)
+      const iv = q.investment_verdict || {};
+      if(iv.action && iv.action !== '-') {
+        const am = {
+          BUY:   {color:'#10b981',bg:'rgba(16,185,129,.12)',border:'rgba(16,185,129,.3)', label:'매수 (BUY)'},
+          HOLD:  {color:'#60a5fa',bg:'rgba(59,130,246,.1)', border:'rgba(59,130,246,.25)',label:'보유 (HOLD)'},
+          AVOID: {color:'#ef4444',bg:'rgba(239,68,68,.12)', border:'rgba(239,68,68,.3)',  label:'회피 (AVOID)'},
+        }[iv.action] || {color:'#9ca3af',bg:'transparent',border:'#374151',label:iv.action};
+        html+=`<div style="background:${am.bg};border:1px solid ${am.border};border-radius:14px;padding:16px 20px;margin-bottom:14px;">`;
+        html+=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">`;
+        html+=`<span style="font-size:18px;font-weight:800;color:${am.color};">⚖️ ${am.label}</span>`;
+        if(iv.horizon) html+=`<span style="font-size:11px;color:#6b7280;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:20px;">${escHtml(iv.horizon)}</span>`;
+        html+=`</div>`;
+        if(iv.catalysts&&iv.catalysts.length){
+          html+=`<div style="font-size:11px;color:#6b7280;margin-bottom:4px;font-weight:700;">📈 촉매 요인</div>`;
+          html+=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">`;
+          iv.catalysts.forEach(c=>{html+=`<span style="background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.25);color:#34d399;font-size:11px;padding:2px 10px;border-radius:20px;">${escHtml(c)}</span>`;});
+          html+=`</div>`;
+        }
+        if(iv.risks_to_watch&&iv.risks_to_watch.length){
+          html+=`<div style="font-size:11px;color:#6b7280;margin-bottom:4px;font-weight:700;">🔍 모니터링 포인트</div>`;
+          html+=`<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
+          iv.risks_to_watch.forEach(r=>{html+=`<span style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#f87171;font-size:11px;padding:2px 10px;border-radius:20px;">${escHtml(r)}</span>`;});
+          html+=`</div>`;
+        }
+        html+=`</div>`;
+      }
+
+      // ② 장기 잠재력 배지
       html+='<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:12px;border:1px solid '+potentialMeta.border+';background:'+potentialMeta.bg+';margin-bottom:14px;">';
       html+='<span style="font-size:20px;line-height:1.2;">'+potentialMeta.icon+'</span>';
-      html+='<div>';
-      html+='<div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:'+potentialMeta.color+';margin-bottom:3px;">'+potentialMeta.label+'</div>';
+      html+='<div><div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:'+potentialMeta.color+';margin-bottom:3px;">'+potentialMeta.label+'</div>';
       html+='<div style="font-size:13px;color:#d1d5db;line-height:1.5;">'+escHtml(potentialRaw)+'</div>';
-      html+='<div style="font-size:11px;color:#6b7280;margin-top:4px;">※ 사업 본질 평가 — 현재 주가·매매 타이밍은 아래 AI 투자위원회에서 확인하세요</div>';
+      html+='<div style="font-size:11px;color:#6b7280;margin-top:4px;">※ 사업 본질 평가 — 현재 주가·매매 타이밍은 AI 투자위원회에서 확인하세요</div>';
       html+='</div></div>';
 
-      // 사업모델 + 경쟁우위
+      // ③ 사업모델 + 경쟁우위
       html+='<div class="ai-two-col">';
       html+='<div class="ai-box"><h4>🏢 사업모델</h4><p>'+escHtml(q.business_model||"-")+'</p></div>';
-      html+='<div class="ai-box"><h4>🛡️ 경쟁우위 (해자)</h4><p>'+escHtml(q.competitive_advantage||"-")+'</p></div>';
+      html+='<div class="ai-box"><h4>🛡️ 경쟁우위</h4><p>'+escHtml(q.competitive_advantage||"-")+'</p></div>';
       html+='</div>';
 
-      // SWOT
+      // ④ 경쟁 해자(Moat) 상세
+      const md=q.moat_detail||{};
+      if(q.moat_score!=null){
+        const mc=q.moat_score>=7?'#10b981':q.moat_score>=5?'#f59e0b':'#ef4444';
+        html+=`<div class="ai-box" style="margin-bottom:16px;"><h4>🏰 경쟁 해자 (Moat) 분석</h4>`;
+        html+=`<div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;">`;
+        html+=`<div style="text-align:center;min-width:64px;"><div style="font-size:30px;font-weight:800;color:${mc};">${q.moat_score}<span style="font-size:13px;color:#6b7280;">/10</span></div><div style="font-size:10px;color:#6b7280;">종합 해자</div></div>`;
+        html+=`<div style="flex:1;display:flex;flex-direction:column;gap:5px;">`;
+        [['brand','브랜드'],['network_effect','네트워크 효과'],['switching_cost','전환 비용'],['cost_advantage','비용 우위'],['tech_patent','기술·특허']].forEach(([k,lbl])=>{
+          const sc=md[k]; if(sc==null)return;
+          const bc=sc>=7?'#10b981':sc>=5?'#f59e0b':'#ef4444';
+          html+=`<div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:#9ca3af;width:82px;flex-shrink:0;">${lbl}</span>`;
+          html+=`<div style="flex:1;height:5px;background:#1f2937;border-radius:3px;"><div style="width:${sc*10}%;height:100%;background:${bc};border-radius:3px;"></div></div>`;
+          html+=`<span style="font-size:11px;color:${bc};font-weight:700;width:18px;">${sc}</span></div>`;
+        });
+        html+=`</div></div>`;
+        if(md.summary) html+=`<p style="font-size:12px;color:#9ca3af;">${escHtml(md.summary)}</p>`;
+        html+=`</div>`;
+      }
+
+      // ⑤ 재무 트렌드 방향성
+      const ft=q.financial_trend||{};
+      if(ft.direction){
+        const fc=ft.direction==='강화'?'#10b981':ft.direction==='약화'?'#ef4444':'#f59e0b';
+        const fi=ft.direction==='강화'?'📈':ft.direction==='약화'?'📉':'📊';
+        html+=`<div class="ai-box" style="margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;">`;
+        html+=`<div style="text-align:center;min-width:60px;"><div style="font-size:22px;">${fi}</div><div style="font-size:12px;font-weight:800;color:${fc};">${escHtml(ft.direction)}</div><div style="font-size:10px;color:#6b7280;">펀더멘털</div></div>`;
+        html+=`<div><h4>📊 5년 재무 트렌드</h4><p>${escHtml(ft.reason||"-")}</p></div>`;
+        html+=`</div>`;
+      }
+
+      // ⑥ SWOT
       const sw=q.swot||{};
       html+='<div class="swot-grid">';
       html+='<div class="swot-item s"><div class="swot-label">💪 Strength</div><p>'+escHtml(sw.strength||"-")+'</p></div>';
@@ -1047,20 +1103,54 @@
       html+='<div class="swot-item t"><div class="swot-label">🌪️ Threat</div><p>'+escHtml(sw.threat||"-")+'</p></div>';
       html+='</div>';
 
-      // CAGR 전망
+      // ⑦ 밸류에이션 판단
+      const vv=q.valuation_view||{};
+      if(vv.assessment&&vv.assessment!=='-'){
+        const vc=vv.assessment==='저평가'?'#10b981':vv.assessment==='고평가'?'#ef4444':'#f59e0b';
+        html+=`<div class="ai-box" style="margin-bottom:16px;"><h4>💰 밸류에이션 판단</h4>`;
+        html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="font-size:15px;font-weight:800;color:${vc};">${escHtml(vv.assessment)}</span></div>`;
+        if(vv.per_vs_market) html+=`<p style="font-size:12px;color:#9ca3af;margin-bottom:4px;">📊 ${escHtml(vv.per_vs_market)}</p>`;
+        if(vv.dcf_logic)    html+=`<p style="font-size:12px;color:#9ca3af;margin-bottom:4px;">💧 DCF: ${escHtml(vv.dcf_logic)}</p>`;
+        if(vv.reason)       html+=`<p>${escHtml(vv.reason)}</p>`;
+        html+=`</div>`;
+      }
+
+      // ⑧ CAGR 전망
       const cagr=q.estimated_forward_cagr;
       html+='<div class="cagr-forecast">';
       html+='<div><div class="label">AI 예상 EPS CAGR</div><div class="big-num">'+(cagr!=null&&cagr!==0?(cagr>0?"+":"")+cagr.toFixed(1)+"%":"?%")+'</div></div>';
       html+='<div style="flex:1"><div class="label">추산 근거</div><div class="desc">'+escHtml(q.cagr_rationale||"-")+'</div></div>';
       html+='</div>';
 
-      // 미래 전망 + 핵심 리스크
+      // ⑨ 단기 전망 (12~24개월)
+      if(q.short_term_outlook){
+        html+=`<div class="ai-box" style="margin-bottom:16px;"><h4>🗓️ 단기 전망 (12~24개월)</h4><p>${escHtml(q.short_term_outlook)}</p></div>`;
+      }
+
+      // ⑩ 향후 전망 + 핵심 리스크
       html+='<div class="ai-two-col">';
-      html+='<div class="ai-box"><h4>🔭 향후 사업 전망</h4><p>'+escHtml(q.future_outlook||"-")+'</p></div>';
+      html+='<div class="ai-box"><h4>🔭 향후 사업 전망 (3~5년)</h4><p>'+escHtml(q.future_outlook||"-")+'</p></div>';
       html+='<div class="ai-box"><h4>🚨 핵심 리스크</h4><p>'+escHtml(q.key_risks||"-")+'</p></div>';
       html+='</div>';
 
-      // 기업 기본정보
+      // ⑪ Bull vs Bear 토론
+      const bb=q.bull_bear||{};
+      if((bb.bull&&bb.bull.length)||(bb.bear&&bb.bear.length)){
+        html+=`<div class="ai-box" style="margin-bottom:16px;"><h4>⚔️ Bull vs Bear 토론</h4>`;
+        html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">`;
+        html+=`<div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:12px;">`;
+        html+=`<div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:8px;">🐂 강세 (Bull)</div>`;
+        (bb.bull||[]).forEach(b=>{html+=`<div style="font-size:12px;color:#d1d5db;margin-bottom:4px;">• ${escHtml(b)}</div>`;});
+        html+=`</div>`;
+        html+=`<div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:12px;">`;
+        html+=`<div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:8px;">🐻 약세 (Bear)</div>`;
+        (bb.bear||[]).forEach(b=>{html+=`<div style="font-size:12px;color:#d1d5db;margin-bottom:4px;">• ${escHtml(b)}</div>`;});
+        html+=`</div></div>`;
+        if(bb.verdict) html+=`<div style="background:rgba(255,255,255,.04);border-radius:8px;padding:10px;font-size:12px;color:#9ca3af;"><b style="color:#d1d5db;">⚖️ 중립 결론:</b> ${escHtml(bb.verdict)}</div>`;
+        html+=`</div>`;
+      }
+
+      // ⑫ 기업 기본정보
       const ci=q.dart_company_info||{};
       if(ci.ceo||ci.est_date||ci.homepage){
         html+='<div class="ai-box" style="margin-bottom:16px"><h4>🏛️ 기업 기본정보 (DART)</h4>';
@@ -1075,7 +1165,7 @@
         html+='</div>';
       }
 
-      // 주주 목록
+      // ⑬ 주주 목록
       if(q.shareholders&&q.shareholders.length&&q.shareholders[0].name){
         html+='<div class="ai-box"><h4>👥 주요 주주</h4><div class="shareholder-list">';
         q.shareholders.forEach(s=>{
@@ -1092,9 +1182,7 @@
       if(ts)html+='<div style="font-size:11px;color:#4b5563;margin-top:12px;text-align:right;">AI 분석 시각: '+ts+'</div>';
 
       content.innerHTML=html;
-
-      // AI 예측 CAGR → Base 슬라이더 동기화
-      if(q.estimated_forward_cagr != null) syncBaseSliderFromAI(q.estimated_forward_cagr);
+      if(q.estimated_forward_cagr!=null) syncBaseSliderFromAI(q.estimated_forward_cagr);
     }
 
     function escHtml(s){

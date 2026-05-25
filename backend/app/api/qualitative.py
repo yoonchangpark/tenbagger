@@ -13,8 +13,37 @@ from app.infra.clients.dart_client import (
 )
 from app.domain.qualitative_analysis import generate_qualitative_analysis
 from app.infra.repositories.company_repo import get_score_cached, get_financials_cached
+from app.core.database import SessionLocal
+from sqlalchemy import text
 
 router = APIRouter(prefix="/api/v2", tags=["v2-qualitative"])
+
+
+def _get_market_valuation(market: str) -> dict:
+    """동일 시장(KOSPI/KOSDAQ) PER 분포 조회 — 밸류에이션 비교용"""
+    try:
+        with SessionLocal() as db:
+            row = db.execute(text("""
+                SELECT
+                    ROUND(AVG(per)::numeric, 1)                              AS avg_per,
+                    ROUND(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY per)::numeric, 1) AS per_q25,
+                    ROUND(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY per)::numeric, 1) AS per_q75,
+                    ROUND(AVG(pbr)::numeric, 2)                              AS avg_pbr
+                FROM scores
+                WHERE market = :market
+                  AND per > 0 AND per < 200
+                  AND analyzed_at > NOW() - INTERVAL '60 days'
+            """), {"market": market}).fetchone()
+            if row and row.avg_per:
+                return {
+                    "avg_per": float(row.avg_per),
+                    "per_q25": float(row.per_q25) if row.per_q25 else None,
+                    "per_q75": float(row.per_q75) if row.per_q75 else None,
+                    "avg_pbr": float(row.avg_pbr) if row.avg_pbr else None,
+                }
+    except Exception as e:
+        print(f"[QUALITATIVE] 시장 PER 조회 실패: {e}")
+    return {}
 
 
 @router.get("/company/{ticker}/qualitative")
@@ -67,6 +96,10 @@ async def get_qualitative_analysis(ticker: str):
     if score and score.get("name"):
         name = score.get("name")
 
+    # 시장 평균 PER/PBR (밸류에이션 비교용)
+    market = score.get("market", "KOSPI") if score else "KOSPI"
+    market_valuation = _get_market_valuation(market)
+
     # AI 분석 생성
     result = await generate_qualitative_analysis(
         ticker=ticker,
@@ -76,7 +109,12 @@ async def get_qualitative_analysis(ticker: str):
         shareholders=shareholders if isinstance(shareholders, dict) else {},
         disclosures=disclosures if isinstance(disclosures, dict) else {},
         score=score,
+        market_valuation=market_valuation,
     )
+
+    # 시장 밸류에이션 메타 첨부
+    if market_valuation:
+        result["market_valuation_context"] = market_valuation
 
     # 추가 메타데이터
     result["dart_company_info"] = {
