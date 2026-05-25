@@ -65,6 +65,26 @@
     .disc-title:hover{color:#93c5fd;}
     .disc-type{font-size:11px;color:var(--muted);margin-top:5px;}
 
+    /* ── Phase D 이벤트 분석 카드 ── */
+    .phased-card{background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(30,27,75,.95));border:1px solid rgba(139,92,246,.35);border-radius:14px;margin:6px 0 4px;padding:18px 20px;font-size:13px;}
+    .phased-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+    .phased-title{font-size:13px;font-weight:700;color:#c4b5fd;display:flex;align-items:center;gap:6px;}
+    .phased-score-badge{font-size:12px;font-weight:800;padding:3px 12px;border-radius:20px;border:1px solid currentColor;}
+    .phased-signals{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+    .phased-signal{display:flex;flex-direction:column;align-items:center;gap:3px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 14px;min-width:90px;}
+    .phased-signal-icon{font-size:16px;}
+    .phased-signal-label{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.3px;text-transform:uppercase;}
+    .phased-signal-val{font-size:14px;font-weight:800;}
+    .phased-section{margin-bottom:12px;}
+    .phased-section-title{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px;}
+    .phased-meaning{color:#d1d5db;line-height:1.7;font-size:12.5px;}
+    .phased-opinion{color:#e5e7eb;line-height:1.8;font-size:12.5px;background:rgba(255,255,255,.04);border-left:3px solid #8b5cf6;padding:10px 14px;border-radius:0 8px 8px 0;}
+    .phased-factors{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+    .phased-factor-chip{font-size:10px;padding:3px 8px;border-radius:12px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.25);color:#c4b5fd;}
+    .phased-btn{padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#c4b5fd;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;}
+    .phased-btn:hover{background:rgba(139,92,246,.28);}
+    .phased-loading{color:var(--muted);font-size:12px;padding:8px 0;display:flex;align-items:center;gap:6px;}
+
     /* ── Loading / Empty ── */
     .loading-row{text-align:center;padding:48px;color:var(--muted);}
     .spinner{width:32px;height:32px;border:3px solid rgba(99,102,241,.2);border-top-color:#818cf8;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px;}
@@ -1862,10 +1882,12 @@
                     style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
                     🤖 AI 분석
                   </button>
+                  ${isPhaseDTrigger(item.report_nm) && item.stock_code ? `<button class="phased-btn" onclick="loadPhaseD('${item.stock_code}','${rcept_no}',this)">🎯 이벤트 분석</button>` : ''}
                 </div>
               </div>
             </div>
             <div id="ai-result-${rcept_no}" style="display:none;"></div>
+            <div id="phased-${rcept_no}" style="display:none;"></div>
           </div>`;
       }).join("");
 
@@ -1886,6 +1908,132 @@
   function formatDate(s) {
     if (!s || s.length < 8) return s;
     return s.slice(0, 4) + "." + s.slice(4, 6) + "." + s.slice(6, 8);
+  }
+
+  // ── Phase D 이벤트 드리븐 분석 ──────────────────────────────────────────
+
+  const PHASE_D_TRIGGER_KW = [
+    "대량보유", "자기주식취득", "자기주식처분", "자기주식소각",
+    "공개매수", "주식매수청구", "현금배당", "배당결정",
+    "임원ㆍ주요주주특정증권",
+  ];
+
+  function isPhaseDTrigger(reportNm) {
+    if (!reportNm) return false;
+    return PHASE_D_TRIGGER_KW.some(kw => reportNm.includes(kw));
+  }
+
+  function _fmtBillion(n) {
+    if (n == null) return "N/A";
+    return (n / 1e8).toFixed(0) + "억원";
+  }
+
+  function _fmtWon(n) {
+    if (n == null) return "N/A";
+    return Number(n).toLocaleString("ko-KR") + "원";
+  }
+
+  function renderPhaseDCard(data) {
+    const gradeEmoji = { HOT: "🔥", WARM: "🌡", WATCH: "👀", COLD: "❄" }[data.grade] || "";
+    // hex 색상만 허용 — CSS 인젝션 방어
+    const safeColor = c => /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : "#9ca3af";
+
+    const signalsHtml = (data.signals || []).map(s => `
+      <div class="phased-signal">
+        <span class="phased-signal-icon">${esc(s.icon)}</span>
+        <span class="phased-signal-label">${esc(s.label)}</span>
+        <span class="phased-signal-val" style="color:${safeColor(s.color)}">${esc(s.value)}</span>
+      </div>`).join("");
+
+    const meaningLines = (data.signals || [])
+      .filter(s => s.meaning)
+      .map(s => `<div style="margin-bottom:6px;"><span style="color:${safeColor(s.color)};font-weight:700;">${esc(s.icon)} ${esc(s.label)}</span> — ${esc(s.meaning)}</div>`)
+      .join("");
+
+    const factorsHtml = (data.score_factors || []).map(f =>
+      `<span class="phased-factor-chip">${esc(f.factor)} +${f.pts}점</span>`
+    ).join("");
+
+    const floatInfo = data.float || {};
+    const cashInfo = data.cash || {};
+    const offerInfo = data.offer || {};
+
+    const statsHtml = [
+      floatInfo.major_pct != null ? `최대주주 ${floatInfo.major_pct.toFixed(1)}%` : null,
+      floatInfo.treasury_pct != null ? `자기주식 ${floatInfo.treasury_pct.toFixed(1)}%` : null,
+      offerInfo.bps ? `BPS ${_fmtWon(offerInfo.bps)}` : null,
+      offerInfo.min_price ? `최소공개매수가 ${_fmtWon(offerInfo.min_price)}` : null,
+      cashInfo.current ? `현금 ${_fmtBillion(cashInfo.current)}` : null,
+    ].filter(Boolean).map(s => `<span class="phased-factor-chip">${esc(s)}</span>`).join("");
+
+    return `
+      <div class="phased-card">
+        <div class="phased-header">
+          <div class="phased-title">🎯 Phase D 이벤트 분석 · ${esc(data.corp_name)}</div>
+          <span class="phased-score-badge" style="color:${safeColor(data.grade_color)};border-color:${safeColor(data.grade_color)}40;background:${safeColor(data.grade_color)}18;">
+            ${gradeEmoji} ${data.score}/100 ${data.grade}
+          </span>
+        </div>
+
+        ${signalsHtml ? `
+        <div class="phased-section">
+          <div class="phased-section-title">📊 시그널 요약</div>
+          <div class="phased-signals">${signalsHtml}</div>
+        </div>` : ''}
+
+        ${meaningLines ? `
+        <div class="phased-section">
+          <div class="phased-section-title">💡 이 시그널이 의미하는 것</div>
+          <div class="phased-meaning">${meaningLines}</div>
+        </div>` : ''}
+
+        <div class="phased-section">
+          <div class="phased-section-title">🔍 투자 의견</div>
+          <div class="phased-opinion">${esc(data.opinion || "데이터 부족으로 분석 불가합니다.")}</div>
+        </div>
+
+        ${statsHtml ? `
+        <div class="phased-section" style="margin-bottom:0;">
+          <div class="phased-section-title">📌 주요 수치</div>
+          <div class="phased-factors">${statsHtml}</div>
+        </div>` : ''}
+
+        ${factorsHtml ? `
+        <div class="phased-section" style="margin-top:10px;margin-bottom:0;">
+          <div class="phased-section-title">⚖️ 스코어 구성</div>
+          <div class="phased-factors">${factorsHtml}</div>
+        </div>` : ''}
+      </div>`;
+  }
+
+  async function loadPhaseD(ticker, rcept_no, btn) {
+    const el = document.getElementById("phased-" + rcept_no);
+    if (!el) return;
+
+    // 토글
+    if (el.style.display !== "none" && el.innerHTML) {
+      el.style.display = "none";
+      btn.textContent = "🎯 이벤트 분석";
+      return;
+    }
+
+    btn.textContent = "분석 중…";
+    btn.disabled = true;
+    el.style.display = "block";
+    el.innerHTML = `<div class="phased-loading"><span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span> Phase D 이벤트 분석 중…</div>`;
+
+    try {
+      const r = await fetch(API + "/api/v2/company/" + encodeURIComponent(ticker) + "/phase_d");
+      if (!r.ok) throw new Error("API " + r.status);
+      const data = await r.json();
+      el.innerHTML = renderPhaseDCard(data);
+      btn.textContent = "🎯 이벤트 분석 닫기";
+    } catch (e) {
+      el.innerHTML = `<div style="padding:10px 14px;font-size:12px;color:#f87171;">⚠️ Phase D 분석 실패: ${esc(e.message)}</div>`;
+      btn.textContent = "🎯 이벤트 분석";
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function analyzeDisclosure(rcept_no, corp_name, report_nm, rcept_dt, ticker, corp_code, btn) {
