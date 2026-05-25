@@ -269,14 +269,19 @@ async def _fetch_via_dart_viewer(rcept_no: str, max_chars: int) -> str:
             main_html = main_r.text
 
             dcm_no = None
-            for pat in [r'dcmNo\s*[=:]\s*["\']?(\d+)', r'"dcm_no"\s*:\s*"?(\d+)"?', r'dcmno["\s]*[:=]["\s]*(\d+)']:
+            for pat in [
+                r'[?&]dcmNo=(\d+)',             # URL 쿼리파라미터 (frame/iframe src, href)
+                r'dcmNo\s*[=:]\s*["\']?(\d+)',  # JS 변수
+                r'"dcm_no"\s*:\s*"?(\d+)"?',    # JSON 스타일
+            ]:
                 m = re.search(pat, main_html, re.IGNORECASE)
                 if m:
                     dcm_no = m.group(1)
                     break
 
             if not dcm_no:
-                print(f"[DART] 뷰어 dcmNo 미발견 ({rcept_no})")
+                # 디버깅: 실제 HTML 앞부분 로깅
+                print(f"[DART] 뷰어 dcmNo 미발견 ({rcept_no}) HTML: {main_html[:400]!r}")
                 return ""
 
             # 문서 본문 가져오기
