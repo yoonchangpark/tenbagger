@@ -505,6 +505,9 @@
         <input type="file" id="mhImageFile" accept="image/*" style="display:none;" onchange="mhParseImage(this)" />
         <div id="mhImageDrop"
           onclick="document.getElementById('mhImageFile').click()"
+          ondragover="event.preventDefault(); this.style.borderColor='var(--blue)';"
+          ondragleave="this.style.borderColor='var(--border)';"
+          ondrop="event.preventDefault(); this.style.borderColor='var(--border)'; if(event.dataTransfer.files[0]) mhParseImage({files:[event.dataTransfer.files[0]]});"
           style="border:2px dashed var(--border);border-radius:14px;padding:36px;text-align:center;cursor:pointer;transition:border-color .2s;"
           onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border)'">
           <div style="font-size:32px;margin-bottom:10px;">📷</div>
@@ -627,19 +630,19 @@
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- ── 종목 교체 분석 섹션 (상세 비교 — 기본 접힘) ── -->
-  <div id="mhRecSection" style="margin-top:16px;display:none;">
-    <details>
-      <summary style="cursor:pointer;padding:12px 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;font-size:13px;font-weight:600;color:#a5b4fc;list-style:none;display:flex;align-items:center;justify-content:space-between;">
-        <span>🔄 상세 교체 비교 시뮬레이션 펼치기</span>
-        <span style="font-size:11px;color:var(--muted);">▼</span>
-      </summary>
-      <div style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:20px;">
-        <div id="mhRecContent"><div style="text-align:center;padding:24px;color:var(--muted);font-size:13px;">보유 종목 로드 후 자동으로 분석됩니다</div></div>
-      </div>
-    </details>
+    <!-- ── 종목 교체 분석 섹션 (상세 비교 — 기본 접힘) ── -->
+    <div id="mhRecSection" style="margin-top:16px;display:none;">
+      <details>
+        <summary style="cursor:pointer;padding:12px 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;font-size:13px;font-weight:600;color:#a5b4fc;list-style:none;display:flex;align-items:center;justify-content:space-between;">
+          <span>🔄 상세 교체 비교 시뮬레이션 펼치기</span>
+          <span style="font-size:11px;color:var(--muted);">▼</span>
+        </summary>
+        <div style="background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:20px;">
+          <div id="mhRecContent"><div style="text-align:center;padding:24px;color:var(--muted);font-size:13px;">보유 종목 로드 후 자동으로 분석됩니다</div></div>
+        </div>
+      </details>
+    </div>
   </div>
 
   <!-- ── TAB: 포트폴리오 시뮬레이터 ── -->
@@ -890,7 +893,7 @@
     btn.classList.add("active");
     if (id === 'watchlist') loadWatchlist();
     if (id === 'mystock')  loadMyHoldings();
-    if (id === 'portfolio') { loadTrustBanner(); runPortfolioSimulation(); }
+    if (id === 'portfolio') { loadTrustBanner(); if (!switchTab._pfRan) { switchTab._pfRan = true; runPortfolioSimulation(); } }
     if (id === 'news') loadNewsDashboard();
     if (id === 'disclosures') loadDisclosures();
   }
@@ -1469,7 +1472,7 @@
       }
 
       if (btn) { btn.textContent = `✅ ${done}개 완료`; btn.disabled = false; }
-      // 자동 시뮬레이션 재실행
+      setTimeout(() => { if (btn) btn.textContent = '⚡ 주가 데이터 일괄 로드'; }, 3000);
       setTimeout(runPortfolioSimulation, 500);
     } catch (e) {
       if (btn) { btn.textContent = "⚡ 주가 데이터 일괄 로드"; btn.disabled = false; }
@@ -3266,7 +3269,7 @@
       const pnlPct  = invest > 0 && eval_ > 0 ? (pnl / invest) * 100 : null;
       const swapCandidate = mhBestSwap(h, pnlPct);
       totalInvest  += invest;
-      totalEval    += eval_ > 0 ? eval_ : invest;
+      totalEval    += eval_;   // 현재가 미확인 종목은 합산 제외 (inflate 방지)
       if (eval_ > 0) hasAnyPrice = true;
 
       const pnlColor   = pnl >= 0 ? '#10b981' : '#ef4444';
@@ -4099,7 +4102,7 @@
     <div>본 서비스는 <b>투자 교육 및 정보 제공</b> 목적으로 제작되었으며, 특정 종목의 매수·매도를 권유하거나 투자 수익을 보장하지 않습니다.</div>
     <div>시뮬레이션 및 스코어링 결과는 과거 재무 데이터와 가정에 기반한 추정치이며, 실제 미래 수익과 다를 수 있습니다.</div>
     <div>모든 투자 결정과 그에 따른 손익은 <b>투자자 본인의 판단과 책임</b>에 있습니다. 투자 전 반드시 전문 금융기관의 조언을 구하시기 바랍니다.</div>
-    <div style="margin-top:8px;color:#4b5563;">© 2026 텐배거 헌터 · 데이터 출처: DART 전자공시, 네이버 금융</div>
+    <div style="margin-top:8px;color:var(--muted);">© 2026 텐배거 헌터 · 데이터 출처: DART 전자공시, 네이버 금융</div>
   </div>
 </footer>
 
@@ -4107,6 +4110,7 @@
   <a href="index.html"><span class="t-icon">🏠</span>종목분석</a>
   <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
   <a href="dashboard.html" class="active"><span class="t-icon">📡</span>대시보드</a>
+  <a href="#" onclick="event.preventDefault(); switchTab('mystock', document.querySelector('[onclick*=mystock]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">💼</span>내주식</a>
   <a href="pricing.html"><span class="t-icon">💎</span>구독</a>
 </nav>
 </body>
