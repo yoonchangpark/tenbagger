@@ -1783,33 +1783,33 @@
     _labelFilter = label;
     document.querySelectorAll("#lbl-filter-bar .filter-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
+
+    // 분기비교 예시 카드: 라벨 필터 선택 시 숨김 (전체일 때만 노출)
+    const pinnedCard = document.querySelector(".qc-pinned-card");
+    if (pinnedCard) pinnedCard.style.display = label ? "none" : "";
+
     document.querySelectorAll("#discList .disc-wrapper").forEach(w => {
       const wLabel = w.dataset.label || "";
       w.style.display = (!label || wLabel === label) ? "" : "none";
     });
-    // 필터 결과 없을 때 안내
+
+    // 빈 상태 메시지
+    const list = document.getElementById("discList");
+    list.querySelectorAll('.lbl-empty-msg').forEach(e => e.remove());
     if (label) {
       const visible = [...document.querySelectorAll("#discList .disc-wrapper")].filter(w => w.style.display !== "none");
       if (visible.length === 0) {
-        const list = document.getElementById("discList");
-        const existing = list.querySelector('.lbl-empty-msg');
-        if (!existing) {
-          const msg = document.createElement('div');
-          msg.className = 'lbl-empty-msg empty-row';
-          const guide = label === '내종목' ? '내 주식 탭에서 종목을 추가하세요.' :
-                        label === '관심종목' ? '관심종목 탭에서 종목을 추가하세요.' :
-                        label === '추천종목' ? '스크리너에서 TENBAGGER·COMPOUNDER 종목을 확인하세요.' :
-                        '조회 기간을 늘려보세요.';
-          msg.textContent = `${label} 공시가 없습니다. ${guide}`;
-          list.appendChild(msg);
-        }
-      } else {
-        const e = document.getElementById("discList").querySelector('.lbl-empty-msg');
-        if (e) e.remove();
+        const hasHoldings = (mhLoad && mhLoad().length > 0);
+        const guide =
+          label === '내종목'   ? (hasHoldings ? `보유 종목의 최근 ${_discDays}일 공시가 없습니다. 조회 기간을 늘려보세요.` : '내 주식 탭에서 종목을 추가하세요.')
+        : label === '관심종목' ? '관심종목 탭에서 종목을 추가하세요.'
+        : label === '추천종목' ? '스크리너에서 TENBAGGER·COMPOUNDER 종목을 확인하세요.'
+        : '조회 기간을 늘려보세요.';
+        const msg = document.createElement('div');
+        msg.className = 'lbl-empty-msg empty-row';
+        msg.textContent = `📭 ${label} 공시가 없습니다. ${guide}`;
+        list.appendChild(msg);
       }
-    } else {
-      const e = document.getElementById("discList").querySelector('.lbl-empty-msg');
-      if (e) e.remove();
     }
   }
 
@@ -1820,6 +1820,9 @@
     const list = document.getElementById("discList");
     document.getElementById("discList").querySelectorAll('.lbl-empty-msg').forEach(e => e.remove());
     list.innerHTML = '<div class="loading-row"><div class="spinner"></div><div>공시 데이터 로딩 중…</div></div>';
+    // 분기비교 예시 카드: 라벨 필터 선택 중엔 숨김
+    const pinnedCard = document.querySelector(".qc-pinned-card");
+    if (pinnedCard) pinnedCard.style.display = _labelFilter ? "none" : "";
 
     try {
       const token = localStorage.getItem("access_token");
@@ -1891,11 +1894,26 @@
           </div>`;
       }).join("");
 
-      // 시장 필터 재로드 후 라벨 필터 재적용
+      // 라벨 필터 재적용 — 빈 상태 메시지 포함
       if (_labelFilter) {
+        let visibleCount = 0;
         document.querySelectorAll("#discList .disc-wrapper").forEach(w => {
-          w.style.display = (w.dataset.label === _labelFilter) ? "" : "none";
+          const show = w.dataset.label === _labelFilter;
+          w.style.display = show ? "" : "none";
+          if (show) visibleCount++;
         });
+        if (visibleCount === 0) {
+          const hasHoldings = (mhLoad && mhLoad().length > 0);
+          const guide =
+            _labelFilter === '내종목'    ? (hasHoldings ? `보유 종목의 최근 ${_discDays}일 공시가 없습니다. 조회 기간을 늘려보세요.` : '내 주식 탭에서 종목을 추가하세요.')
+          : _labelFilter === '관심종목'  ? '관심종목 탭에서 종목을 추가하세요.'
+          : _labelFilter === '추천종목'  ? '스크리너에서 TENBAGGER·COMPOUNDER 종목을 확인하세요.'
+          : '조회 기간을 늘려보세요.';
+          const msg = document.createElement('div');
+          msg.className = 'lbl-empty-msg empty-row';
+          msg.textContent = `📭 ${_labelFilter} 공시가 없습니다. ${guide}`;
+          list.appendChild(msg);
+        }
       }
     } catch (e) {
       list.innerHTML = '<div class="empty-row" style="color:#f87171;">⚠️ 공시 데이터를 불러오지 못했습니다: ' + esc(e.message) + '</div>';
