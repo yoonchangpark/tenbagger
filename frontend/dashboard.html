@@ -282,6 +282,48 @@
     .cagr-forecast .cf-desc{font-size:12px;color:#d1d5db;line-height:1.5;}
     .ai-spinner{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;padding:16px 0;}
 
+    /* ── 추천종목 카드 ── */
+    .rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:16px;}
+    .rec-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;transition:border-color .2s;}
+    .rec-card:hover{border-color:rgba(99,102,241,.4);}
+    .rec-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+    .rec-title{font-size:15px;font-weight:700;}
+    .rec-ticker{font-size:11px;color:var(--muted);margin-top:2px;}
+    .rec-score .big{font-size:26px;font-weight:900;line-height:1;}
+    .dim-bars{margin-bottom:10px;}
+    .dim-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;}
+    .dim-label{color:var(--muted);min-width:28px;}
+    .dim-bg{flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;}
+    .dim-fill{height:100%;border-radius:3px;}
+    .dim-val{color:var(--muted);min-width:24px;text-align:right;}
+    .reasons{margin-bottom:8px;}
+    .r-title{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px;}
+    .reason-item{font-size:12px;color:#d1d5db;margin-bottom:3px;display:flex;gap:5px;}
+    .val-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+    .tag-chip{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:2px 7px;font-size:10px;color:var(--muted);}
+    .rec-actions{display:flex;gap:8px;}
+
+    /* ── 리스크 분석 ── */
+    .risk-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+    .risk-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;}
+    .r-num{font-size:26px;font-weight:900;line-height:1;margin-bottom:6px;}
+    .r-lbl{font-size:11px;color:var(--muted);}
+    .scenario-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
+    .sc-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;}
+    .sc-pct{font-size:22px;font-weight:900;margin-bottom:6px;}
+    .sc-label{font-size:11px;color:var(--muted);margin-bottom:6px;}
+    .sc-loss{font-size:14px;font-weight:700;}
+    .conc-bar{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;}
+    .conc-fill{height:100%;border-radius:3px;}
+    .dash-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px;}
+
+    /* ── 시장 비교 ── */
+    .cmp-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid rgba(55,65,81,.4);font-size:13px;}
+    .cmp-label{font-weight:600;}
+    .cmp-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+    .cmp-ret{font-size:15px;font-weight:800;}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
     @media(max-width:768px){
       header{padding:12px 16px;}
       .tabs-bar{overflow-x:auto;padding:0 12px;margin-top:16px;}
@@ -322,6 +364,7 @@
       <a class="nav-link" href="screener.html">📊 스크리너</a>
       <a class="nav-link" href="backtest.html">🧪 백테스트</a>
       <a class="nav-link active" href="dashboard.html">📡 대시보드</a>
+      <a class="nav-link" href="pricing.html" style="border-color:rgba(139,92,246,.4);color:#c4b5fd;">💎 구독</a>
     </div>
     <div id="authBtn" style="display:flex;align-items:center;gap:8px;"></div>
   </div>
@@ -329,29 +372,36 @@
 
 <!-- Tabs -->
 <div class="tabs-bar">
-  <button class="tab-btn active" onclick="switchTab('ranking',this)">🏆 텐배거 랭킹</button>
+  <button class="tab-btn active" onclick="switchTab('ranking',this)">🏆 추천종목</button>
   <button class="tab-btn" onclick="switchTab('watchlist',this)">⭐ 관심종목</button>
   <button class="tab-btn" onclick="switchTab('mystock',this)">💼 내 주식</button>
   <button class="tab-btn" onclick="switchTab('portfolio',this)">🔍 추천 검증</button>
-  <button class="tab-btn" onclick="switchTab('disclosures',this)">📡 신규 공시</button>
-  <button class="tab-btn" onclick="switchTab('analysis',this)">🔬 종목 분석</button>
+  <button class="tab-btn" onclick="switchTab('risk',this)">⚠️ 리스크 분석</button>
+  <button class="tab-btn" onclick="switchTab('dividend',this)">💰 배당 시나리오</button>
+  <button class="tab-btn" onclick="switchTab('disclosures',this)">📡 공시</button>
   <button class="tab-btn" onclick="switchTab('news',this)">📰 뉴스</button>
 </div>
 
 <div class="content">
 
-  <!-- ── TAB 0: Ranking ── -->
+  <!-- ── TAB 0: 추천종목 (기존 랭킹 + 등급 필터) ── -->
   <div class="tab-panel active" id="tab-ranking">
     <div class="section-header">
       <div>
-        <div class="section-title">🏆 텐배거 후보 TOP 10</div>
-        <div class="section-desc">DART 재무분석 기반 · 종합 점수 상위 10개 종목</div>
+        <div class="section-title">🏆 추천종목</div>
+        <div class="section-desc">DART 재무분석 기반 · 종합 점수 TOP10 또는 등급별 카드 보기</div>
       </div>
-      <button class="refresh-btn" id="rankRefreshBtn" onclick="loadRanking()">새로고침</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button class="filter-btn active" id="recModeAll" onclick="showRankingView(this)">📊 TOP 10</button>
+        <button class="filter-btn" id="recModeTB" onclick="loadRecCards('TENBAGGER',this)" style="border-color:rgba(245,158,11,.3);color:#fbbf24;">⭐ TENBAGGER</button>
+        <button class="filter-btn" id="recModeCO" onclick="loadRecCards('COMPOUNDER',this)" style="border-color:rgba(16,185,129,.3);color:#34d399;">🟢 COMPOUNDER</button>
+        <button class="refresh-btn" id="rankRefreshBtn" onclick="loadRanking()">새로고침</button>
+      </div>
     </div>
     <div id="rankingContent">
       <div class="loading-row"><div class="spinner"></div><div>랭킹 데이터 불러오는 중…</div></div>
     </div>
+    <div id="recCardContent" style="display:none;"></div>
   </div>
 
   <!-- ── TAB 1: Disclosures ── -->
@@ -767,6 +817,69 @@
     </div>
   </div>
 
+
+  <!-- ── TAB: 리스크 분석 ── -->
+  <div class="tab-panel" id="tab-risk">
+    <div style="margin-bottom:20px;">
+      <div class="section-title">⚠️ 포트폴리오 리스크 분석</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">내 주식 탭 보유 종목 기준 · 최대낙폭·변동성·집중도 분석</div>
+    </div>
+    <div class="risk-summary" id="riskSummaryDash">
+      <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">포트폴리오 MDD</div></div>
+      <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">연간 변동성</div></div>
+      <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">집중도 (최대 비중)</div></div>
+      <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">분산도 점수</div></div>
+    </div>
+    <div class="dash-card" id="concCardDash" style="display:none;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">📊 종목별 비중</div>
+      <div id="concBarsDash"></div>
+    </div>
+    <div style="font-size:14px;font-weight:700;margin-bottom:12px;">📉 하락 시나리오</div>
+    <div class="scenario-grid" id="scenarioGridDash">
+      <div class="sc-card"><div class="sc-pct" style="color:#f59e0b;">-20%</div><div class="sc-label">완만한 조정</div><div class="sc-loss" style="color:var(--muted);">내 주식 탭 먼저 추가</div></div>
+      <div class="sc-card"><div class="sc-pct" style="color:var(--red);">-30%</div><div class="sc-label">일반 하락장</div><div class="sc-loss" style="color:var(--muted);">—</div></div>
+      <div class="sc-card"><div class="sc-pct" style="color:#a78bfa;">-50%</div><div class="sc-label">심각한 위기</div><div class="sc-loss" style="color:var(--muted);">—</div></div>
+    </div>
+    <div class="dash-card" style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">종목별 개별 리스크</div>
+      <div id="tickerRiskListDash"><div class="empty-row">내 주식 탭에서 보유 종목을 먼저 추가하세요.</div></div>
+    </div>
+    <div class="dash-card" style="background:linear-gradient(135deg,rgba(59,130,246,.07),rgba(139,92,246,.05));border-color:rgba(59,130,246,.25);">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📈 시장 대비 비교 (KOSPI vs 텐배거 시스템)</div>
+      <div id="marketCmpDash"><div class="empty-row">데이터 로딩 중…</div></div>
+      <div id="alphaDash" style="margin-top:12px;font-size:18px;font-weight:800;color:var(--muted);"></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: 배당 시나리오 ── -->
+  <div class="tab-panel" id="tab-dividend">
+    <div style="margin-bottom:20px;">
+      <div class="section-title">💰 배당 시나리오 분석</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">한라산불곰 스타일 L1+L2 분석 — 이익수익률·배당수익률·안전마진을 현재가 기준으로 계산합니다.</div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:24px;">
+      <div style="flex:1;min-width:180px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">종목코드 또는 종목명</label>
+        <input id="divTicker" type="text" placeholder="예: 005930 또는 삼성전자"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:14px;outline:none;"
+          onkeydown="if(event.key==='Enter')loadDividendScenario()"/>
+      </div>
+      <div style="min-width:150px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">현재가 직접 입력 (선택)</label>
+        <input id="divPrice" type="number" placeholder="DB 자동 조회"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:14px;outline:none;"/>
+      </div>
+      <button onclick="loadDividendScenario()"
+        style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:8px;padding:9px 20px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;">
+        📊 분석
+      </button>
+    </div>
+    <div id="divLoading" style="display:none;text-align:center;padding:32px;color:var(--muted);">
+      <div class="spinner" style="margin:0 auto 12px;"></div>계산 중...
+    </div>
+    <div id="divResult"></div>
+  </div>
+
 </div><!-- /content -->
 
 <script>
@@ -884,6 +997,8 @@
     if (id === 'portfolio') { loadTrustBanner(); if (!switchTab._pfRan) { switchTab._pfRan = true; runPortfolioSimulation(); } }
     if (id === 'news') loadNewsDashboard();
     if (id === 'disclosures') loadDisclosures();
+    if (id === 'risk') renderRiskTabDash();
+    if (id === 'dividend') { /* 사용자 직접 입력 후 분석 */ }
   }
 
   // ── 관심종목 ──────────────────────────────────────────────────
@@ -3928,6 +4043,237 @@
   loadRanking();
   // DB 동기화 완료 후 공시 로드 (실패해도 반드시 loadDisclosures 실행)
   _syncLocalHoldingsToDB().then(() => loadDisclosures()).catch(() => loadDisclosures());
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 추천종목 탭 — 등급 필터 카드 뷰
+  // ══════════════════════════════════════════════════════════════════════════════
+  function showRankingView(btn) {
+    document.querySelectorAll('#tab-ranking .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('rankingContent').style.display = 'block';
+    document.getElementById('recCardContent').style.display = 'none';
+  }
+
+  async function loadRecCards(grade, btn) {
+    document.querySelectorAll('#tab-ranking .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('rankingContent').style.display = 'none';
+    const el = document.getElementById('recCardContent');
+    el.style.display = 'block';
+    el.innerHTML = '<div class="loading-row"><div class="spinner"></div>로딩 중…</div>';
+    try {
+      const res = await fetch(`${API}/api/screener?grade=${grade}&limit=20&sort=total_score`);
+      const data = await res.json();
+      if (!data.results?.length) { el.innerHTML = '<div class="empty-row">ETL을 먼저 실행해주세요.</div>'; return; }
+      el.innerHTML = `<div class="rec-grid">${data.results.map(renderRecCard).join('')}</div>`;
+    } catch(e) { el.innerHTML = `<div class="empty-row">오류: ${e.message}</div>`; }
+  }
+
+  function _recReasons(s) {
+    const r = [];
+    if (s.eps_cagr_5y > 20)      r.push(`5년 EPS CAGR ${s.eps_cagr_5y?.toFixed(1)}% — 강한 이익 성장`);
+    else if (s.eps_cagr_5y > 10) r.push(`EPS CAGR ${s.eps_cagr_5y?.toFixed(1)}% — 안정 성장`);
+    if (s.avg_roe_5y > 15)       r.push(`ROE ${s.avg_roe_5y?.toFixed(1)}% — 자본 효율 우수`);
+    if (s.debt_ratio < 50)       r.push(`부채비율 ${s.debt_ratio?.toFixed(0)}% — 재무 안정`);
+    if (s.avg_fcf_margin > 8)    r.push(`FCF마진 ${s.avg_fcf_margin?.toFixed(1)}% — 현금 창출력`);
+    if (s.revenue_cagr_5y > 15)  r.push(`매출 CAGR ${s.revenue_cagr_5y?.toFixed(1)}% — 사업 확장`);
+    return r.slice(0, 3);
+  }
+
+  function _recWarnings(s) {
+    const w = [];
+    if (s.per > 25)         w.push(`PER ${s.per?.toFixed(1)}배 — 밸류에이션 부담`);
+    if (s.debt_ratio > 150) w.push(`부채비율 ${s.debt_ratio?.toFixed(0)}% — 주의`);
+    if (s.growth_score < 5) w.push('성장성 낮음 — 성장 둔화 리스크');
+    return w.slice(0, 2);
+  }
+
+  function _dimBar(label, val) {
+    const v = val ? +val : 0;
+    const pct = Math.min(v / 10 * 100, 100);
+    const c = v >= 7 ? '#10b981' : v >= 5 ? '#3b82f6' : '#f59e0b';
+    return `<div class="dim-row"><span class="dim-label">${label}</span><div class="dim-bg"><div class="dim-fill" style="width:${pct}%;background:${c};"></div></div><span class="dim-val">${v > 0 ? v.toFixed(1) : '—'}</span></div>`;
+  }
+
+  const _GC = { TENBAGGER:'#f59e0b', COMPOUNDER:'#10b981', WATCHLIST:'#3b82f6', AVOID:'#ef4444' };
+  const _GE = { TENBAGGER:'⭐', COMPOUNDER:'🟢', WATCHLIST:'🟡', AVOID:'🔴' };
+
+  function renderRecCard(s) {
+    const gc = _GC[s.grade] || '#9ca3af';
+    const ge = _GE[s.grade] || '';
+    const reasons = _recReasons(s);
+    const warnings = _recWarnings(s);
+    const valTags = [s.per>0?`PER ${(+s.per).toFixed(1)}`:'', s.pbr>0?`PBR ${(+s.pbr).toFixed(1)}`:'', s.dividend_yield>0?`배당 ${(+s.dividend_yield).toFixed(1)}%`:''].filter(Boolean);
+    const price = s.close ? `₩${Number(s.close).toLocaleString()}` : '—';
+    return `<div class="rec-card">
+      <div class="rec-header">
+        <div><div class="rec-title">${escHtml(s.name||s.ticker)}</div><div class="rec-ticker">${s.ticker} · ${s.market||''}</div>
+          <div style="margin-top:6px;"><span style="background:${gc}22;color:${gc};border:1px solid ${gc}44;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;">${ge} ${s.grade}</span></div></div>
+        <div style="text-align:right;"><div class="big" style="font-size:24px;font-weight:900;color:${gc};">${s.total_score?.toFixed(1)||'—'}</div>
+          <div style="font-size:9px;color:var(--muted);">/ 10.0</div><div style="font-size:12px;font-weight:700;color:#60a5fa;">${price}</div></div>
+      </div>
+      <div class="dim-bars">${_dimBar('성장',s.growth_score)}${_dimBar('안정',s.stability_score)}${_dimBar('현금',s.cashflow_score)}${_dimBar('배당',s.dividend_score)}${_dimBar('일관',s.consistency_score)}</div>
+      <div class="reasons"><div class="r-title">추천 이유</div>${reasons.map(r=>`<div class="reason-item"><span>✅</span>${escHtml(r)}</div>`).join('')}${!reasons.length?'<div style="font-size:11px;color:var(--muted);">재무 데이터 부족</div>':''}</div>
+      ${warnings.length?`<div class="reasons"><div class="r-title" style="color:#f87171;">주의</div>${warnings.map(w=>`<div class="reason-item"><span>⚠️</span>${escHtml(w)}</div>`).join('')}</div>`:''}
+      ${valTags.length?`<div class="val-tags">${valTags.map(t=>`<span class="tag-chip">${t}</span>`).join('')}</div>`:''}
+      <div class="rec-actions"><button class="filter-btn" style="flex:1;font-size:11px;" onclick="window.location.href='index.html?q=${s.ticker}'">상세 분석 →</button></div>
+    </div>`;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 리스크 분석 탭 — 실제 보유 종목 기반
+  // ══════════════════════════════════════════════════════════════════════════════
+  async function renderRiskTabDash() {
+    // 실제 보유 종목 fetch
+    let holdings = [];
+    try {
+      const res = await authFetch(API + '/api/v2/holdings');
+      if (res.ok) { const d = await res.json(); holdings = d.holdings || []; }
+    } catch {}
+
+    const emptyMsg = (id, msg) => { document.getElementById(id).innerHTML = `<div class="empty-row">${msg}</div>`; };
+
+    if (!holdings.length) {
+      document.getElementById('riskSummaryDash').innerHTML = `<div class="risk-box" style="grid-column:1/-1;padding:40px;"><div style="font-size:36px;margin-bottom:8px;">📭</div><div class="r-lbl">내 주식 탭에서 보유 종목을 먼저 추가하세요</div></div>`;
+      emptyMsg('tickerRiskListDash','보유 종목 없음');
+      emptyMsg('marketCmpDash','—');
+      return;
+    }
+
+    const totalInvested = holdings.reduce((s, h) => s + (h.current_price||h.avg_price||1) * (h.quantity||0), 0);
+    const positions = holdings.map(h => ({
+      ticker: h.ticker,
+      name: h.name || h.ticker,
+      weight: totalInvested > 0 ? (h.current_price||h.avg_price||1) * h.quantity / totalInvested * 100 : 100 / holdings.length,
+    }));
+
+    // 포트폴리오 리스크 API
+    let pRisk = null;
+    try {
+      const res = await fetch(`${API}/api/v2/risk/portfolio`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({positions}) });
+      pRisk = await res.json();
+    } catch {}
+
+    document.getElementById('riskSummaryDash').innerHTML = `
+      <div class="risk-box"><div class="r-num" style="color:${pRisk?.portfolio_mdd_pct!=null?'#ef4444':'var(--muted)'};">${pRisk?.portfolio_mdd_pct!=null?pRisk.portfolio_mdd_pct.toFixed(1)+'%':'—'}</div><div class="r-lbl">포트폴리오 MDD</div></div>
+      <div class="risk-box"><div class="r-num" style="color:${pRisk?.portfolio_vol_pct!=null?'#f59e0b':'var(--muted)'};">${pRisk?.portfolio_vol_pct!=null?pRisk.portfolio_vol_pct.toFixed(1)+'%':'—'}</div><div class="r-lbl">연간 변동성</div></div>
+      <div class="risk-box"><div class="r-num" style="color:${(pRisk?.concentration_pct||0)>40?'#ef4444':'#10b981'};">${pRisk?.concentration_pct!=null?pRisk.concentration_pct.toFixed(1)+'%':'—'}</div><div class="r-lbl">집중도 (최대 비중)</div></div>
+      <div class="risk-box"><div class="r-num" style="color:${(pRisk?.diversification_score||0)>=60?'#10b981':'#f59e0b'};">${pRisk?.diversification_score??'—'}</div><div class="r-lbl">분산도 점수 (/100)</div></div>`;
+
+    const concCard = document.getElementById('concCardDash');
+    concCard.style.display = 'block';
+    document.getElementById('concBarsDash').innerHTML = positions.sort((a,b)=>b.weight-a.weight).map(p => {
+      const c = p.weight>40?'#ef4444':p.weight>25?'#f59e0b':'#10b981';
+      return `<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>${escHtml(p.name)}</span><span style="color:${c};font-weight:700;">${p.weight.toFixed(1)}%</span></div><div class="conc-bar"><div class="conc-fill" style="width:${Math.min(p.weight,100)}%;background:${c};"></div></div></div>`;
+    }).join('');
+
+    const totalInv = totalInvested;
+    document.getElementById('scenarioGridDash').innerHTML = [{pct:20,color:'#f59e0b',label:'완만한 조정'},{pct:30,color:'#ef4444',label:'일반 하락장'},{pct:50,color:'#a78bfa',label:'심각한 위기'}].map(sc => {
+      const loss = totalInv * sc.pct / 100;
+      return `<div class="sc-card"><div class="sc-pct" style="color:${sc.color};">-${sc.pct}%</div><div class="sc-label">${sc.label}</div><div class="sc-loss" style="color:${sc.color};">-₩${Math.round(loss).toLocaleString()}</div><div style="font-size:11px;color:var(--muted);margin-top:6px;">손실 예상액</div></div>`;
+    }).join('');
+
+    const listEl = document.getElementById('tickerRiskListDash');
+    listEl.innerHTML = '<div class="loading-row" style="padding:16px;"><div class="spinner" style="width:20px;height:20px;margin:0 auto;"></div></div>';
+    const riskRows = await Promise.all(holdings.map(async h => {
+      try { const r = await fetch(`${API}/api/v2/risk/${h.ticker}`); return {...await r.json(), ticker:h.ticker, name:h.name||h.ticker}; }
+      catch { return {ticker:h.ticker, name:h.name||h.ticker}; }
+    }));
+    listEl.innerHTML = riskRows.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid rgba(55,65,81,.4);">
+      <div><div style="font-weight:700;">${escHtml(r.name)}</div><div style="font-size:11px;color:var(--muted);">${r.ticker}</div></div>
+      <div style="display:flex;gap:16px;font-size:12px;text-align:right;">
+        <div><div style="font-size:10px;color:var(--muted);">MDD</div><div style="font-weight:700;color:#ef4444;">${r.mdd_pct!=null?r.mdd_pct.toFixed(1)+'%':'—'}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);">변동성</div><div style="font-weight:700;color:#f59e0b;">${r.annual_vol_pct!=null?r.annual_vol_pct.toFixed(1)+'%':'—'}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);">샤프</div><div style="font-weight:700;color:${(r.sharpe_ratio||0)>1?'#10b981':'var(--muted)'};">${r.sharpe_ratio!=null?r.sharpe_ratio.toFixed(2):'—'}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);">리스크</div><div style="font-size:11px;font-weight:700;color:${r.risk_color||'#9ca3af'};">${r.risk_level||'—'}</div></div>
+      </div></div>`).join('');
+
+    // 시장 비교
+    try {
+      const res = await fetch(`${API}/api/v2/portfolio/simulate?grade_filter=TENBAGGER&period=3m&invest_amount=100000000`);
+      const data = await res.json();
+      const kospi = data?.performance?.kospi_return_pct;
+      const sys   = data?.performance?.total_return_pct;
+      const alpha = data?.performance?.alpha;
+      const myRet = totalInv > 0 ? holdings.reduce((s,h)=>{ const cur=h.current_price||h.avg_price||1; const avg=h.avg_price||cur; return s+(cur-avg)/avg*(avg*h.quantity); },0)/totalInv*100 : null;
+      const cmpRows = [
+        {label:'내 포트폴리오',sub:'실제 보유 종목 평균', val:myRet},
+        {label:'텐배거 추천 (시스템)',sub:'TENBAGGER 등급 전체', val:sys},
+        {label:'KOSPI 지수',sub:'시장 벤치마크', val:kospi},
+      ].map(row=>{
+        const c=row.val!=null?(row.val>=0?'#10b981':'#ef4444'):'var(--muted)';
+        return `<div class="cmp-row"><div><div class="cmp-label">${row.label}</div><div class="cmp-sub">${row.sub}</div></div><div class="cmp-ret" style="color:${c};">${row.val!=null?(row.val>=0?'+':'')+row.val.toFixed(2)+'%':'—'}</div></div>`;
+      }).join('');
+      document.getElementById('marketCmpDash').innerHTML = cmpRows;
+      if (alpha!=null) {
+        const ac=alpha>=0?'#10b981':'#ef4444';
+        document.getElementById('alphaDash').innerHTML = `α = <span style="color:${ac};">${alpha>=0?'+':''}${alpha.toFixed(2)}%</span> <span style="font-size:12px;color:var(--muted);">(시스템 vs KOSPI, 3개월)</span>`;
+      }
+    } catch { emptyMsg('marketCmpDash','시뮬레이션 데이터 없음 (ETL 필요)'); }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 배당 시나리오 탭
+  // ══════════════════════════════════════════════════════════════════════════════
+  async function loadDividendScenario() {
+    const input = (document.getElementById('divTicker')?.value||'').trim();
+    const priceInput = (document.getElementById('divPrice')?.value||'').trim();
+    if (!input) return;
+    const loadEl = document.getElementById('divLoading');
+    const resultEl = document.getElementById('divResult');
+    loadEl.style.display = 'block';
+    resultEl.innerHTML = '';
+    try {
+      let ticker = input;
+      if (!/^\d{6}$/.test(input)) {
+        const sr = await fetch(API + '/api/search?q=' + encodeURIComponent(input));
+        const sj = await sr.json();
+        const hit = (sj.results||sj.companies||[])[0];
+        if (!hit) throw new Error('종목을 찾을 수 없습니다: ' + input);
+        ticker = hit.ticker||hit.stock_code||hit.corp_code;
+      }
+      let url = API + '/api/v2/portfolio/dividend-scenario/' + ticker;
+      if (priceInput) url += '?current_price=' + encodeURIComponent(priceInput);
+      const r = await fetch(url);
+      if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.detail||'HTTP '+r.status); }
+      renderDividendResult(await r.json());
+    } catch(e) {
+      resultEl.innerHTML = `<div style="padding:16px;color:#f87171;font-size:13px;">⚠️ ${escHtml(e.message)}</div>`;
+    } finally { loadEl.style.display = 'none'; }
+  }
+
+  function renderDividendResult(d) {
+    const el = document.getElementById('divResult');
+    const fmtN = (v,u='') => v!=null ? Number(v).toLocaleString()+u : '—';
+    const fmtP = (v) => v!=null ? v.toFixed(1)+'%' : '—';
+    const badgesHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      ${d.earnings_yield!=null?`<span style="background:rgba(52,211,153,.15);color:#34d399;padding:5px 14px;border-radius:10px;font-weight:700;font-size:13px;">이익수익률 ${fmtP(d.earnings_yield)}</span>`:''}
+      ${d.dividend_yield!=null?`<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:5px 14px;border-radius:10px;font-weight:700;font-size:13px;">배당수익률 ${fmtP(d.dividend_yield)}</span>`:''}
+      ${d.pbr!=null?`<span style="background:rgba(96,165,250,.12);color:#60a5fa;padding:5px 14px;border-radius:10px;font-size:13px;">PBR ${d.pbr.toFixed(2)}x</span>`:''}
+      ${d.per!=null?`<span style="background:rgba(167,139,250,.12);color:#a78bfa;padding:5px 14px;border-radius:10px;font-size:13px;">PER ${d.per.toFixed(1)}x</span>`:''}
+    </div>`;
+    let scHtml = '';
+    if (d.scenarios) {
+      const keys=['bear','base','bull'], colors={bear:'#f87171',base:'#60a5fa',bull:'#34d399'}, icons={bear:'📉',base:'📊',bull:'📈'};
+      const cards = keys.map(k => {
+        const sc = d.scenarios[k]; if (!sc) return '';
+        const dy = sc.div_yield!=null ? sc.div_yield.toFixed(1)+'%' : '—';
+        const safeNote = k==='bear'&&sc.div_yield!=null ? (sc.div_yield>=3?'<div style="font-size:10px;color:#34d399;">✅ 안전마진</div>':'<div style="font-size:10px;color:#f87171;">⚠️ 안전마진 미달</div>') : '';
+        return `<div style="flex:1;min-width:100px;background:rgba(255,255,255,.04);border:1px solid ${colors[k]};border-radius:12px;padding:14px;text-align:center;">
+          <div style="font-size:16px;margin-bottom:4px;">${icons[k]}</div><div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${sc.label||k}</div>
+          <div style="font-size:20px;font-weight:800;color:${colors[k]};">${dy}</div><div style="font-size:11px;color:var(--muted);margin-top:4px;">DPS ${fmtN(sc.dps,'원')}</div>${safeNote}</div>`;
+      }).join('');
+      scHtml = `<div style="margin-bottom:16px;"><div style="font-size:11px;color:var(--muted);margin-bottom:8px;">📊 배당 시나리오 — 비관/기본/낙관</div><div style="display:flex;gap:10px;">${cards}</div></div>`;
+    }
+    const smColor = d.safety_margin==='있음'?'#34d399':d.safety_margin==='없음'?'#f87171':'#94a3b8';
+    const smHtml = d.safety_margin ? `<div style="padding:10px 16px;background:rgba(255,255,255,.04);border-radius:10px;font-size:13px;margin-bottom:16px;">안전마진: <span style="color:${smColor};font-weight:700;">${d.safety_margin}</span>${d.safety_margin_reason?` <span style="color:var(--muted);font-size:12px;">— ${escHtml(d.safety_margin_reason)}</span>`:''}</div>` : '';
+    const rows = [['현재가',fmtN(d.current_price,'원')],['EPS',fmtN(d.eps,'원')],['DPS',fmtN(d.dps,'원')],['BPS',fmtN(d.bps,'원')]].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;"><span style="color:var(--muted);">${k}</span><span style="font-weight:600;">${v}</span></div>`).join('');
+    el.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;">
+      <div style="font-size:18px;font-weight:800;margin-bottom:4px;">${escHtml(d.name||d.ticker)}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">${d.ticker}</div>
+      ${badgesHtml}${scHtml}${smHtml}<div>${rows}</div>
+      <div style="margin-top:16px;font-size:11px;color:var(--muted);">💡 이익수익률=EPS/현재가×100 | 배당수익률=DPS/현재가×100 | 안전마진 기준: 비관 배당수익률 ≥ 3%</div></div>`;
+  }
 
   function showToast(msg, type='info') {
     const c = document.getElementById('toastContainer');
