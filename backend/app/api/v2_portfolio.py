@@ -746,8 +746,8 @@ def dividend_scenario(
     try:
         with SessionLocal() as session:
             sc = session.execute(text("""
-                SELECT close_price, pbr, per
-                FROM score_cache WHERE ticker = :t LIMIT 1
+                SELECT close, pbr, per
+                FROM scores WHERE ticker = :t LIMIT 1
             """), {"t": ticker}).fetchone()
 
             fd = session.execute(text("""
@@ -761,7 +761,7 @@ def dividend_scenario(
                 SELECT name FROM companies WHERE ticker = :t LIMIT 1
             """), {"t": ticker}).fetchone()
 
-        price = current_price or (float(sc.close_price) if sc and sc.close_price else None)
+        price = current_price or (float(sc.close) if sc and sc.close else None)
         name = co.name if co else ticker
 
         eps  = float(fd.eps)  if fd and fd.eps  else None

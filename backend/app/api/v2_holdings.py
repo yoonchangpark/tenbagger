@@ -29,16 +29,16 @@ def list_holdings(
 ):
     rows = db.execute(text("""
         SELECT h.ticker, h.name, h.quantity, h.avg_price, h.added_at,
-               s.total_score, s.grade, s.close_price
+               s.total_score, s.grade, s.close
         FROM user_holdings h
-        LEFT JOIN score_cache s ON s.ticker = h.ticker
+        LEFT JOIN scores s ON s.ticker = h.ticker
         WHERE h.user_id = :uid
         ORDER BY h.added_at DESC
     """), {"uid": current_user["id"]}).fetchall()
 
     result = []
     for r in rows:
-        cur_price = r.close_price or 0
+        cur_price = r.close or 0
         avg = float(r.avg_price or 0)
         qty = r.quantity or 0
         pnl_pct = round((cur_price - avg) / avg * 100, 2) if avg > 0 and cur_price > 0 else None

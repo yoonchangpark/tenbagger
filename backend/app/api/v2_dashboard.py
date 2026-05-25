@@ -58,11 +58,24 @@ def _get_high_grade_tickers() -> set:
     try:
         with SessionLocal() as db:
             rows = db.execute(text(
-                "SELECT ticker FROM score_cache WHERE grade IN ('TENBAGGER','COMPOUNDER')"
+                "SELECT ticker FROM scores WHERE grade IN ('TENBAGGER','COMPOUNDER')"
             )).fetchall()
         return {r.ticker.upper() for r in rows}
     except Exception:
         return set()
+
+
+def _get_top_high_grade_tickers(limit: int = 25) -> list:
+    """TENBAGGER / COMPOUNDER 상위 N개 ticker (총점 내림차순) — 추천종목 per-company 조회용"""
+    try:
+        with SessionLocal() as db:
+            rows = db.execute(text(
+                "SELECT ticker FROM scores WHERE grade IN ('TENBAGGER','COMPOUNDER') "
+                "ORDER BY total_score DESC NULLS LAST LIMIT :lim"
+            ), {"lim": limit}).fetchall()
+        return [r.ticker.upper() for r in rows]
+    except Exception:
+        return []
 
 
 def _label_priority(stock_code: str, report_nm: str,
@@ -137,20 +150,34 @@ async def get_disclosures(
     _corp_code_map: dict = {e["corp_code"]: e["stock_code"] for e in _cache}
     _ticker_to_corp: dict = {e["stock_code"]: e["corp_code"] for e in _cache}
 
-    # 보유/관심 종목별 DART 개별 조회 — global page_count=100 한계 우회
+    # 종목별 DART 개별 조회 — global page_count=100 한계 우회
+    async def _fetch_corp(corp_code: str) -> list:
+        try:
+            r = await _get("list.json", {**params, "corp_code": corp_code, "page_count": "10"})
+            return r.get("list", [])
+        except Exception:
+            return []
+
+    seen = {i.get("rcept_no") for i in items}
+
+    # 보유/관심 종목 — per-company 조회
     personal_tickers = user_tickers["holdings"] | user_tickers["watchlist"]
     if personal_tickers and _ticker_to_corp:
-        async def _fetch_corp(corp_code: str) -> list:
-            try:
-                r = await _get("list.json", {**params, "corp_code": corp_code, "page_count": "10"})
-                return r.get("list", [])
-            except Exception:
-                return []
-
         corp_codes = [_ticker_to_corp[t] for t in personal_tickers if t in _ticker_to_corp]
         per_company = await asyncio.gather(*[_fetch_corp(cc) for cc in corp_codes])
-        seen = {i.get("rcept_no") for i in items}
         for company_items in per_company:
+            for item in company_items:
+                if item.get("rcept_no") not in seen:
+                    items.append(item)
+                    seen.add(item.get("rcept_no"))
+
+    # 추천종목(TENBAGGER/COMPOUNDER) — 상위 25개 per-company 조회
+    top_high_grade = _get_top_high_grade_tickers(limit=25)
+    hg_non_personal = [t for t in top_high_grade if t not in personal_tickers]
+    if hg_non_personal and _ticker_to_corp:
+        hg_corp_codes = [_ticker_to_corp[t] for t in hg_non_personal if t in _ticker_to_corp]
+        hg_per_company = await asyncio.gather(*[_fetch_corp(cc) for cc in hg_corp_codes])
+        for company_items in hg_per_company:
             for item in company_items:
                 if item.get("rcept_no") not in seen:
                     items.append(item)
@@ -265,10 +292,10 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
         try:
             with SessionLocal() as session:
                 cp_row = session.execute(text(
-                    "SELECT close_price FROM score_cache WHERE ticker = :t LIMIT 1"
+                    "SELECT close FROM scores WHERE ticker = :t LIMIT 1"
                 ), {"t": body.ticker}).fetchone()
             if cp_row:
-                close_price = float(cp_row.close_price or 0) or None
+                close_price = float(cp_row.close or 0) or None
         except Exception:
             pass
 
