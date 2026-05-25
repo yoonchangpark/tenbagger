@@ -2895,36 +2895,32 @@
   }
 
   function mhSyncToDb(ticker, name, qty, avgPrice) {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-    fetch(API + '/api/v2/holdings', {
+    if (!localStorage.getItem('access_token')) return;
+    authFetch(API + '/api/v2/holdings', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticker, name, quantity: qty, avg_price: avgPrice }),
     }).catch(() => {});
   }
 
   async function _syncLocalHoldingsToDB() {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
+    if (!localStorage.getItem('access_token')) return;
     const local = mhLoad();
     if (!local.length) return;
-    // 병렬 POST, 모두 완료될 때까지 await (race condition 방지)
+    // 병렬 POST — authFetch가 토큰 만료 시 자동 갱신 후 재시도
     await Promise.all(local.filter(h => h.ticker).map(h =>
-      fetch(API + '/api/v2/holdings', {
+      authFetch(API + '/api/v2/holdings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticker: h.ticker, name: h.name, quantity: h.qty, avg_price: h.avgPrice }),
       }).catch(() => {})
     ));
   }
 
   function mhDeleteFromDb(ticker) {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-    fetch(API + '/api/v2/holdings/' + encodeURIComponent(ticker), {
+    if (!localStorage.getItem('access_token')) return;
+    authFetch(API + '/api/v2/holdings/' + encodeURIComponent(ticker), {
       method: 'DELETE',
-      headers: { 'Authorization': 'Bearer ' + token },
     }).catch(() => {});
   }
 
