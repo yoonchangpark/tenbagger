@@ -25,6 +25,7 @@ from app.api.v2_flow import router as flow_router
 from app.api.v2_surprise import router as surprise_router
 from app.api.v2_holdings import router as holdings_router
 from app.api.v2_phase_d import router as phase_d_router
+from app.api.v2_swap import router as swap_router
 from app.core.database import check_db, SessionLocal
 
 
@@ -311,6 +312,7 @@ app.include_router(flow_router)
 app.include_router(surprise_router)
 app.include_router(holdings_router)
 app.include_router(phase_d_router)
+app.include_router(swap_router)
 
 
 @app.get("/api/health")
