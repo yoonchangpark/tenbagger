@@ -258,50 +258,93 @@ async def _fetch_via_document_api(rcept_no: str, max_chars: int) -> str:
 
 
 async def _fetch_via_dart_viewer(rcept_no: str, max_chars: int) -> str:
-    """2차: DART 공개 뷰어 스크래핑 (API 키 불필요)"""
+    """2차: DART 공개 뷰어 스크래핑 — POST selectToc.do + 다중 패턴"""
     import re
     VIEWER = "https://dart.fss.or.kr"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    base_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Referer": f"{VIEWER}/dsaf001/main.do?rcpNo={rcept_no}",
+    }
+    ajax_headers = {
+        **base_headers,
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    }
     print(f"[DART] 뷰어 스크래핑 시작 ({rcept_no})")
-    try:
-        async with httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=True) as client:
 
-            # 후보 1: DART SPA가 내부적으로 호출하는 문서 목록 AJAX 엔드포인트 시도
-            for ajax_url, ajax_params in [
-                (f"{VIEWER}/dsaf001/selectToc.do",   {"rcpNo": rcept_no}),
-                (f"{VIEWER}/dsaf001/main.do",        {"rcpNo": rcept_no, "requestType": "ajax"}),
-                (f"{VIEWER}/report/selectDoc.do",    {"rcpNo": rcept_no}),
+    def _extract_dcm(text: str) -> str | None:
+        for pat in [
+            r'"dcmNo"\s*:\s*"?(\d+)"?',
+            r"'dcmNo'\s*:\s*'?(\d+)'?",
+            r'[?&]dcmNo=(\d+)',
+            r'dcmNo\s*[=:]\s*["\']?(\d+)',
+            r'dcm_no\s*[=:]\s*["\']?(\d+)',
+        ]:
+            m = re.search(pat, text, re.IGNORECASE)
+            if m:
+                return m.group(1)
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, headers=base_headers, follow_redirects=True) as client:
+            dcm_no = None
+
+            # 1단계: POST 방식으로 DART SPA 내부 AJAX 엔드포인트 시도
+            for ajax_url in [
+                f"{VIEWER}/dsaf001/selectToc.do",
+                f"{VIEWER}/dsaf001/selectRprtFrm.do",
+                f"{VIEWER}/report/selectDoc.do",
+                f"{VIEWER}/dsaf001/selectAttchFrm.do",
             ]:
                 try:
-                    aj = await client.get(ajax_url, params=ajax_params,
-                                          headers={**headers, "X-Requested-With": "XMLHttpRequest",
-                                                   "Accept": "application/json, text/javascript, */*"})
-                    m = re.search(r'["\']?dcmNo["\']?\s*[=:]\s*["\']?(\d+)', aj.text, re.IGNORECASE)
-                    if not m:
-                        m = re.search(r'[?&]dcmNo=(\d+)', aj.text, re.IGNORECASE)
-                    if m:
-                        dcm_no = m.group(1)
-                        print(f"[DART] AJAX dcmNo 발견 ({rcept_no}): {dcm_no} from {ajax_url}")
+                    aj = await client.post(ajax_url, data={"rcpNo": rcept_no}, headers=ajax_headers)
+                    print(f"[DART] POST {ajax_url.split('/')[-1]}: HTTP {aj.status_code}, {len(aj.text)}자, preview={aj.text[:120]!r}")
+                    dcm_no = _extract_dcm(aj.text)
+                    if dcm_no:
+                        print(f"[DART] POST dcmNo 발견 ({rcept_no}): {dcm_no} from {ajax_url}")
                         break
-                except Exception:
+                except Exception as e:
+                    print(f"[DART] POST {ajax_url.split('/')[-1]} 실패: {e}")
                     continue
-            else:
-                dcm_no = None
 
-            # 후보 2: 메인 페이지 전체에서 dcmNo 검색
+            # 2단계: GET AJAX 시도
+            if not dcm_no:
+                for ajax_url, ajax_params in [
+                    (f"{VIEWER}/dsaf001/selectToc.do", {"rcpNo": rcept_no}),
+                    (f"{VIEWER}/report/selectDoc.do",  {"rcpNo": rcept_no}),
+                ]:
+                    try:
+                        aj = await client.get(ajax_url, params=ajax_params, headers=ajax_headers)
+                        print(f"[DART] GET {ajax_url.split('/')[-1]}: HTTP {aj.status_code}, preview={aj.text[:120]!r}")
+                        dcm_no = _extract_dcm(aj.text)
+                        if dcm_no:
+                            print(f"[DART] GET dcmNo 발견 ({rcept_no}): {dcm_no}")
+                            break
+                    except Exception as e:
+                        print(f"[DART] GET {ajax_url.split('/')[-1]} 실패: {e}")
+                        continue
+
+            # 3단계: viewer.do에 rcpNo만 전달 (리다이렉트로 dcmNo 노출 기대)
+            if not dcm_no:
+                try:
+                    vr = await client.get(f"{VIEWER}/report/viewer.do", params={"rcpNo": rcept_no})
+                    dcm_no = _extract_dcm(str(vr.url)) or _extract_dcm(vr.text)
+                    if dcm_no:
+                        print(f"[DART] viewer.do redirect dcmNo: {dcm_no}")
+                except Exception:
+                    pass
+
+            # 4단계: 메인 페이지 전체 분석 + JS 소스 힌트
             if not dcm_no:
                 main_r = await client.get(f"{VIEWER}/dsaf001/main.do", params={"rcpNo": rcept_no})
                 main_html = main_r.text
-                for pat in [r'[?&]dcmNo=(\d+)', r'dcmNo\s*[=:]\s*["\']?(\d+)', r'"dcmNo"\s*:\s*"?(\d+)"?']:
-                    m = re.search(pat, main_html, re.IGNORECASE)
-                    if m:
-                        dcm_no = m.group(1)
-                        break
+                dcm_no = _extract_dcm(main_html)
                 if not dcm_no:
-                    # dcmNo가 HTML 어딘가 있는지 확인
                     pos = main_html.lower().find("dcmno")
-                    ctx = main_html[max(0, pos-30):pos+80] if pos >= 0 else "(없음)"
-                    print(f"[DART] dcmNo 미발견 ({rcept_no}) HTML={len(main_html)}자 ctx={ctx!r}")
+                    ctx = main_html[max(0, pos - 30):pos + 80] if pos >= 0 else "(없음)"
+                    js_files = re.findall(r'src=["\']([^"\']+\.js[^"\']*)["\']', main_html)
+                    print(f"[DART] dcmNo 미발견 ({rcept_no}) HTML={len(main_html)}자 ctx={ctx!r} JS파일수={len(js_files)}")
                     return ""
 
             # 문서 본문 가져오기
@@ -309,8 +352,18 @@ async def _fetch_via_dart_viewer(rcept_no: str, max_chars: int) -> str:
                 f"{VIEWER}/report/viewer.do",
                 params={"rcpNo": rcept_no, "dcmNo": dcm_no, "eleId": "0", "offset": "0", "length": "0", "dtd": ""},
             )
-            clean = _html_to_text(doc_r.text)
+            raw_bytes = doc_r.content
+            html = None
+            for enc in ("euc-kr", "cp949", "utf-8"):
+                try:
+                    html = raw_bytes.decode(enc)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            if html is None:
+                html = raw_bytes.decode("utf-8", errors="replace")
 
+            clean = _html_to_text(html)
             if len(clean) > 100:
                 print(f"[DART] 뷰어 스크래핑 성공 ({rcept_no}): {len(clean):,}자 (dcmNo={dcm_no})")
                 return clean[:max_chars]
