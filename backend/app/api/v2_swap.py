@@ -141,30 +141,58 @@ async def swap_analysis(
     ]
     disc_context = ("최근 90일 주요 공시:\n" + "\n".join(disc_lines)) if disc_lines else "최근 90일 중요 공시 없음"
 
-    # ── 5. 이상 감지 조건 ────────────────────────────────────────────────
+    # ── 5. 이상 감지 — 장기투자 가치 기반 (손익률 아닌 재무 건전성 우선)
     pnl_pct = None
     if body.current_price and body.avg_price > 0:
         pnl_pct = (body.current_price - body.avg_price) / body.avg_price * 100
 
+    stability  = company_info.get("stability_score")
+    growth     = company_info.get("growth_score")
+    cashflow   = company_info.get("cashflow_score")
+    avg_roe    = company_info.get("avg_roe_5y")
+    rev_cagr   = company_info.get("revenue_cagr_5y")
+    div_yield  = company_info.get("dividend_yield")
+
     anomalies = []
-    if grade in ("WATCHLIST", "AVOID", "UNKNOWN"):
-        anomalies.append({"type": "grade", "severity": "HIGH",
-                          "msg": f"등급 {grade} — TENBAGGER/COMPOUNDER 미달"})
-    elif grade == "COMPOUNDER":
-        anomalies.append({"type": "grade", "severity": "LOW",
-                          "msg": "COMPOUNDER 등급 — TENBAGGER 미달"})
 
-    if pnl_pct is not None and pnl_pct < -10:
-        anomalies.append({"type": "loss", "severity": "HIGH",
-                          "msg": f"손실 {pnl_pct:.1f}% — 투자 논거 재검토 필요"})
+    # 등급 기반 (1차 — 종합 재무 판단)
+    _GRADE_SEVERITY = {"AVOID": "HIGH", "WATCHLIST": "MEDIUM", "UNKNOWN": "MEDIUM", "COMPOUNDER": "LOW"}
+    _GRADE_MSG = {
+        "AVOID":     "장기투자 부적합 등급 — 재무·성장성 종합 점수 미달",
+        "WATCHLIST": "투자 등급 미달 — 재무 안정성·배당 지속성 재검토 필요",
+        "UNKNOWN":   "분석 데이터 없음 — 장기 투자 가치 판단 불가",
+        "COMPOUNDER":"COMPOUNDER 등급 — TENBAGGER 잠재력 미달 (참고용)",
+    }
+    if grade in _GRADE_SEVERITY:
+        anomalies.append({"type": "grade", "severity": _GRADE_SEVERITY[grade],
+                          "msg": _GRADE_MSG[grade]})
 
+    # 세부 재무 지표 기반 (2차 — 구체적 약점)
+    if stability is not None and stability < 5.0:
+        anomalies.append({"type": "stability", "severity": "HIGH",
+                          "msg": f"재무 안정성 {stability:.1f}점 — 부채 과다·유동성 위험"})
+    if growth is not None and growth < 4.0:
+        anomalies.append({"type": "growth", "severity": "MEDIUM",
+                          "msg": f"성장성 {growth:.1f}점 — 매출·EPS 성장 부진"})
+    if cashflow is not None and cashflow < 4.0:
+        anomalies.append({"type": "cashflow", "severity": "MEDIUM",
+                          "msg": f"현금흐름 {cashflow:.1f}점 — FCF 창출 능력 미흡"})
+    if avg_roe is not None and avg_roe < 5.0:
+        anomalies.append({"type": "roe", "severity": "MEDIUM",
+                          "msg": f"5년 평균 ROE {avg_roe:.1f}% — 자본 수익성 낮음"})
+
+    # 뉴스·감성 (3차 — 최근 시장 신호)
     if news_signal in ("SELL_SIGNAL", "CAUTION"):
         anomalies.append({"type": "news", "severity": "MEDIUM",
                           "msg": f"종목 뉴스 감성 {news_signal} — {', '.join(news_topics[:3])}"})
-
     if sector_signal in ("SELL_SIGNAL", "CAUTION"):
         anomalies.append({"type": "sector", "severity": "MEDIUM",
                           "msg": f"업종({sector_name}) 감성 {sector_signal}"})
+
+    # 손실은 보조 정보 (장기투자 primary 기준 아님)
+    if pnl_pct is not None and pnl_pct < -20:
+        anomalies.append({"type": "loss", "severity": "LOW",
+                          "msg": f"현재 손실 {pnl_pct:.1f}% — 장기 관점에서 추가 확인 권장"})
 
     # ── 6. 교체 후보 (TENBAGGER 상위 5개, 현재 종목 제외) ───────────────
     candidates = []
@@ -224,23 +252,36 @@ async def swap_analysis(
                     f"(차이 +{_fmt_won(best_swap['diff_10y'])})"
                 )
 
+            fin_str = "\n".join(filter(None, [
+                f"  안정성 {stability:.1f}점" if stability is not None else None,
+                f"  성장성 {growth:.1f}점" if growth is not None else None,
+                f"  현금흐름 {cashflow:.1f}점" if cashflow is not None else None,
+                f"  5년평균ROE {avg_roe:.1f}%" if avg_roe is not None else None,
+                f"  매출CAGR(5y) {rev_cagr:.1f}%" if rev_cagr is not None else None,
+                f"  배당수익률 {div_yield:.2f}%" if div_yield is not None else None,
+            ])) or "  세부 지표 미산출"
             anomaly_str = "\n".join(f"  - [{a['severity']}] {a['msg']}" for a in anomalies)
             news_str = "\n".join(filter(None, [
                 f"종목 뉴스: {news_signal} — {news_summary}" if news_signal else None,
                 f"업종({sector_name}) 뉴스: {sector_signal} — {sector_summary}" if sector_signal else None,
             ])) or "뉴스 감성 데이터 없음"
 
-            prompt = f"""한국 장기투자 포트폴리오 관리 전문가로서 아래 종목의 교체 여부를 종합 판단하세요.
+            prompt = f"""당신은 한국 주식 장기투자(10년+) 전문가입니다.
+단기 손익이 아닌 기업의 장기 투자 가치(재무 건전성·성장성·배당 지속성·경쟁 우위)를
+기준으로 아래 종목의 보유 지속 여부를 판단하세요.
 
 [종목 정보]
 회사명: {corp_name} ({ticker}) | 등급: {grade} | {score_str}
 평균매수가: {body.avg_price:,.0f}원 | 보유수량: {body.qty}주 | 총투자금: {_fmt_won(invest)}
-현재 손익: {pnl_str}
+현재 손익: {pnl_str} (참고용 — 장기투자 판단의 주요 기준 아님)
 
-[이상 감지 신호]
+[재무 세부 지표]
+{fin_str}
+
+[재무·등급 이상 신호]
 {anomaly_str}
 
-[최근 공시]
+[최근 공시 (90일)]
 {disc_context}
 
 [뉴스·감성]
@@ -250,10 +291,10 @@ async def swap_analysis(
 아래 JSON으로만 응답하세요:
 {{
   "timing_urgency": "HIGH" | "MEDIUM" | "LOW",
-  "timing_advice": "교체 타이밍 구체적 조언 1~2문장 (수치·날짜 포함)",
-  "timing_reason": "공시·뉴스·이벤트 기반 타이밍 판단 근거",
-  "comprehensive_opinion": "공시·뉴스·스코어 종합 판단 3~4문장. 장기투자 관점. 수치 포함.",
-  "key_signals": ["핵심신호1", "핵심신호2", "핵심신호3"],
+  "timing_advice": "교체 타이밍 구체적 조언 1~2문장 (재무 근거 포함, 단기 손익 기준 금지)",
+  "timing_reason": "공시·재무지표·뉴스 기반 타이밍 판단 근거",
+  "comprehensive_opinion": "재무 건전성·성장성·배당 지속성·경쟁 우위 관점 종합 판단 3~4문장. 구체적 수치 포함.",
+  "key_signals": ["핵심신호1(재무)", "핵심신호2(성장)", "핵심신호3(배당/공시)"],
   "action": "SWAP_NOW" | "MONITOR" | "HOLD",
   "action_reason": "최종 행동 권고 근거 1문장"
 }}"""
@@ -267,8 +308,11 @@ async def swap_analysis(
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": (
-                        "당신은 한국 주식 장기투자 포트폴리오 관리 전문가입니다. "
-                        "공시·뉴스·스코어를 종합해 교체 판단을 내립니다. "
+                        "당신은 10년+ 한국 장기투자 전문가입니다. "
+                        "단기 손익은 판단 기준이 아닙니다. "
+                        "재무 건전성(부채비율·유동비율)·성장성(매출·EPS CAGR)·"
+                        "배당 지속성·경쟁 우위·공시·뉴스를 종합해 "
+                        "장기 보유 가치 여부를 판단합니다. "
                         "반드시 JSON으로만 응답하세요."
                     )},
                     {"role": "user", "content": prompt},

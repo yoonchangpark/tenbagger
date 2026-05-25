@@ -3203,18 +3203,24 @@
       totalEval    += eval_;
       if (eval_ > 0) hasAnyPrice = true;
 
-      // 이상 감지: AVOID 무조건 | 등급미달+손실-10% | 심각손실-20%
-      // ETF(grade 없음)·수익 중인 종목은 grade만으로 플래그하지 않음
-      const hasAnomaly = h.ticker && (
-        h.grade === 'AVOID' ||
-        (['WATCHLIST', 'UNKNOWN'].includes(h.grade || '') && pnlPct !== null && pnlPct < -10) ||
-        (pnlPct !== null && pnlPct < -20)
+      // 이상 감지: 장기투자 가치 기반 — 손익률이 아닌 재무 등급으로 판단
+      // 등급 자체가 ROE·부채비율·FCF·배당·매출CAGR 종합 점수이므로
+      // ETF(grade 없음)·COMPOUNDER·TENBAGGER는 투자 가치 있음으로 판단
+      const hasAnomaly = h.ticker && h.grade && (
+        h.grade === 'AVOID' || h.grade === 'WATCHLIST' || h.grade === 'UNKNOWN'
       );
+      const anomalyReason = h.grade === 'AVOID'
+        ? '재무·성장성 미달 — 장기투자 부적합 등급'
+        : h.grade === 'WATCHLIST'
+        ? '투자 등급 미달 — 재무 안정성·배당 지속성 재검토 권장'
+        : h.grade === 'UNKNOWN'
+        ? '분석 데이터 없음 — 장기 투자 가치 판단 불가'
+        : '';
 
       const pnlColor   = pnl >= 0 ? '#10b981' : '#ef4444';
       const badgeHtml  = h.grade ? `<span class="mh-grade-badge mh-grade-${h.grade}">${h.grade}</span>` : '';
       const anomalyBadge = hasAnomaly
-        ? `<span style="color:#f59e0b;font-size:10px;font-weight:700;margin-left:4px;cursor:default;" title="이상 감지 — 교체 검토 권장">⚠️</span>`
+        ? `<span style="color:#f59e0b;font-size:10px;font-weight:700;margin-left:4px;cursor:default;" title="${anomalyReason}">⚠️</span>`
         : '';
       const pnlDisplay = pnlPct != null
         ? `<span style="color:${pnlColor};font-weight:700;">${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%</span>
@@ -3235,6 +3241,7 @@
 
       const swapBtn = hasAnomaly
         ? `<button onclick="loadSwapPanel('${h.ticker}',${h.qty},${h.avgPrice},${h.close || 0})"
+             title="${anomalyReason}"
              style="display:block;margin-top:5px;width:100%;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:6px;padding:4px 6px;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
              🔄 교체 검토
            </button>`
