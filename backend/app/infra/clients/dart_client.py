@@ -262,10 +262,12 @@ async def _fetch_via_dart_viewer(rcept_no: str, max_chars: int) -> str:
     import re
     VIEWER = "https://dart.fss.or.kr"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    print(f"[DART] 뷰어 스크래핑 시작 ({rcept_no})")
     try:
         async with httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=True) as client:
             # 뷰어 메인 페이지에서 dcmNo 추출
             main_r = await client.get(f"{VIEWER}/dsaf001/main.do", params={"rcpNo": rcept_no})
+            print(f"[DART] 뷰어 응답 ({rcept_no}): HTTP {main_r.status_code}, {len(main_r.text)}자, URL={main_r.url}")
             main_html = main_r.text
 
             dcm_no = None
