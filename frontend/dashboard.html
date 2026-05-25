@@ -1885,7 +1885,7 @@
                     style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
                     🤖 AI 분석
                   </button>
-                  ${isPhaseDTrigger(item.report_nm) && item.stock_code ? `<button class="phased-btn" onclick="loadPhaseD('${item.stock_code}','${rcept_no}',this)">🎯 이벤트 분석</button>` : ''}
+                  ${isPhaseDTrigger(item.report_nm, pl) && item.stock_code ? `<button class="phased-btn" onclick="loadPhaseD('${item.stock_code}','${rcept_no}',this)">🎯 이벤트 분석</button>` : ''}
                 </div>
               </div>
             </div>
@@ -1934,10 +1934,13 @@
     "대량보유", "자기주식취득", "자기주식처분", "자기주식소각",
     "공개매수", "주식매수청구", "현금배당", "배당결정",
     "임원ㆍ주요주주특정증권",
+    "분기보고서", "사업보고서", "반기보고서", "주요사항보고서",
   ];
 
-  function isPhaseDTrigger(reportNm) {
+  function isPhaseDTrigger(reportNm, priorityLabel) {
     if (!reportNm) return false;
+    // 내종목·관심종목은 어떤 공시든 이벤트 분석 제공
+    if (priorityLabel === '내종목' || priorityLabel === '관심종목') return true;
     return PHASE_D_TRIGGER_KW.some(kw => reportNm.includes(kw));
   }
 
