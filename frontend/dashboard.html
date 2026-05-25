@@ -341,11 +341,20 @@
         <div class="section-title">신규 공시 모니터링</div>
         <div class="section-desc">DART 공시 실시간 조회 · 최근 7일</div>
       </div>
-      <div class="filter-bar">
-        <button class="filter-btn active" id="cls-all" onclick="setCorpCls('',this)">전체</button>
-        <button class="filter-btn" id="cls-kospi" onclick="setCorpCls('Y',this)">KOSPI</button>
-        <button class="filter-btn" id="cls-kosdaq" onclick="setCorpCls('K',this)">KOSDAQ</button>
-        <button class="refresh-btn" id="discRefreshBtn" onclick="loadDisclosures()">새로고침</button>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+        <div class="filter-bar">
+          <button class="filter-btn active" id="cls-all" onclick="setCorpCls('',this)">전체</button>
+          <button class="filter-btn" id="cls-kospi" onclick="setCorpCls('Y',this)">KOSPI</button>
+          <button class="filter-btn" id="cls-kosdaq" onclick="setCorpCls('K',this)">KOSDAQ</button>
+          <button class="refresh-btn" id="discRefreshBtn" onclick="loadDisclosures()">새로고침</button>
+        </div>
+        <div class="filter-bar" id="lbl-filter-bar">
+          <button class="filter-btn active" onclick="setLabelFilter('',this)">전체</button>
+          <button class="filter-btn" onclick="setLabelFilter('내종목',this)">💼 내종목</button>
+          <button class="filter-btn" onclick="setLabelFilter('관심종목',this)">⭐ 관심종목</button>
+          <button class="filter-btn" onclick="setLabelFilter('추천종목',this)">🔥 추천종목</button>
+          <button class="filter-btn" onclick="setLabelFilter('주요공시',this)">📌 주요공시</button>
+        </div>
       </div>
     </div>
     <!-- 분기비교 예시 고정 카드 -->
@@ -1726,11 +1735,24 @@
   // ────────────────────────────────────────────
   // TAB 1: Disclosures
   // ────────────────────────────────────────────
+  let _labelFilter = "";
+
   function setCorpCls(cls, btn) {
     _corpCls = cls;
-    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    // 시장 필터 버튼만 active 토글 (라벨 필터와 독립)
+    document.querySelectorAll("#cls-all,#cls-kospi,#cls-kosdaq").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     loadDisclosures();
+  }
+
+  function setLabelFilter(label, btn) {
+    _labelFilter = label;
+    document.querySelectorAll("#lbl-filter-bar .filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll("#discList .disc-wrapper").forEach(w => {
+      const wLabel = w.dataset.label || "";
+      w.style.display = (!label || wLabel === label) ? "" : "none";
+    });
   }
 
   async function loadDisclosures() {
@@ -1777,31 +1799,40 @@
         const mktLabel = { Y: "KOSPI", K: "KOSDAQ", N: "비상장", E: "ETC" }[mktCls] || mktCls;
         const dateStr = formatDate(item.rcept_dt || "");
         const rcept_no = item.rcept_no || "";
-        const pl = item.priority_label;
+        const pl = item.priority_label || "";
         const badge = pl && PRIORITY_BADGE[pl]
           ? `<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:${PRIORITY_BADGE[pl].bg};color:${PRIORITY_BADGE[pl].color};border:1px solid ${PRIORITY_BADGE[pl].color}40;">${PRIORITY_BADGE[pl].icon} ${pl}</span>`
           : "";
         return `
-          <div class="disc-item" id="disc-${rcept_no}">
-            <div class="disc-meta">
-              <div class="disc-corp">${esc(item.corp_name || "-")}</div>
-              <div class="disc-date">${dateStr}</div>
-              <span class="disc-market ${mktCls}">${mktLabel}</span>
-              ${badge}
-            </div>
-            <div class="disc-main">
-              <a class="disc-title" href="${dartUrl}" target="_blank" rel="noopener">${esc(item.report_nm || "-")}</a>
-              <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
-                <div class="disc-type">제출인: ${esc(item.flr_nm || "-")}</div>
-                <button onclick="analyzeDisclosure('${rcept_no}','${esc(item.corp_name)}','${esc(item.report_nm)}','${esc(item.rcept_dt||'')}','${item.stock_code||''}','${item.corp_code||''}',this)"
-                  style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
-                  🤖 AI 분석
-                </button>
+          <div class="disc-wrapper" data-label="${pl}">
+            <div class="disc-item" id="disc-${rcept_no}">
+              <div class="disc-meta">
+                <div class="disc-corp">${esc(item.corp_name || "-")}</div>
+                <div class="disc-date">${dateStr}</div>
+                <span class="disc-market ${mktCls}">${mktLabel}</span>
+                ${badge}
+              </div>
+              <div class="disc-main">
+                <a class="disc-title" href="${dartUrl}" target="_blank" rel="noopener">${esc(item.report_nm || "-")}</a>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
+                  <div class="disc-type">제출인: ${esc(item.flr_nm || "-")}</div>
+                  <button onclick="analyzeDisclosure('${rcept_no}','${esc(item.corp_name)}','${esc(item.report_nm)}','${esc(item.rcept_dt||'')}','${item.stock_code||''}','${item.corp_code||''}',this)"
+                    style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                    🤖 AI 분석
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          <div id="ai-result-${rcept_no}" style="display:none;"></div>`;
+            <div id="ai-result-${rcept_no}" style="display:none;"></div>
+          </div>`;
       }).join("");
+
+      // 시장 필터 재로드 후 라벨 필터 재적용
+      if (_labelFilter) {
+        document.querySelectorAll("#discList .disc-wrapper").forEach(w => {
+          w.style.display = (w.dataset.label === _labelFilter) ? "" : "none";
+        });
+      }
     } catch (e) {
       list.innerHTML = '<div class="empty-row" style="color:#f87171;">⚠️ 공시 데이터를 불러오지 못했습니다: ' + esc(e.message) + '</div>';
     } finally {
@@ -2655,6 +2686,25 @@
     localStorage.setItem(MH_KEY, JSON.stringify(data));
   }
 
+  function mhSyncToDb(ticker, name, qty, avgPrice) {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    fetch(API + '/api/v2/holdings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ ticker, name, quantity: qty, avg_price: avgPrice }),
+    }).catch(() => {});
+  }
+
+  function mhDeleteFromDb(ticker) {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    fetch(API + '/api/v2/holdings/' + encodeURIComponent(ticker), {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token },
+    }).catch(() => {});
+  }
+
   function mhShowMsg(text, type) {
     const el = document.getElementById('mhMsg');
     el.textContent = text;
@@ -2757,6 +2807,7 @@
       mhShowMsg(`${name} 추가됐습니다.`, 'success');
     }
     mhSave(holdings);
+    mhSyncToDb(ticker, name, qty, avgPrice);
 
     document.getElementById('mhSearchInput').value    = '';
     document.getElementById('mhSelectedTicker').value = '';
@@ -2770,13 +2821,15 @@
   function mhRemove(ticker) {
     const holdings = mhLoad().filter(h => h.ticker !== ticker);
     mhSave(holdings);
+    mhDeleteFromDb(ticker);
     renderMyHoldings();
   }
 
   function mhRemoveByIdx(idx) {
     const holdings = mhLoad();
-    holdings.splice(idx, 1);
+    const removed = holdings.splice(idx, 1);
     mhSave(holdings);
+    if (removed.length > 0) mhDeleteFromDb(removed[0].ticker);
     renderMyHoldings();
   }
 
@@ -3772,6 +3825,7 @@
         existing.push({ ticker: h.ticker || '', name: h.name, qty: h.qty, avgPrice: h.avg_price });
         added++;
       }
+      if (h.ticker) mhSyncToDb(h.ticker, h.name, h.qty, h.avg_price);
     }
     mhSave(existing);
     mhShowMsg(`${added}개 종목 추가 완료 (중복 ${holdings.length - added}개 업데이트)`, 'success');

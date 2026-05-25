@@ -20,6 +20,7 @@ _MUST_SHOW_KEYWORDS = [
     "유상증자", "무상증자", "공개매수", "합병", "분할", "전환사채", "신주인수권부사채",
     "자기주식취득", "자기주식소각", "단일판매", "타법인주식취득", "타법인주식처분",
     "영업양수도", "감사의견", "불성실공시", "횡령", "배임",
+    "현금배당", "주식배당",
 ]
 
 
@@ -122,22 +123,30 @@ async def get_disclosures(
         auth = request.headers.get("Authorization", "")
         if auth.startswith("Bearer "):
             payload = decode_token(auth[7:])
-            user_id = payload.get("uid") or payload.get("id")
+            user_id = int(payload["sub"])
     except Exception:
         pass
 
     user_tickers = _get_user_tickers(user_id) if user_id else {"holdings": set(), "watchlist": set()}
     high_grade = _get_high_grade_tickers()
 
+    # corp_code → stock_code 역방향 조회용 캐시 (이미 로드된 경우만 사용)
+    from app.infra.clients.dart_client import _corp_cache
+    _corp_code_map: dict = {e["corp_code"]: e["stock_code"] for e in _corp_cache} if _corp_cache else {}
+
     priority_order = {"내종목": 0, "관심종목": 1, "추천종목": 2, "주요공시": 3}
     labeled = []
     for item in items:
         stock_code = (item.get("stock_code") or "").upper()
+        # stock_code 누락 시 corp_code로 역조회
+        if not stock_code:
+            corp_code_val = item.get("corp_code", "")
+            stock_code = _corp_code_map.get(corp_code_val, "").upper()
         report_nm = item.get("report_nm", "")
         label = _label_priority(stock_code, report_nm,
                                 user_tickers["holdings"], user_tickers["watchlist"], high_grade)
         if label:
-            labeled.append({**item, "priority_label": label})
+            labeled.append({**item, "priority_label": label, "stock_code": stock_code})
 
     labeled.sort(key=lambda x: priority_order.get(x["priority_label"], 9))
     return {**result, "list": labeled[:page_count], "personalized": True, "total_filtered": len(labeled)}
