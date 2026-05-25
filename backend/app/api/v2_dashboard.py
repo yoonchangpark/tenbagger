@@ -8,6 +8,7 @@ from app.infra.clients.dart_client import _get
 from app.core.config import settings
 from app.core.database import SessionLocal
 from sqlalchemy import text
+import asyncio
 import datetime
 import json
 
@@ -130,9 +131,29 @@ async def get_disclosures(
     user_tickers = _get_user_tickers(user_id) if user_id else {"holdings": set(), "watchlist": set()}
     high_grade = _get_high_grade_tickers()
 
-    # corp_code → stock_code 역방향 조회용 캐시 (이미 로드된 경우만 사용)
+    # corp_code ↔ stock_code 양방향 맵 (캐시가 로드된 경우만)
     from app.infra.clients.dart_client import _corp_cache
     _corp_code_map: dict = {e["corp_code"]: e["stock_code"] for e in _corp_cache} if _corp_cache else {}
+    _ticker_to_corp: dict = {e["stock_code"]: e["corp_code"] for e in _corp_cache} if _corp_cache else {}
+
+    # 보유/관심 종목별 DART 개별 조회 — global page_count=100 한계 우회
+    personal_tickers = user_tickers["holdings"] | user_tickers["watchlist"]
+    if personal_tickers and _ticker_to_corp:
+        async def _fetch_corp(corp_code: str) -> list:
+            try:
+                r = await _get("list.json", {**params, "corp_code": corp_code, "page_count": "10"})
+                return r.get("list", [])
+            except Exception:
+                return []
+
+        corp_codes = [_ticker_to_corp[t] for t in personal_tickers if t in _ticker_to_corp]
+        per_company = await asyncio.gather(*[_fetch_corp(cc) for cc in corp_codes])
+        seen = {i.get("rcept_no") for i in items}
+        for company_items in per_company:
+            for item in company_items:
+                if item.get("rcept_no") not in seen:
+                    items.append(item)
+                    seen.add(item.get("rcept_no"))
 
     priority_order = {"내종목": 0, "관심종목": 1, "추천종목": 2, "주요공시": 3}
     labeled = []

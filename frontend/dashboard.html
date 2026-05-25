@@ -2739,14 +2739,14 @@
     if (!token) return;
     const local = mhLoad();
     if (!local.length) return;
-    for (const h of local) {
-      if (!h.ticker) continue;
+    // 병렬 POST, 모두 완료될 때까지 await (race condition 방지)
+    await Promise.all(local.filter(h => h.ticker).map(h =>
       fetch(API + '/api/v2/holdings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({ ticker: h.ticker, name: h.name, quantity: h.qty, avg_price: h.avgPrice }),
-      }).catch(() => {});
-    }
+      }).catch(() => {})
+    ));
   }
 
   function mhDeleteFromDb(ticker) {
@@ -3910,8 +3910,8 @@
       .catch(() => {});
   })();
   loadRanking();
-  _syncLocalHoldingsToDB();
-  loadDisclosures();
+  // DB 동기화 완료 후 공시 로드 (race condition 방지)
+  _syncLocalHoldingsToDB().then(() => loadDisclosures());
 
   function showToast(msg, type='info') {
     const c = document.getElementById('toastContainer');
