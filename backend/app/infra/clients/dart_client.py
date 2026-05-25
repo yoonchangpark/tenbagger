@@ -210,28 +210,33 @@ def _html_to_text(raw: str) -> str:
 
 
 async def _fetch_via_document_api(rcept_no: str, max_chars: int) -> str:
-    """1차: DART OpenAPI document.json → ZIP → HTML 파싱"""
-    import zipfile, io
+    """1차: DART OpenAPI document.xml → ZIP → XML/HTML 파싱 (블로그 검증 방식)"""
+    import zipfile, io, xml.etree.ElementTree as ET
     try:
-        params = {"rcpNo": rcept_no, "crtfc_key": settings.dart_api_key}
+        params = {"rcept_no": rcept_no, "crtfc_key": settings.dart_api_key}
         async with httpx.AsyncClient(timeout=60.0) as client:
-            r = await client.get(f"{DART_BASE}/document.json", params=params)
+            r = await client.get(f"{DART_BASE}/document.xml", params=params)
 
         if len(r.content) < 4 or r.content[:2] != b"PK":
             try:
-                err = r.json()
-                print(f"[DART] document.json 실패 ({rcept_no}): status={err.get('status')} msg={err.get('message')}")
+                err_text = r.content.decode("utf-8", errors="replace")
+                print(f"[DART] document.xml 비ZIP ({rcept_no}): HTTP {r.status_code}, body={err_text[:200]!r}")
             except Exception:
-                print(f"[DART] document.json 비ZIP ({rcept_no}): HTTP {r.status_code}")
+                print(f"[DART] document.xml 비ZIP ({rcept_no}): HTTP {r.status_code}")
             return ""
 
         zf = zipfile.ZipFile(io.BytesIO(r.content))
-        html_files = [f for f in zf.namelist() if f.lower().endswith((".htm", ".html"))]
-        if not html_files:
+        all_files = zf.namelist()
+        print(f"[DART] document.xml ZIP 내 파일: {all_files}")
+
+        # XML/HTML 모두 처리 대상
+        doc_files = [f for f in all_files if f.lower().endswith((".xml", ".htm", ".html"))]
+        if not doc_files:
+            print(f"[DART] document.xml ZIP에 파싱 가능 파일 없음 ({rcept_no})")
             return ""
 
         text_parts = []
-        for fname in sorted(html_files):
+        for fname in sorted(doc_files):
             raw_bytes = zf.read(fname)
             raw = None
             for enc in ("euc-kr", "cp949", "utf-8"):
@@ -242,7 +247,15 @@ async def _fetch_via_document_api(rcept_no: str, max_chars: int) -> str:
                     continue
             if raw is None:
                 raw = raw_bytes.decode("utf-8", errors="replace")
-            clean = _html_to_text(raw)
+
+            # XML이면 태그 제거, HTML이면 _html_to_text 사용
+            if fname.lower().endswith(".xml"):
+                import re as _re
+                clean = _re.sub(r"<[^>]+>", " ", raw)
+                clean = _re.sub(r"\s{2,}", " ", clean).strip()
+            else:
+                clean = _html_to_text(raw)
+
             if len(clean) > 50:
                 text_parts.append(clean)
 
@@ -250,10 +263,10 @@ async def _fetch_via_document_api(rcept_no: str, max_chars: int) -> str:
             return ""
 
         combined = "\n\n---\n\n".join(text_parts)
-        print(f"[DART] document.json 성공 ({rcept_no}): {len(combined):,}자")
+        print(f"[DART] document.xml 성공 ({rcept_no}): {len(combined):,}자")
         return combined[:max_chars]
     except Exception as e:
-        print(f"[DART] document.json 예외 ({rcept_no}): {e}")
+        print(f"[DART] document.xml 예외 ({rcept_no}): {e}")
         return ""
 
 
