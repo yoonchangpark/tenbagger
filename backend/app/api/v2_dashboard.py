@@ -93,8 +93,8 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
     from app.infra.clients.dart_client import fetch_document_text, get_corp_code
     import asyncio as _asyncio
 
-    # 1. 원문 텍스트 병렬 수집 시작
-    doc_text_task = _asyncio.create_task(fetch_document_text(body.rcept_no))
+    # 1. 원문 텍스트 병렬 수집 시작 (30,000자 전문)
+    doc_text_task = _asyncio.create_task(fetch_document_text(body.rcept_no, max_chars=30000))
 
     # 2. corp_code 확보
     corp_code = body.corp_code
@@ -155,9 +155,12 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
     has_doc = bool(doc_text)
 
     if has_doc:
-        content_section = f"\n[공시 원문 전문]\n{doc_text}"
-        analysis_instruction = f"위 공시 원문을 직접 읽고 분석하세요. {disclosure_hint}"
-        confidence_note = "원문 전문을 읽었으면 HIGH, 원문이 불충분하면 MEDIUM"
+        content_section = f"\n[공시 원문 전문 — {len(doc_text):,}자]\n{doc_text}"
+        analysis_instruction = (
+            f"위 공시 원문 전문을 직접 읽고 분석하세요. {disclosure_hint}\n"
+            "원문에 등장하는 구체적 수치(금액·주식수·비율·날짜·가격 등)를 반드시 key_points에 인용하세요."
+        )
+        confidence_note = "HIGH"
     else:
         content_section = fallback_context or "\n(원문 데이터 없음 — 제목 및 회사 프로필 기반 분석)"
         analysis_instruction = f"공시 제목과 회사 프로필을 기반으로 분석하세요. {disclosure_hint}"
@@ -178,18 +181,23 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
 
 아래 JSON 형식으로만 응답하세요:
 {{
-  "summary": "이 공시의 핵심 내용 2~3문장 (원문 기반 구체적 수치 포함)",
+  "summary": "공시의 핵심 내용 3~4문장. 원문에서 추출한 구체적 수치(금액, 주식수, 비율, 날짜, 가격)를 반드시 포함할 것.",
   "impact": "POSITIVE 또는 NEUTRAL 또는 NEGATIVE 또는 CAUTION 중 하나",
-  "impact_reason": "투자 임팩트 판단 근거 1~2문장 (구체적 수치 근거)",
-  "key_points": ["핵심 포인트 1 (수치 포함)", "핵심 포인트 2", "핵심 포인트 3"],
-  "action": "장기투자자 관점에서 취할 행동 1문장",
-  "confidence": "{confidence_note} 중 선택"
+  "impact_reason": "투자 임팩트 판단 근거 1~2문장. 원문 수치 근거 필수.",
+  "key_points": [
+    "수치가 포함된 핵심 포인트 1",
+    "수치가 포함된 핵심 포인트 2",
+    "수치가 포함된 핵심 포인트 3",
+    "투자자가 취해야 할 구체적 행동 또는 모니터링 포인트"
+  ],
+  "action": "장기투자자 관점에서 지금 당장 취할 행동 1문장 (보유/매수/매도/관망 + 이유)",
+  "confidence": "{confidence_note}"
 }}
 
 impact 기준:
 - POSITIVE: 실적 호전, 자사주 매입, 배당 증가, 신사업 성과 등 장기 가치 상승
 - NEGATIVE: 실적 악화, 횡령, 소송, 대규모 손실, 희석성 유상증자
-- CAUTION: 합병, 대규모 투자, 임원 변경 등 모니터링 필요
+- CAUTION: 합병, 대규모 투자, 임원 변경, 공개매수 등 모니터링 필요
 - NEUTRAL: 정기 보고서, 소액 공시 등 통상 공시"""
 
     try:
@@ -197,7 +205,7 @@ impact 기준:
         client = AsyncOpenAI(api_key=settings.openai_api_key)
         resp = await client.chat.completions.create(
             model="gpt-4o",
-            max_tokens=800,
+            max_tokens=1200,
             temperature=0.2,
             response_format={"type": "json_object"},
             messages=[

@@ -259,6 +259,7 @@
             btn.textContent = '👤 ' + data.user.name;
           }
           const tier = data.subscription?.tier || 'free';
+          localStorage.setItem('user_tier', tier);
           const fb = document.getElementById('freeBanner');
           if (fb) fb.style.display = tier === 'free' ? 'block' : 'none';
           if (tier !== 'free') {
@@ -1138,6 +1139,22 @@
     async function loadCommittee(ticker, name){
       const btn=document.getElementById("committeeLoadBtn");
       const content=document.getElementById("committeeContent");
+
+      // 무료 체험 1회 게이트
+      const tier = localStorage.getItem('user_tier') || 'free';
+      const trialUsed = localStorage.getItem('committee_trial_used') === '1';
+      if ((tier === 'free' || tier === 'none') && trialUsed) {
+        content.innerHTML =
+          '<div style="text-align:center;padding:24px 16px;">' +
+          '<div style="font-size:32px;margin-bottom:12px;">🔒</div>' +
+          '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">무료 체험을 사용하셨습니다</div>' +
+          '<div style="font-size:12px;color:var(--muted);margin-bottom:16px;">AI 투자위원회는 Pro 이상에서 무제한 이용할 수 있습니다.</div>' +
+          '<a href="pricing.html" style="display:inline-block;padding:10px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:white;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">💎 Pro로 업그레이드</a>' +
+          '</div>';
+        content.classList.add("visible");
+        return;
+      }
+
       btn.disabled=true;
       btn.textContent="위원회 소집 중…";
       content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>4명의 AI 전문가가 독립 분석 중입니다… (15~20초 소요)</div>';
@@ -1150,6 +1167,7 @@
         }
         const result = await r.json();
         renderCommittee(result);
+        if (tier === 'free' || tier === 'none') localStorage.setItem('committee_trial_used', '1');
         btn.textContent = result.from_cache ? "♻️ 캐시 결과 (재분석하려면 클릭)" : "✅ 분석 완료 (재분석)";
         btn.disabled = false;
         btn.onclick = () => loadCommitteeForce(ticker, name);

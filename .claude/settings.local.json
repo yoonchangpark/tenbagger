@@ -32,7 +32,16 @@
       "Bash(cd /d \"c:\\\\Users\\\\00LG00\\\\Desktop\\\\tenbagger\")",
       "Bash(py -3 -c ' *)",
       "Bash(py -3 -c \"import ast; ast.parse\\(open\\('backend/app/agents/accuracy_validator.py','r',encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
-      "Bash(py -3 -c \"import ast; [ast.parse\\(open\\(f,'r',encoding='utf-8'\\).read\\(\\)\\) and print\\('OK ', f\\) for f in ['backend/app/main.py','backend/app/api/v2_flow.py','backend/app/api/v2_surprise.py','backend/app/agents/weight_tuner.py']]\")"
+      "Bash(py -3 -c \"import ast; [ast.parse\\(open\\(f,'r',encoding='utf-8'\\).read\\(\\)\\) and print\\('OK ', f\\) for f in ['backend/app/main.py','backend/app/api/v2_flow.py','backend/app/api/v2_surprise.py','backend/app/agents/weight_tuner.py']]\")",
+      "Bash(xargs grep -l \"disclosure\\\\|공시\\\\|dart.*anal\\\\|anal.*dart\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit -m 'chore: python 베이스 이미지 버전 고정 \\(3.11-slim → 3.11.9-slim\\) — Railway 빌드 캐시 안정화 *)",
+      "mcp__claude_ai_PlayMCP__opendart-search_disclosures",
+      "mcp__claude_ai_PlayMCP__opendart-find_company",
+      "mcp__claude_ai_PlayMCP__NaverSearch-get_current_korean_time",
+      "Bash(git -C \"c:/Users/00LG00/Desktop/tenbagger\" log --oneline -10)"
     ]
   },
   "hooks": {

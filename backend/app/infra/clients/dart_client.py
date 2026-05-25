@@ -198,7 +198,7 @@ def parse_idx(items: list, keyword: str) -> Optional[float]:
     return None
 
 
-async def fetch_document_text(rcept_no: str, max_chars: int = 8000) -> str:
+async def fetch_document_text(rcept_no: str, max_chars: int = 30000) -> str:
     """
     DART document.json → ZIP 다운로드 → HTML 텍스트 추출.
     ZIP 응답이 아니거나 실패 시 빈 문자열 반환.
@@ -211,24 +211,47 @@ async def fetch_document_text(rcept_no: str, max_chars: int = 8000) -> str:
 
         # ZIP 파일 여부 확인 (PK 매직 바이트)
         if len(r.content) < 4 or r.content[:2] != b"PK":
+            try:
+                err = r.json()
+                print(f"[DART] document.json 접근 실패 ({rcept_no}): status={err.get('status')} msg={err.get('message')}")
+            except Exception:
+                print(f"[DART] document.json 비ZIP ({rcept_no}): HTTP {r.status_code}, {r.content[:120]!r}")
             return ""
 
         zf = zipfile.ZipFile(io.BytesIO(r.content))
+        html_files = [f for f in zf.namelist() if f.lower().endswith((".htm", ".html"))]
+        if not html_files:
+            print(f"[DART] document.json ZIP에 HTML 없음 ({rcept_no}): {zf.namelist()}")
+            return ""
+
         text_parts = []
-        for fname in sorted(zf.namelist()):
-            if not fname.lower().endswith((".htm", ".html")):
-                continue
-            raw = zf.read(fname).decode("utf-8", errors="replace")
-            # 스크립트·스타일 제거 후 태그 제거
+        for fname in sorted(html_files):
+            raw_bytes = zf.read(fname)
+            # DART 문서 기본 인코딩은 EUC-KR; UTF-8 폴백
+            raw = None
+            for enc in ("euc-kr", "cp949", "utf-8"):
+                try:
+                    raw = raw_bytes.decode(enc)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            if raw is None:
+                raw = raw_bytes.decode("utf-8", errors="replace")
+
             clean = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", raw, flags=re.DOTALL | re.IGNORECASE)
             clean = re.sub(r"<[^>]+>", " ", clean)
             clean = re.sub(r"&nbsp;", " ", clean)
-            clean = re.sub(r"&[a-zA-Z]+;", "", clean)
+            clean = re.sub(r"&#?[a-zA-Z0-9]+;", "", clean)
             clean = re.sub(r"\s{2,}", " ", clean).strip()
-            if len(clean) > 200:
+            if len(clean) > 50:
                 text_parts.append(clean)
 
+        if not text_parts:
+            print(f"[DART] document.json ZIP 텍스트 추출 실패 ({rcept_no}): HTML {len(html_files)}개 모두 빈 내용")
+            return ""
+
         combined = "\n\n---\n\n".join(text_parts)
+        print(f"[DART] document.json 성공 ({rcept_no}): {len(combined):,}자 추출 (파일 {len(text_parts)}개)")
         return combined[:max_chars]
     except Exception as e:
         print(f"[DART] document.json 실패 ({rcept_no}): {e}")
