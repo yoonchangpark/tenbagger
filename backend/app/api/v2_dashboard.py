@@ -131,10 +131,11 @@ async def get_disclosures(
     user_tickers = _get_user_tickers(user_id) if user_id else {"holdings": set(), "watchlist": set()}
     high_grade = _get_high_grade_tickers()
 
-    # corp_code ↔ stock_code 양방향 맵 (캐시가 로드된 경우만)
-    from app.infra.clients.dart_client import _corp_cache
-    _corp_code_map: dict = {e["corp_code"]: e["stock_code"] for e in _corp_cache} if _corp_cache else {}
-    _ticker_to_corp: dict = {e["stock_code"]: e["corp_code"] for e in _corp_cache} if _corp_cache else {}
+    # corp_code ↔ stock_code 양방향 맵 — 항상 await로 캐시 보장
+    from app.infra.clients.dart_client import _load_corp_cache
+    _cache = await _load_corp_cache()
+    _corp_code_map: dict = {e["corp_code"]: e["stock_code"] for e in _cache}
+    _ticker_to_corp: dict = {e["stock_code"]: e["corp_code"] for e in _cache}
 
     # 보유/관심 종목별 DART 개별 조회 — global page_count=100 한계 우회
     personal_tickers = user_tickers["holdings"] | user_tickers["watchlist"]

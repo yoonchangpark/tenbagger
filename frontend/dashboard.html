@@ -1776,7 +1776,11 @@
         if (!existing) {
           const msg = document.createElement('div');
           msg.className = 'lbl-empty-msg empty-row';
-          msg.textContent = `${label} 공시가 없습니다. 내 주식 탭에서 종목을 추가하면 표시됩니다.`;
+          const guide = label === '내종목' ? '내 주식 탭에서 종목을 추가하세요.' :
+                        label === '관심종목' ? '관심종목 탭에서 종목을 추가하세요.' :
+                        label === '추천종목' ? '스크리너에서 TENBAGGER·COMPOUNDER 종목을 확인하세요.' :
+                        '조회 기간을 늘려보세요.';
+          msg.textContent = `${label} 공시가 없습니다. ${guide}`;
           list.appendChild(msg);
         }
       } else {
@@ -3910,8 +3914,8 @@
       .catch(() => {});
   })();
   loadRanking();
-  // DB 동기화 완료 후 공시 로드 (race condition 방지)
-  _syncLocalHoldingsToDB().then(() => loadDisclosures());
+  // DB 동기화 완료 후 공시 로드 (실패해도 반드시 loadDisclosures 실행)
+  _syncLocalHoldingsToDB().then(() => loadDisclosures()).catch(() => loadDisclosures());
 
   function showToast(msg, type='info') {
     const c = document.getElementById('toastContainer');
