@@ -157,6 +157,7 @@ async def generate_qualitative_analysis(
     disclosures: dict,
     score: dict,
     market_valuation: Optional[dict] = None,
+    sector_peer: Optional[dict] = None,
 ) -> dict:
     """GPT-4o 기반 월가 애널리스트 수준 심층 분석 (캐시 24h)"""
     cached = await _get_cached(ticker)
@@ -217,6 +218,12 @@ async def generate_qualitative_analysis(
         mkt_per_ctx = (
             f"\n- {market} 시장 평균 PER: {market_valuation['avg_per']:.1f}배"
             f" (상위 25%: {market_valuation.get('per_q75', 'N/A')}배)"
+        )
+    if sector_peer and sector_peer.get("avg_per"):
+        mkt_per_ctx += (
+            f"\n- {sector_peer['sector_name']} 동종업종 평균 PER: {sector_peer['avg_per']:.1f}배"
+            f" (Q25: {sector_peer.get('per_q25','N/A')} | Q75: {sector_peer.get('per_q75','N/A')})"
+            f" — 비교 종목 {sector_peer.get('peer_count', '?')}개 기준"
         )
 
     prompt = f"""당신은 월가 베테랑 애널리스트입니다. {name}({ticker})에 대해 기관급 심층 투자 리포트를 작성하세요.

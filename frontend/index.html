@@ -1105,12 +1105,58 @@
 
       // ⑦ 밸류에이션 판단
       const vv=q.valuation_view||{};
-      if(vv.assessment&&vv.assessment!=='-'){
+      const spv=q.sector_peer_valuation||{};
+      const mvc=q.market_valuation_context||{};
+      const dcf=q.dcf_analysis||{};
+      {
         const vc=vv.assessment==='저평가'?'#10b981':vv.assessment==='고평가'?'#ef4444':'#f59e0b';
         html+=`<div class="ai-box" style="margin-bottom:16px;"><h4>💰 밸류에이션 판단</h4>`;
-        html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="font-size:15px;font-weight:800;color:${vc};">${escHtml(vv.assessment)}</span></div>`;
+        if(vv.assessment&&vv.assessment!=='-'){
+          html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><span style="font-size:15px;font-weight:800;color:${vc};">${escHtml(vv.assessment)}</span></div>`;
+        }
+
+        // PER 비교표 (종목 | 섹터 | 시장)
+        const stockPer=q.per!=null?q.per.toFixed(1)+'배':'-';
+        const sectorPer=spv.avg_per?spv.avg_per.toFixed(1)+'배':'-';
+        const marketPer=mvc.avg_per?mvc.avg_per.toFixed(1)+'배':'-';
+        if(q.per||spv.avg_per||mvc.avg_per){
+          html+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">`;
+          html+=`<div style="background:rgba(255,255,255,.05);border-radius:8px;padding:10px;text-align:center;">`;
+          html+=`<div style="font-size:10px;color:#6b7280;margin-bottom:4px;">종목 PER</div>`;
+          html+=`<div style="font-size:16px;font-weight:800;color:#f9fafb;">${escHtml(stockPer)}</div></div>`;
+          html+=`<div style="background:rgba(99,102,241,.08);border-radius:8px;padding:10px;text-align:center;">`;
+          html+=`<div style="font-size:10px;color:#6b7280;margin-bottom:4px;">${escHtml(spv.sector_name||'섹터')} 평균</div>`;
+          html+=`<div style="font-size:16px;font-weight:800;color:#a5b4fc;">${escHtml(sectorPer)}</div>`;
+          if(spv.peer_count) html+=`<div style="font-size:9px;color:#6b7280;">${spv.peer_count}개 기업</div>`;
+          html+=`</div>`;
+          html+=`<div style="background:rgba(255,255,255,.05);border-radius:8px;padding:10px;text-align:center;">`;
+          html+=`<div style="font-size:10px;color:#6b7280;margin-bottom:4px;">${escHtml(q.market||'시장')} 평균</div>`;
+          html+=`<div style="font-size:16px;font-weight:800;color:#9ca3af;">${escHtml(marketPer)}</div></div>`;
+          html+=`</div>`;
+        }
+
+        // DCF 내재가치 카드
+        if(dcf.dcf_value_eok&&!dcf.error){
+          const upc=dcf.upside_pct!=null?(dcf.upside_pct>0?'#10b981':'#ef4444'):'#f59e0b';
+          const upSign=dcf.upside_pct!=null?(dcf.upside_pct>=0?'+':''):'';
+          html+=`<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-bottom:10px;">`;
+          html+=`<div style="font-size:11px;font-weight:700;color:#9ca3af;margin-bottom:8px;">📐 DCF 내재가치 (Python 계산)</div>`;
+          html+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">`;
+          html+=`<div style="text-align:center;"><div style="font-size:9px;color:#6b7280;">FCF 기준</div><div style="font-size:12px;font-weight:700;color:#d1d5db;">${(dcf.fcf_base_eok||0).toLocaleString()}억</div></div>`;
+          html+=`<div style="text-align:center;"><div style="font-size:9px;color:#6b7280;">성장률 가정</div><div style="font-size:12px;font-weight:700;color:#d1d5db;">${dcf.growth_rate_pct||'-'}%</div></div>`;
+          html+=`<div style="text-align:center;"><div style="font-size:9px;color:#6b7280;">WACC</div><div style="font-size:12px;font-weight:700;color:#d1d5db;">${dcf.wacc_pct||'-'}%</div></div>`;
+          html+=`</div>`;
+          html+=`<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,.06);padding-top:8px;">`;
+          html+=`<div><div style="font-size:9px;color:#6b7280;">DCF 내재가치</div><div style="font-size:14px;font-weight:800;color:#e5e7eb;">${(dcf.dcf_value_eok||0).toLocaleString()}억</div></div>`;
+          if(dcf.market_cap_eok) html+=`<div><div style="font-size:9px;color:#6b7280;">현재 시가총액</div><div style="font-size:14px;font-weight:800;color:#9ca3af;">${(dcf.market_cap_eok||0).toLocaleString()}억</div></div>`;
+          if(dcf.upside_pct!=null) html+=`<div style="text-align:right;"><div style="font-size:9px;color:#6b7280;">상승여력</div><div style="font-size:16px;font-weight:900;color:${upc};">${upSign}${dcf.upside_pct}%</div><div style="font-size:9px;color:${upc};">${escHtml(dcf.verdict||'')}</div></div>`;
+          html+=`</div></div>`;
+        } else if(dcf.error){
+          html+=`<p style="font-size:11px;color:#6b7280;margin-bottom:6px;">📐 DCF: ${escHtml(dcf.error)}</p>`;
+        }
+
         if(vv.per_vs_market) html+=`<p style="font-size:12px;color:#9ca3af;margin-bottom:4px;">📊 ${escHtml(vv.per_vs_market)}</p>`;
-        if(vv.dcf_logic)    html+=`<p style="font-size:12px;color:#9ca3af;margin-bottom:4px;">💧 DCF: ${escHtml(vv.dcf_logic)}</p>`;
+        if(vv.dcf_logic)    html+=`<p style="font-size:12px;color:#9ca3af;margin-bottom:4px;">💧 GPT DCF 견해: ${escHtml(vv.dcf_logic)}</p>`;
         if(vv.reason)       html+=`<p>${escHtml(vv.reason)}</p>`;
         html+=`</div>`;
       }
