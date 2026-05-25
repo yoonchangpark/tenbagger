@@ -198,36 +198,41 @@ def parse_idx(items: list, keyword: str) -> Optional[float]:
     return None
 
 
-async def fetch_document_text(rcept_no: str, max_chars: int = 30000) -> str:
-    """
-    DART document.json → ZIP 다운로드 → HTML 텍스트 추출.
-    ZIP 응답이 아니거나 실패 시 빈 문자열 반환.
-    """
-    import zipfile, io, re
+def _html_to_text(raw: str) -> str:
+    """HTML → 평문 텍스트 공통 변환"""
+    import re
+    clean = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", raw, flags=re.DOTALL | re.IGNORECASE)
+    clean = re.sub(r"<[^>]+>", " ", clean)
+    clean = re.sub(r"&nbsp;", " ", clean)
+    clean = re.sub(r"&#?[a-zA-Z0-9]+;", "", clean)
+    clean = re.sub(r"\s{2,}", " ", clean).strip()
+    return clean
+
+
+async def _fetch_via_document_api(rcept_no: str, max_chars: int) -> str:
+    """1차: DART OpenAPI document.json → ZIP → HTML 파싱"""
+    import zipfile, io
     try:
         params = {"rcpNo": rcept_no, "crtfc_key": settings.dart_api_key}
         async with httpx.AsyncClient(timeout=60.0) as client:
             r = await client.get(f"{DART_BASE}/document.json", params=params)
 
-        # ZIP 파일 여부 확인 (PK 매직 바이트)
         if len(r.content) < 4 or r.content[:2] != b"PK":
             try:
                 err = r.json()
-                print(f"[DART] document.json 접근 실패 ({rcept_no}): status={err.get('status')} msg={err.get('message')}")
+                print(f"[DART] document.json 실패 ({rcept_no}): status={err.get('status')} msg={err.get('message')}")
             except Exception:
-                print(f"[DART] document.json 비ZIP ({rcept_no}): HTTP {r.status_code}, {r.content[:120]!r}")
+                print(f"[DART] document.json 비ZIP ({rcept_no}): HTTP {r.status_code}")
             return ""
 
         zf = zipfile.ZipFile(io.BytesIO(r.content))
         html_files = [f for f in zf.namelist() if f.lower().endswith((".htm", ".html"))]
         if not html_files:
-            print(f"[DART] document.json ZIP에 HTML 없음 ({rcept_no}): {zf.namelist()}")
             return ""
 
         text_parts = []
         for fname in sorted(html_files):
             raw_bytes = zf.read(fname)
-            # DART 문서 기본 인코딩은 EUC-KR; UTF-8 폴백
             raw = None
             for enc in ("euc-kr", "cp949", "utf-8"):
                 try:
@@ -237,25 +242,70 @@ async def fetch_document_text(rcept_no: str, max_chars: int = 30000) -> str:
                     continue
             if raw is None:
                 raw = raw_bytes.decode("utf-8", errors="replace")
-
-            clean = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", raw, flags=re.DOTALL | re.IGNORECASE)
-            clean = re.sub(r"<[^>]+>", " ", clean)
-            clean = re.sub(r"&nbsp;", " ", clean)
-            clean = re.sub(r"&#?[a-zA-Z0-9]+;", "", clean)
-            clean = re.sub(r"\s{2,}", " ", clean).strip()
+            clean = _html_to_text(raw)
             if len(clean) > 50:
                 text_parts.append(clean)
 
         if not text_parts:
-            print(f"[DART] document.json ZIP 텍스트 추출 실패 ({rcept_no}): HTML {len(html_files)}개 모두 빈 내용")
             return ""
 
         combined = "\n\n---\n\n".join(text_parts)
-        print(f"[DART] document.json 성공 ({rcept_no}): {len(combined):,}자 추출 (파일 {len(text_parts)}개)")
+        print(f"[DART] document.json 성공 ({rcept_no}): {len(combined):,}자")
         return combined[:max_chars]
     except Exception as e:
-        print(f"[DART] document.json 실패 ({rcept_no}): {e}")
+        print(f"[DART] document.json 예외 ({rcept_no}): {e}")
         return ""
+
+
+async def _fetch_via_dart_viewer(rcept_no: str, max_chars: int) -> str:
+    """2차: DART 공개 뷰어 스크래핑 (API 키 불필요)"""
+    import re
+    VIEWER = "https://dart.fss.or.kr"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    try:
+        async with httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=True) as client:
+            # 뷰어 메인 페이지에서 dcmNo 추출
+            main_r = await client.get(f"{VIEWER}/dsaf001/main.do", params={"rcpNo": rcept_no})
+            main_html = main_r.text
+
+            dcm_no = None
+            for pat in [r'dcmNo\s*[=:]\s*["\']?(\d+)', r'"dcm_no"\s*:\s*"?(\d+)"?', r'dcmno["\s]*[:=]["\s]*(\d+)']:
+                m = re.search(pat, main_html, re.IGNORECASE)
+                if m:
+                    dcm_no = m.group(1)
+                    break
+
+            if not dcm_no:
+                print(f"[DART] 뷰어 dcmNo 미발견 ({rcept_no})")
+                return ""
+
+            # 문서 본문 가져오기
+            doc_r = await client.get(
+                f"{VIEWER}/report/viewer.do",
+                params={"rcpNo": rcept_no, "dcmNo": dcm_no, "eleId": "0", "offset": "0", "length": "0", "dtd": ""},
+            )
+            clean = _html_to_text(doc_r.text)
+
+            if len(clean) > 100:
+                print(f"[DART] 뷰어 스크래핑 성공 ({rcept_no}): {len(clean):,}자 (dcmNo={dcm_no})")
+                return clean[:max_chars]
+
+            print(f"[DART] 뷰어 텍스트 없음 ({rcept_no}): {len(clean)}자")
+            return ""
+    except Exception as e:
+        print(f"[DART] 뷰어 스크래핑 실패 ({rcept_no}): {e}")
+        return ""
+
+
+async def fetch_document_text(rcept_no: str, max_chars: int = 30000) -> str:
+    """
+    DART 공시 원문 텍스트 추출.
+    1차: OpenAPI document.json → 2차: 공개 뷰어 스크래핑
+    """
+    text = await _fetch_via_document_api(rcept_no, max_chars)
+    if text:
+        return text
+    return await _fetch_via_dart_viewer(rcept_no, max_chars)
 
 
 async def get_dividend_info(corp_code: str, year: int) -> dict:
