@@ -258,28 +258,141 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
     if body.rcept_dt and len(body.rcept_dt) == 8:
         date_str = f"{body.rcept_dt[:4]}년 {body.rcept_dt[4:6]}월 {body.rcept_dt[6:]}일"
 
-    disclosure_hint = _classify_disclosure(body.report_nm)
     has_doc = bool(doc_text)
+    nm = body.report_nm.replace(" ", "")
+    content_section = (
+        f"\n[공시 원문 전문 — {len(doc_text):,}자]\n{doc_text}" if has_doc
+        else (fallback_context or "\n(원문 데이터 없음 — 제목 및 회사 프로필 기반 분석)")
+    )
 
-    if has_doc:
-        content_section = f"\n[공시 원문 전문 — {len(doc_text):,}자]\n{doc_text}"
-        analysis_instruction = (
-            f"위 공시 원문 전문을 직접 읽고 분석하세요. {disclosure_hint}\n"
-            "원문에 등장하는 구체적 수치(금액·주식수·비율·날짜·가격 등)를 반드시 key_points에 인용하세요."
-        )
-        confidence_note = "HIGH"
-    else:
-        content_section = fallback_context or "\n(원문 데이터 없음 — 제목 및 회사 프로필 기반 분석)"
-        analysis_instruction = f"공시 제목과 회사 프로필을 기반으로 분석하세요. {disclosure_hint}"
-        confidence_note = "제목만으로 판단 가능하면 MEDIUM, 내용 확인 필요하면 LOW"
+    # ── 공개매수 전용 심층 분석 ──────────────────────────────────────────────
+    is_tender = any(k in nm for k in ["공개매수"])
+    is_rights = any(k in nm for k in ["유상증자", "주식발행"])
 
-    prompt = f"""다음 DART 공시를 장기투자 관점에서 심층 분석해주세요.
+    if is_tender:
+        prompt = f"""다음 공개매수 공시를 한국 소액주주 투자자 관점에서 철저히 분석하세요.
 
 [공시 기본 정보]
 - 회사명: {body.corp_name}
 - 공시 제목: {body.report_nm}
 - 공시 날짜: {date_str or '미상'}
-- 접수번호: {body.rcept_no}
+{score_context}
+{content_section}
+
+[추출·계산 지시]
+원문에서 아래를 정확히 추출하고, 계산을 수행하세요.
+
+1. 기본 추출:
+   - 매수 가격(주당 원), 매수 예정 주식수, 공개매수 청약 기간(시작~종료), 결제일
+   - 매수 목적(자진상폐/경영권 강화/지분 확대 등)
+   - 매수인(공개매수자) 명칭 및 공개매수 후 예상 지분율
+
+2. 안분 비례 계산:
+   - 원문에서 유통주식수 또는 전체 발행주식수를 찾아 기재
+   - 안분율 추정 = 매수 예정 주식수 / (전체 발행주식수 - 매수인 기보유 주식수)
+   - 최악의 경우(전량 청약 시) 성공률% 계산
+
+3. 엑시트 시나리오 2가지:
+   시나리오 A — 장내 매도:
+   - 마지막 장내 매도 가능일: 결제일 기준 2영업일 전 (주말/공휴일 제외 계산)
+   - 세금: 상장주식 소액주주 장내 양도 → 양도소득세 비과세 (증권거래세 0.18%만)
+   - 장단점 기재
+   시나리오 B — 공개매수 청약:
+   - 청약 후 예상 수령 금액(안분율 기준)
+   - 세금: 양도소득세 22% 적용 (공개매수는 장외거래), 250만원 기본공제(1회/연)
+   - 절세 팁: 장내 매도 후 동일 수량 재매수 → 취득가 상향 → 이후 청약 시 차익 감소 → 세금 절감
+   - 장단점 기재
+
+4. 지배구조 목적:
+   - 상장폐지(자진상폐) 전략인지, 단순 지분 확대인지 판단 근거
+
+아래 JSON 형식으로만 응답하세요:
+{{
+  "summary": "핵심 내용 3문장. 매수가·주식수·기간 수치 포함 필수.",
+  "impact": "CAUTION",
+  "impact_reason": "투자자 관점 임팩트 1~2문장. 수치 근거 필수.",
+  "offer_price": 숫자 (주당 원, 없으면 null),
+  "offer_shares": 숫자 (주식수, 없으면 null),
+  "tender_period": {{"start": "M/D", "end": "M/D"}},
+  "settlement_date": "M/D",
+  "last_market_sell_date": "M/D (결제일 2영업일 전)",
+  "purpose": "자진상폐|경영권강화|지분확대|기타",
+  "proration_rate": "최악 기준 XX% (발행주식 YY만주 기준)" 또는 null,
+  "exit_scenarios": [
+    {{
+      "type": "장내매도",
+      "deadline": "M/D 장 마감까지",
+      "tax": "비과세 (소액주주 상장주식 양도)",
+      "pros": "확실한 매도, 양도세 없음",
+      "cons": "공개매수가보다 낮을 수 있음"
+    }},
+    {{
+      "type": "공개매수청약",
+      "offer_price_str": "XX,XXX원",
+      "proration": "최악 XX% 성공 예상",
+      "tax": "양도소득세 22%, 250만원 공제",
+      "tax_tip": "청약 전 장내 매도 후 재매수로 취득가 높이면 과세 차익 감소",
+      "pros": "공개매수가로 매도 확정",
+      "cons": "안분 비례로 일부만 매도, 양도세 부담"
+    }}
+  ],
+  "key_points": [
+    "수치 포함 포인트 1",
+    "수치 포함 포인트 2",
+    "수치 포함 포인트 3",
+    "지배구조 또는 상폐 관련 판단"
+  ],
+  "action": "지금 보유자가 취해야 할 행동 1문장 (예: M/D까지 장내 매도 or 청약 선택)",
+  "confidence": "HIGH"
+}}"""
+
+    elif is_rights:
+        hint = _classify_disclosure(body.report_nm)
+        prompt = f"""다음 유상증자 공시를 분석하세요.
+
+[공시 기본 정보]
+- 회사명: {body.corp_name}
+- 공시 제목: {body.report_nm}
+- 공시 날짜: {date_str or '미상'}
+{score_context}
+{content_section}
+
+원문에서 아래를 추출하고 계산하세요:
+1. 신주 발행 수량, 발행가, 기존 발행주식수
+2. 희석률 = 신주 수량 / (기존 발행주식수 + 신주 수량) × 100
+3. 발행 목적(운영자금/시설투자/부채상환), 납입일
+4. 주주배정/제3자배정 여부
+
+아래 JSON 형식으로 응답하세요:
+{{
+  "summary": "핵심 내용 3문장. 발행가·주식수·희석률 수치 포함 필수.",
+  "impact": "POSITIVE 또는 NEGATIVE 중 하나 (목적이 시설투자→POSITIVE, 부채상환/운영자금→NEGATIVE)",
+  "impact_reason": "판단 근거 1~2문장",
+  "new_shares": 숫자,
+  "issue_price": 숫자,
+  "dilution_rate": "XX.X%",
+  "purpose": "운영자금|시설투자|부채상환|기타",
+  "payment_date": "M/D",
+  "rights_type": "주주배정|제3자배정|일반공모",
+  "key_points": ["포인트1","포인트2","포인트3","투자자 행동"],
+  "action": "기존 주주 대응 방안 1문장",
+  "confidence": "HIGH"
+}}"""
+
+    else:
+        disclosure_hint = _classify_disclosure(body.report_nm)
+        confidence_note = "HIGH" if has_doc else "제목만으로 판단 가능하면 MEDIUM, 내용 확인 필요하면 LOW"
+        analysis_instruction = (
+            f"위 공시 원문 전문을 직접 읽고 분석하세요. {disclosure_hint}\n"
+            "원문에 등장하는 구체적 수치(금액·주식수·비율·날짜·가격 등)를 반드시 key_points에 인용하세요."
+        ) if has_doc else f"공시 제목과 회사 프로필을 기반으로 분석하세요. {disclosure_hint}"
+
+        prompt = f"""다음 DART 공시를 장기투자 관점에서 심층 분석해주세요.
+
+[공시 기본 정보]
+- 회사명: {body.corp_name}
+- 공시 제목: {body.report_nm}
+- 공시 날짜: {date_str or '미상'}
 {score_context}
 {content_section}
 
@@ -288,35 +401,26 @@ async def analyze_disclosure(body: DisclosureAnalyzeRequest):
 
 아래 JSON 형식으로만 응답하세요:
 {{
-  "summary": "공시의 핵심 내용 3~4문장. 원문에서 추출한 구체적 수치(금액, 주식수, 비율, 날짜, 가격)를 반드시 포함할 것.",
+  "summary": "공시의 핵심 내용 3~4문장. 구체적 수치 반드시 포함.",
   "impact": "POSITIVE 또는 NEUTRAL 또는 NEGATIVE 또는 CAUTION 중 하나",
   "impact_reason": "투자 임팩트 판단 근거 1~2문장. 원문 수치 근거 필수.",
-  "key_points": [
-    "수치가 포함된 핵심 포인트 1",
-    "수치가 포함된 핵심 포인트 2",
-    "수치가 포함된 핵심 포인트 3",
-    "투자자가 취해야 할 구체적 행동 또는 모니터링 포인트"
-  ],
-  "action": "장기투자자 관점에서 지금 당장 취할 행동 1문장 (보유/매수/매도/관망 + 이유)",
+  "key_points": ["포인트1","포인트2","포인트3","투자자 행동"],
+  "action": "장기투자자 관점 행동 1문장 (보유/매수/매도/관망 + 이유)",
   "confidence": "{confidence_note}"
 }}
 
-impact 기준:
-- POSITIVE: 실적 호전, 자사주 매입, 배당 증가, 신사업 성과 등 장기 가치 상승
-- NEGATIVE: 실적 악화, 횡령, 소송, 대규모 손실, 희석성 유상증자
-- CAUTION: 합병, 대규모 투자, 임원 변경, 공개매수 등 모니터링 필요
-- NEUTRAL: 정기 보고서, 소액 공시 등 통상 공시"""
+impact: POSITIVE=실적호전·자사주·배당증가 / NEGATIVE=실적악화·횡령·희석증자 / CAUTION=합병·대규모투자·임원변경 / NEUTRAL=통상공시"""
 
     try:
         from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=settings.openai_api_key)
         resp = await client.chat.completions.create(
             model="gpt-4o",
-            max_tokens=1200,
+            max_tokens=2000,
             temperature=0.2,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "당신은 한국 주식 DART 공시 전문 분석가입니다. 공시 원문을 직접 읽고 구체적인 수치와 함께 장기투자자에게 의미 있는 인사이트를 제공합니다. 반드시 JSON 형식으로만 응답하세요."},
+                {"role": "system", "content": "당신은 한국 주식 DART 공시 전문 분석가입니다. 공시 원문을 직접 읽고 구체적 수치와 함께 소액주주에게 실질적 행동 가이드를 제공합니다. 반드시 JSON 형식으로만 응답하세요."},
                 {"role": "user", "content": prompt},
             ],
         )
@@ -324,7 +428,8 @@ impact 기준:
         result["corp_name"] = body.corp_name
         result["report_nm"] = body.report_nm
         result["rcept_no"] = body.rcept_no
-        result["has_doc"] = has_doc  # 원문 기반 여부 프론트에 전달
+        result["has_doc"] = has_doc
+        result["analysis_type"] = "tender_offer" if is_tender else ("rights_offering" if is_rights else "general")
 
         impact_emoji = {"POSITIVE": "✅", "NEGATIVE": "🔴", "CAUTION": "⚠️", "NEUTRAL": "ℹ️"}
         result["impact_emoji"] = impact_emoji.get(result.get("impact", "NEUTRAL"), "ℹ️")

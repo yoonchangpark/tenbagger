@@ -1856,8 +1856,66 @@
       const impact = d.impact || "NEUTRAL";
       const color  = impactColor[impact] || "#6b7280";
       const bg     = impactBg[impact]    || "rgba(107,114,128,.08)";
-      const points = (d.key_points || []).map(p => `<li style="margin-bottom:4px;">• ${p}</li>`).join("");
+      const points = (d.key_points || []).map(p => `<li style="margin-bottom:5px;">• ${p}</li>`).join("");
       const confLabel = { HIGH:"높음", MEDIUM:"보통", LOW:"낮음" }[d.confidence] || d.confidence;
+      const docBadge = d.has_doc
+        ? '<span style="font-size:10px;color:#34d399;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);padding:2px 7px;border-radius:4px;">📄 원문 기반</span>'
+        : '<span style="font-size:10px;color:#94a3b8;background:rgba(148,163,184,.08);padding:2px 7px;border-radius:4px;">제목 기반</span>';
+
+      // ── 공개매수 전용 렌더링 ──────────────────────────────────────────────
+      let specialSection = "";
+
+      if (d.analysis_type === "tender_offer" && d.exit_scenarios) {
+        const sc = d.exit_scenarios;
+        const marketSell = sc.find(s => s.type === "장내매도") || sc[0];
+        const tender     = sc.find(s => s.type === "공개매수청약") || sc[1];
+        const fmtPrice   = v => v ? Number(v).toLocaleString() + "원" : "-";
+
+        specialSection = `
+          <div style="margin-bottom:14px;">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;">
+              ${d.offer_price ? `<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:3px 10px;border-radius:8px;font-weight:700;">매수가 ${fmtPrice(d.offer_price)}</span>` : ""}
+              ${d.offer_shares ? `<span style="background:rgba(96,165,250,.12);color:#60a5fa;padding:3px 10px;border-radius:8px;">대상 ${Number(d.offer_shares).toLocaleString()}주</span>` : ""}
+              ${d.proration_rate ? `<span style="background:rgba(239,68,68,.12);color:#f87171;padding:3px 10px;border-radius:8px;">안분율 ${d.proration_rate}</span>` : ""}
+              ${d.tender_period ? `<span style="background:rgba(167,139,250,.12);color:#a78bfa;padding:3px 10px;border-radius:8px;">청약 ${d.tender_period.start}~${d.tender_period.end}</span>` : ""}
+              ${d.last_market_sell_date ? `<span style="background:rgba(52,211,153,.12);color:#34d399;padding:3px 10px;border-radius:8px;">장내매도 마감 ${d.last_market_sell_date}</span>` : ""}
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:12px;">
+                <div style="font-weight:700;color:#34d399;font-size:12px;margin-bottom:6px;">📤 시나리오 A — 장내 매도</div>
+                <div style="font-size:12px;color:var(--text);margin-bottom:4px;">마감: <b>${marketSell?.deadline || d.last_market_sell_date || "-"}</b></div>
+                <div style="font-size:11px;color:#34d399;margin-bottom:4px;">✅ ${marketSell?.tax || "소액주주 비과세"}</div>
+                <div style="font-size:11px;color:var(--muted);">👍 ${marketSell?.pros || ""}</div>
+                <div style="font-size:11px;color:#f87171;">⚠️ ${marketSell?.cons || ""}</div>
+              </div>
+              <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px;">
+                <div style="font-weight:700;color:#fbbf24;font-size:12px;margin-bottom:6px;">📋 시나리오 B — 공개매수 청약</div>
+                ${tender?.offer_price_str ? `<div style="font-size:12px;color:var(--text);margin-bottom:4px;">매수가: <b>${tender.offer_price_str}</b></div>` : ""}
+                ${tender?.proration ? `<div style="font-size:12px;color:#f87171;margin-bottom:4px;">안분: <b>${tender.proration}</b></div>` : ""}
+                <div style="font-size:11px;color:#f87171;margin-bottom:4px;">💰 ${tender?.tax || "양도세 22%, 250만원 공제"}</div>
+                ${tender?.tax_tip ? `<div style="font-size:11px;color:#fbbf24;margin-bottom:4px;">💡 절세: ${tender.tax_tip}</div>` : ""}
+                <div style="font-size:11px;color:var(--muted);">👍 ${tender?.pros || ""}</div>
+                <div style="font-size:11px;color:#f87171;">⚠️ ${tender?.cons || ""}</div>
+              </div>
+            </div>
+
+            ${d.purpose ? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">🏢 목적: <span style="color:var(--text);">${d.purpose}</span></div>` : ""}
+          </div>`;
+      }
+
+      // ── 유상증자 전용 렌더링 ──────────────────────────────────────────────
+      if (d.analysis_type === "rights_offering" && d.dilution_rate) {
+        specialSection = `
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;">
+            ${d.issue_price ? `<span style="background:rgba(239,68,68,.12);color:#f87171;padding:3px 10px;border-radius:8px;font-weight:700;">발행가 ${Number(d.issue_price).toLocaleString()}원</span>` : ""}
+            ${d.new_shares ? `<span style="background:rgba(96,165,250,.12);color:#60a5fa;padding:3px 10px;border-radius:8px;">신주 ${Number(d.new_shares).toLocaleString()}주</span>` : ""}
+            <span style="background:rgba(239,68,68,.15);color:#f87171;padding:3px 10px;border-radius:8px;font-weight:700;">희석률 ${d.dilution_rate}</span>
+            ${d.purpose ? `<span style="background:rgba(107,114,128,.12);color:#94a3b8;padding:3px 10px;border-radius:8px;">${d.purpose}</span>` : ""}
+            ${d.rights_type ? `<span style="background:rgba(167,139,250,.12);color:#a78bfa;padding:3px 10px;border-radius:8px;">${d.rights_type}</span>` : ""}
+            ${d.payment_date ? `<span style="background:rgba(52,211,153,.12);color:#34d399;padding:3px 10px;border-radius:8px;">납입일 ${d.payment_date}</span>` : ""}
+          </div>`;
+      }
 
       resultEl.innerHTML = `
         <div style="margin:0 0 8px 0;padding:16px 20px;background:${bg};border-left:3px solid ${color};border-radius:0 0 12px 12px;font-size:13px;">
@@ -1865,10 +1923,11 @@
             <span style="font-size:18px;">${d.impact_emoji}</span>
             <span style="font-weight:700;color:${color};">${impact}</span>
             <span style="font-size:11px;color:var(--muted);background:rgba(255,255,255,.06);padding:2px 8px;border-radius:4px;">신뢰도: ${confLabel}</span>
-            ${d.has_doc ? '<span style="font-size:10px;color:#34d399;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);padding:2px 7px;border-radius:4px;">📄 원문 기반</span>' : '<span style="font-size:10px;color:#94a3b8;background:rgba(148,163,184,.08);padding:2px 7px;border-radius:4px;">제목 기반</span>'}
+            ${docBadge}
           </div>
           <p style="color:var(--text);margin-bottom:8px;line-height:1.6;">${d.summary || ""}</p>
-          <p style="color:${color};margin-bottom:10px;font-weight:600;">${d.impact_reason || ""}</p>
+          <p style="color:${color};margin-bottom:12px;font-weight:600;">${d.impact_reason || ""}</p>
+          ${specialSection}
           <ul style="list-style:none;padding:0;margin:0 0 10px;color:var(--muted);">${points}</ul>
           <div style="padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;color:#93c5fd;font-size:12px;">
             💡 ${d.action || ""}
