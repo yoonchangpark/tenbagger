@@ -339,7 +339,7 @@
     <div class="section-header">
       <div>
         <div class="section-title">신규 공시 모니터링</div>
-        <div class="section-desc">DART 공시 실시간 조회 · 최근 7일</div>
+        <div class="section-desc">DART 공시 실시간 조회 · <span id="discPeriodLabel">최근 7일</span></div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
         <div class="filter-bar">
@@ -354,6 +354,11 @@
           <button class="filter-btn" onclick="setLabelFilter('관심종목',this)">⭐ 관심종목</button>
           <button class="filter-btn" onclick="setLabelFilter('추천종목',this)">🔥 추천종목</button>
           <button class="filter-btn" onclick="setLabelFilter('주요공시',this)">📌 주요공시</button>
+        </div>
+        <div class="filter-bar" id="period-filter-bar">
+          <button class="filter-btn active" onclick="setDiscPeriod(7,this)">7일</button>
+          <button class="filter-btn" onclick="setDiscPeriod(30,this)">30일</button>
+          <button class="filter-btn" onclick="setDiscPeriod(60,this)">60일</button>
         </div>
       </div>
     </div>
@@ -756,6 +761,7 @@
 <script>
   const API = "";
   let _corpCls = "";
+  let _discDays = 7;
   let _rankChart = null;
 
   // ── JWT 자동 갱신 fetch 래퍼 ──────────────────────────────────────
@@ -1740,9 +1746,16 @@
 
   function setCorpCls(cls, btn) {
     _corpCls = cls;
-    // 시장 필터 버튼만 active 토글 (라벨 필터와 독립)
     document.querySelectorAll("#cls-all,#cls-kospi,#cls-kosdaq").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
+    loadDisclosures();
+  }
+
+  function setDiscPeriod(days, btn) {
+    _discDays = days;
+    document.querySelectorAll("#period-filter-bar .filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("discPeriodLabel").textContent = `최근 ${days}일`;
     loadDisclosures();
   }
 
@@ -1787,7 +1800,10 @@
     try {
       const token = localStorage.getItem("access_token");
       const headers = token ? { "Authorization": "Bearer " + token } : {};
-      const url = API + "/api/v2/disclosures?page_count=40&personalize=true" + (_corpCls ? "&corp_cls=" + _corpCls : "");
+      const today = new Date();
+      const bgn = new Date(today - _discDays * 864e5).toISOString().slice(0,10).replace(/-/g,"");
+      const end = today.toISOString().slice(0,10).replace(/-/g,"");
+      const url = API + `/api/v2/disclosures?page_count=40&personalize=true&bgn_de=${bgn}&end_de=${end}` + (_corpCls ? "&corp_cls=" + _corpCls : "");
       const r = await fetch(url, { headers });
       const data = await r.json();
 
