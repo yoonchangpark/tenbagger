@@ -866,6 +866,7 @@
     if (id === 'mystock')  loadMyHoldings();
     if (id === 'portfolio') { loadTrustBanner(); runPortfolioSimulation(); }
     if (id === 'news') loadNewsDashboard();
+    if (id === 'disclosures') loadDisclosures();
   }
 
   // ── 관심종목 ──────────────────────────────────────────────────
@@ -1753,6 +1754,26 @@
       const wLabel = w.dataset.label || "";
       w.style.display = (!label || wLabel === label) ? "" : "none";
     });
+    // 필터 결과 없을 때 안내
+    if (label) {
+      const visible = [...document.querySelectorAll("#discList .disc-wrapper")].filter(w => w.style.display !== "none");
+      if (visible.length === 0) {
+        const list = document.getElementById("discList");
+        const existing = list.querySelector('.lbl-empty-msg');
+        if (!existing) {
+          const msg = document.createElement('div');
+          msg.className = 'lbl-empty-msg empty-row';
+          msg.textContent = `${label} 공시가 없습니다. 내 주식 탭에서 종목을 추가하면 표시됩니다.`;
+          list.appendChild(msg);
+        }
+      } else {
+        const e = document.getElementById("discList").querySelector('.lbl-empty-msg');
+        if (e) e.remove();
+      }
+    } else {
+      const e = document.getElementById("discList").querySelector('.lbl-empty-msg');
+      if (e) e.remove();
+    }
   }
 
   async function loadDisclosures() {
@@ -1760,6 +1781,7 @@
     btn.disabled = true;
     btn.textContent = "로딩 중…";
     const list = document.getElementById("discList");
+    document.getElementById("discList").querySelectorAll('.lbl-empty-msg').forEach(e => e.remove());
     list.innerHTML = '<div class="loading-row"><div class="spinner"></div><div>공시 데이터 로딩 중…</div></div>';
 
     try {
@@ -2694,6 +2716,21 @@
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ ticker, name, quantity: qty, avg_price: avgPrice }),
     }).catch(() => {});
+  }
+
+  async function _syncLocalHoldingsToDB() {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    const local = mhLoad();
+    if (!local.length) return;
+    for (const h of local) {
+      if (!h.ticker) continue;
+      fetch(API + '/api/v2/holdings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ ticker: h.ticker, name: h.name, quantity: h.qty, avg_price: h.avgPrice }),
+      }).catch(() => {});
+    }
   }
 
   function mhDeleteFromDb(ticker) {
@@ -3857,6 +3894,7 @@
       .catch(() => {});
   })();
   loadRanking();
+  _syncLocalHoldingsToDB();
   loadDisclosures();
 
   function showToast(msg, type='info') {
