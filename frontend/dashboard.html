@@ -309,6 +309,10 @@
     .r-num{font-size:26px;font-weight:900;line-height:1;margin-bottom:6px;}
     .r-lbl{font-size:11px;color:var(--muted);}
     .scenario-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
+    @media(max-width:640px){
+      .risk-summary{grid-template-columns:1fr 1fr;}
+      .scenario-grid{grid-template-columns:1fr;}
+    }
     .sc-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;}
     .sc-pct{font-size:22px;font-weight:900;margin-bottom:6px;}
     .sc-label{font-size:11px;color:var(--muted);margin-bottom:6px;}
@@ -444,10 +448,10 @@
       <div class="qc-summary">ROE 급락(8.9%→2.0%) · 원가 부담 확대 · 반도체 업황 모니터링 필요</div>
       <div class="qc-actions">
         <span style="font-size:11px;color:var(--muted);">관심종목·텐배거 종목은 종목 분석 하단에서 분기비교 자동 조회</span>
-        <button onclick="switchTab('analysis',document.querySelector('.tab-btn[onclick*=\'analysis\']'));document.getElementById('stockInput').value='005930';analyzeStock()"
-          style="padding:4px 12px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;">
+        <a href="index.html?q=005930"
+          style="padding:4px 12px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;">
           삼성전자 분석 →
-        </button>
+        </a>
       </div>
     </div>
     <div class="disc-list" id="discList">
@@ -988,10 +992,14 @@
 
   // ── Tab switching ──
   function switchTab(id, btn) {
+    // analysis 탭은 메인 페이지로 이동
+    if (id === 'analysis') { window.location.href = 'index.html'; return; }
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    document.getElementById("tab-" + id).classList.add("active");
-    btn.classList.add("active");
+    const panel = document.getElementById("tab-" + id);
+    if (!panel) return;
+    panel.classList.add("active");
+    if (btn) btn.classList.add("active");
     if (id === 'watchlist') loadWatchlist();
     if (id === 'mystock')  loadMyHoldings();
     if (id === 'portfolio') { loadTrustBanner(); if (!switchTab._pfRan) { switchTab._pfRan = true; runPortfolioSimulation(); } }
@@ -1698,10 +1706,7 @@
   }
 
   function analyzeFromWatchlist(ticker) {
-    const tabBtn = document.querySelector('.tab-btn[onclick*="analysis"]');
-    switchTab("analysis", tabBtn);
-    document.getElementById("stockInput").value = ticker;
-    analyzeStock();
+    window.location.href = 'index.html?q=' + encodeURIComponent(ticker);
   }
 
   // ────────────────────────────────────────────
@@ -1859,10 +1864,7 @@
   }
 
   function jumpToAnalysis(ticker) {
-    const tabBtn = document.querySelector('.tab-btn[onclick*="analysis"]');
-    switchTab("analysis", tabBtn);
-    document.getElementById("stockInput").value = ticker;
-    analyzeStock();
+    window.location.href = 'index.html?q=' + encodeURIComponent(ticker);
   }
 
   // ────────────────────────────────────────────
@@ -4064,8 +4066,9 @@
     try {
       const res = await fetch(`${API}/api/screener?grade=${grade}&limit=20&sort=total_score`);
       const data = await res.json();
-      if (!data.results?.length) { el.innerHTML = '<div class="empty-row">ETL을 먼저 실행해주세요.</div>'; return; }
-      el.innerHTML = `<div class="rec-grid">${data.results.map(renderRecCard).join('')}</div>`;
+      const items = data.companies || data.results || [];
+      if (!items.length) { el.innerHTML = '<div class="empty-row">ETL을 먼저 실행해주세요.</div>'; return; }
+      el.innerHTML = `<div class="rec-grid">${items.map(renderRecCard).join('')}</div>`;
     } catch(e) { el.innerHTML = `<div class="empty-row">오류: ${e.message}</div>`; }
   }
 
@@ -4124,6 +4127,10 @@
   // 리스크 분석 탭 — 실제 보유 종목 기반
   // ══════════════════════════════════════════════════════════════════════════════
   async function renderRiskTabDash() {
+    // 로딩 스피너 표시
+    document.getElementById('riskSummaryDash').innerHTML =
+      `<div class="risk-box" style="grid-column:1/-1;padding:32px;"><div class="spinner" style="margin:0 auto 8px;"></div><div class="r-lbl">보유 종목 불러오는 중…</div></div>`;
+
     // 실제 보유 종목 fetch
     let holdings = [];
     try {
@@ -4218,7 +4225,7 @@
   async function loadDividendScenario() {
     const input = (document.getElementById('divTicker')?.value||'').trim();
     const priceInput = (document.getElementById('divPrice')?.value||'').trim();
-    if (!input) return;
+    if (!input) { showToast('종목코드 또는 종목명을 입력해주세요.', 'warn'); document.getElementById('divTicker')?.focus(); return; }
     const loadEl = document.getElementById('divLoading');
     const resultEl = document.getElementById('divResult');
     loadEl.style.display = 'block';
@@ -4226,9 +4233,18 @@
     try {
       let ticker = input;
       if (!/^\d{6}$/.test(input)) {
-        const sr = await fetch(API + '/api/search?q=' + encodeURIComponent(input));
-        const sj = await sr.json();
-        const hit = (sj.results||sj.companies||[])[0];
+        // v2 검색 우선, 실패 시 v1 fallback
+        let hit = null;
+        try {
+          const sr = await fetch(API + '/api/v2/search?q=' + encodeURIComponent(input));
+          if (sr.ok) { const sj = await sr.json(); hit = (Array.isArray(sj) ? sj : (sj.results||[]))[0]; }
+        } catch {}
+        if (!hit) {
+          try {
+            const sr = await fetch(API + '/api/search?q=' + encodeURIComponent(input));
+            if (sr.ok) { const sj = await sr.json(); hit = (sj.results||sj.companies||[])[0]; }
+          } catch {}
+        }
         if (!hit) throw new Error('종목을 찾을 수 없습니다: ' + input);
         ticker = hit.ticker||hit.stock_code||hit.corp_code;
       }
@@ -4297,11 +4313,11 @@
 </footer>
 
 <nav class="mobile-tab-bar">
-  <a href="index.html"><span class="t-icon">🏠</span>종목분석</a>
-  <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
-  <a href="dashboard.html" class="active"><span class="t-icon">📡</span>대시보드</a>
+  <a href="#" onclick="event.preventDefault(); switchTab('ranking', document.querySelector('[onclick*=ranking]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');" class="active"><span class="t-icon">🏆</span>추천</a>
+  <a href="#" onclick="event.preventDefault(); switchTab('watchlist', document.querySelector('[onclick*=watchlist]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">⭐</span>관심</a>
   <a href="#" onclick="event.preventDefault(); switchTab('mystock', document.querySelector('[onclick*=mystock]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">💼</span>내주식</a>
-  <a href="pricing.html"><span class="t-icon">💎</span>구독</a>
+  <a href="#" onclick="event.preventDefault(); switchTab('risk', document.querySelector('[onclick*=risk]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">⚠️</span>리스크</a>
+  <a href="#" onclick="event.preventDefault(); switchTab('news', document.querySelector('[onclick*=news]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">📰</span>뉴스</a>
 </nav>
 </body>
 </html>
