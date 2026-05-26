@@ -23,6 +23,9 @@ from app.api.v2_risk import router as risk_router
 from app.api.v2_rebalance import router as rebalance_router
 from app.api.v2_flow import router as flow_router
 from app.api.v2_surprise import router as surprise_router
+from app.api.v2_holdings import router as holdings_router
+from app.api.v2_phase_d import router as phase_d_router
+from app.api.v2_swap import router as swap_router
 from app.core.database import check_db, SessionLocal
 
 
@@ -110,6 +113,24 @@ def _run_price_alert_job():
             print(f"⚠️ [SCHEDULER] stderr: {result.stderr[-200:]}")
     except Exception as e:
         print(f"❌ [SCHEDULER] 목표가 알림 오류: {e}")
+
+
+def _run_quarterly_alert_job():
+    """매일 07:30(KST) 분기보고서 공시 감지 → 내 종목 보유 유저 카카오 알림"""
+    import subprocess, sys
+    print("📋 [SCHEDULER] 분기보고서 알림 체크 시작...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "from app.workers.quarterly_alert import run_quarterly_alerts; run_quarterly_alerts()"],
+            capture_output=True, text=True, timeout=300,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        print(f"✅ [SCHEDULER] 분기보고서 알림 완료\n{result.stdout[-300:] if result.stdout else ''}")
+        if result.returncode != 0:
+            print(f"⚠️ [SCHEDULER] stderr: {result.stderr[-200:]}")
+    except Exception as e:
+        print(f"❌ [SCHEDULER] 분기보고서 알림 오류: {e}")
 
 
 def _run_accuracy_job():
@@ -202,6 +223,15 @@ async def lifespan(app: FastAPI):
             replace_existing=True,
         )
 
+        # 매일 07:30 KST — 분기보고서 공시 감지 → 내 종목 카카오 알림
+        scheduler.add_job(
+            lambda: asyncio.get_event_loop().run_in_executor(None, _run_quarterly_alert_job),
+            CronTrigger(hour=7, minute=30, timezone="Asia/Seoul"),
+            id="quarterly_alert_daily",
+            name="Daily Quarterly Report Alert",
+            replace_existing=True,
+        )
+
         # 매주 월요일 08:00 KST — 주간 관심종목 리포트
         scheduler.add_job(
             lambda: asyncio.get_event_loop().run_in_executor(None, _run_weekly_report_job),
@@ -239,7 +269,7 @@ async def lifespan(app: FastAPI):
         )
 
         scheduler.start()
-        print("✅ [SCHEDULER] ETL 02:00 | 뉴스 04:00 | 어드바이저 07:00 | 주간리포트 월 08:00 | 목표가알림 16:00 | 정확도 일 23:00 | 가중치분석 일 23:30 KST")
+        print("✅ [SCHEDULER] ETL 02:00 | 뉴스 04:00 | 어드바이저 07:00 | 분기보고서알림 07:30 | 주간리포트 월 08:00 | 목표가알림 16:00 | 정확도 일 23:00 | 가중치분석 일 23:30 KST")
     except Exception as e:
         print(f"⚠️ [SCHEDULER] 스케줄러 시작 실패 (무시): {e}")
 
@@ -280,6 +310,9 @@ app.include_router(risk_router)
 app.include_router(rebalance_router)
 app.include_router(flow_router)
 app.include_router(surprise_router)
+app.include_router(holdings_router)
+app.include_router(phase_d_router)
+app.include_router(swap_router)
 
 
 @app.get("/api/health")

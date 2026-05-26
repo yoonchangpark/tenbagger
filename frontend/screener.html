@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>스크리너 · 텐배거헌터</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#10b981">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="텐배거">
+  <link rel="apple-touch-icon" href="/icon.svg">
   <style>
     :root {
       --bg: #0a0f1e; --surface: #111827; --surface2: #1f2937;
@@ -150,6 +156,7 @@
     <a class="nav-link active" href="screener.html">📊 스크리너</a>
     <a class="nav-link" href="backtest.html">📈 백테스트</a>
     <a class="nav-link" href="dashboard.html">🔔 대시보드</a>
+    <a class="nav-link" href="pricing.html" style="border-color:rgba(139,92,246,.4);color:#c4b5fd;">💎 구독</a>
   </div>
 </header>
 
@@ -457,6 +464,10 @@
     <div style="margin-top:8px;color:#4b5563;">© 2026 텐배거 헌터 · 데이터 출처: DART 전자공시, 네이버 금융</div>
   </div>
 </footer>
-
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
 </body>
 </html>
