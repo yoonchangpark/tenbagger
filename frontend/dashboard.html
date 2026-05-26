@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>대시보드 · 텐배거 헌터</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#10b981">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="텐배거">
+  <link rel="apple-touch-icon" href="/icon.svg">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4432,5 +4438,10 @@
   <a href="#" onclick="event.preventDefault(); switchTab('dividend', document.querySelector('[onclick*=dividend]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">💰</span>배당</a>
   <a href="#" onclick="event.preventDefault(); switchTab('feed', document.querySelector('[onclick*=feed]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">📡</span>공시·뉴스</a>
 </nav>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
 </body>
 </html>
