@@ -746,15 +746,17 @@ def dividend_scenario(
     try:
         with SessionLocal() as session:
             sc = session.execute(text("""
-                SELECT close, pbr, per
+                SELECT close, pbr, per, name
                 FROM scores WHERE ticker = :t LIMIT 1
             """), {"t": ticker}).fetchone()
 
+            # financials_annual은 company_id 기반 — companies JOIN 필요
             fd = session.execute(text("""
-                SELECT eps, dps, bps, net_income, shares_outstanding
-                FROM financial_data
-                WHERE ticker = :t
-                ORDER BY year DESC LIMIT 1
+                SELECT fa.eps, fa.dps, fa.total_equity, fa.net_income
+                FROM financials_annual fa
+                JOIN companies c ON c.id = fa.company_id
+                WHERE c.ticker = :t
+                ORDER BY fa.year DESC LIMIT 1
             """), {"t": ticker}).fetchone()
 
             co = session.execute(text("""
@@ -762,13 +764,15 @@ def dividend_scenario(
             """), {"t": ticker}).fetchone()
 
         price = current_price or (float(sc.close) if sc and sc.close else None)
-        name = co.name if co else ticker
+        name = (co.name if co else None) or (sc.name if sc else None) or ticker
 
-        eps  = float(fd.eps)  if fd and fd.eps  else None
-        dps  = float(fd.dps)  if fd and fd.dps  else None
-        bps  = float(fd.bps)  if fd and fd.bps  else None
-        per  = float(sc.per)  if sc and sc.per  else None
-        pbr  = float(sc.pbr)  if sc and sc.pbr  else None
+        eps = float(fd.eps) if fd and fd.eps else None
+        dps = float(fd.dps) if fd and fd.dps else None
+        per = float(sc.per) if sc and sc.per else None
+        pbr = float(sc.pbr) if sc and sc.pbr else None
+
+        # BPS = 현재가 / PBR (scores 기반)
+        bps = round(float(sc.close) / float(sc.pbr)) if sc and sc.close and sc.pbr and float(sc.pbr) > 0 else None
 
         if price:
             if eps and eps > 0:
