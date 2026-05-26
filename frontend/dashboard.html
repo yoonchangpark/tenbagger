@@ -382,8 +382,7 @@
   <button class="tab-btn" onclick="switchTab('portfolio',this)">🔍 추천 검증</button>
   <button class="tab-btn" onclick="switchTab('risk',this)">⚠️ 리스크 분석</button>
   <button class="tab-btn" onclick="switchTab('dividend',this)">💰 배당 시나리오</button>
-  <button class="tab-btn" onclick="switchTab('disclosures',this)">📡 공시</button>
-  <button class="tab-btn" onclick="switchTab('news',this)">📰 뉴스</button>
+  <button class="tab-btn" onclick="switchTab('feed',this)">📡 공시·뉴스</button>
 </div>
 
 <div class="content">
@@ -408,64 +407,104 @@
     <div id="recCardContent" style="display:none;"></div>
   </div>
 
-  <!-- ── TAB 1: Disclosures ── -->
-  <div class="tab-panel" id="tab-disclosures">
-    <div class="section-header">
-      <div>
-        <div class="section-title">신규 공시 모니터링</div>
-        <div class="section-desc">DART 공시 실시간 조회 · <span id="discPeriodLabel">최근 7일</span></div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-        <div class="filter-bar">
-          <button class="filter-btn active" id="cls-all" onclick="setCorpCls('',this)">전체</button>
-          <button class="filter-btn" id="cls-kospi" onclick="setCorpCls('Y',this)">KOSPI</button>
-          <button class="filter-btn" id="cls-kosdaq" onclick="setCorpCls('K',this)">KOSDAQ</button>
-          <button class="refresh-btn" id="discRefreshBtn" onclick="loadDisclosures()">새로고침</button>
-        </div>
-        <div class="filter-bar" id="lbl-filter-bar">
-          <button class="filter-btn active" onclick="setLabelFilter('',this)">전체</button>
-          <button class="filter-btn" onclick="setLabelFilter('내종목',this)">💼 내종목</button>
-          <button class="filter-btn" onclick="setLabelFilter('관심종목',this)">⭐ 관심종목</button>
-          <button class="filter-btn" onclick="setLabelFilter('추천종목',this)">🔥 추천종목</button>
-          <button class="filter-btn" onclick="setLabelFilter('주요공시',this)">📌 주요공시</button>
-        </div>
-        <div class="filter-bar" id="period-filter-bar">
-          <button class="filter-btn active" onclick="setDiscPeriod(7,this)">7일</button>
-          <button class="filter-btn" onclick="setDiscPeriod(30,this)">30일</button>
-          <button class="filter-btn" onclick="setDiscPeriod(60,this)">60일</button>
-        </div>
-      </div>
+  <!-- ── TAB: 공시·뉴스 (통합) ── -->
+  <div class="tab-panel" id="tab-feed">
+    <!-- 서브탭 -->
+    <div style="display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid var(--border);">
+      <button id="feedSubDiscBtn" onclick="switchFeedTab('disc',this)"
+        style="padding:10px 22px;font-size:14px;font-weight:600;background:none;border:none;border-bottom:2px solid var(--blue);color:#93c5fd;cursor:pointer;margin-bottom:-1px;">📡 공시</button>
+      <button id="feedSubNewsBtn" onclick="switchFeedTab('news',this)"
+        style="padding:10px 22px;font-size:14px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;margin-bottom:-1px;">📰 뉴스</button>
     </div>
-    <!-- 분기비교 예시 고정 카드 -->
-    <div class="qc-pinned-card">
-      <div class="qc-pinned-label">📌 분기비교 분석 예시 · 삼성전자(005930)</div>
-      <div class="qc-pinned-meta">2024 사업보고서(연간) → 2025 1분기보고서</div>
-      <div class="qc-indices-row">
-        <div class="qc-idx-item down"><div class="qc-idx-nm">ROE</div><div class="qc-idx-vals">8.997% → 2.033%</div></div>
-        <div class="qc-idx-item down"><div class="qc-idx-nm">매출총이익률</div><div class="qc-idx-vals">37.993% → 35.545%</div></div>
-        <div class="qc-idx-item down"><div class="qc-idx-nm">순이익률</div><div class="qc-idx-vals">11.451% → 10.39%</div></div>
-      </div>
-      <div class="qc-summary">ROE 급락(8.9%→2.0%) · 원가 부담 확대 · 반도체 업황 모니터링 필요</div>
-      <div class="qc-actions">
-        <span style="font-size:11px;color:var(--muted);">관심종목·텐배거 종목은 종목 분석 하단에서 분기비교 자동 조회</span>
-        <a href="index.html?q=005930"
-          style="padding:4px 12px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;">
-          삼성전자 분석 →
-        </a>
-      </div>
-    </div>
-    <div class="disc-list" id="discList">
-      <div class="loading-row"><div class="spinner"></div><div>공시 데이터 로딩 중…</div></div>
-    </div>
-  </div>
 
-  <!-- ── TAB 2: Stock Analysis ── -->
-  <div class="tab-panel" id="tab-analysis">
-    <div style="text-align:center;padding:60px 24px;">
-      <div style="font-size:52px;margin-bottom:20px;">🔬</div>
-      <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">종목 분석은 메인 페이지에서</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:28px;">DART 재무데이터 · 텐배거 점수 · AI 투자위원회 · 정성 분석</div>
-      <a href="index.html" style="display:inline-block;padding:12px 32px;background:var(--blue);color:#fff;border-radius:12px;font-size:14px;font-weight:700;text-decoration:none;">종목 분석 페이지로 이동 →</a>
+    <!-- ── 공시 섹션 ── -->
+    <div id="feedDiscSection">
+      <div class="section-header">
+        <div>
+          <div class="section-title">신규 공시 모니터링</div>
+          <div class="section-desc">DART 공시 실시간 조회 · <span id="discPeriodLabel">최근 7일</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <div class="filter-bar">
+            <button class="filter-btn active" id="cls-all" onclick="setCorpCls('',this)">전체</button>
+            <button class="filter-btn" id="cls-kospi" onclick="setCorpCls('Y',this)">KOSPI</button>
+            <button class="filter-btn" id="cls-kosdaq" onclick="setCorpCls('K',this)">KOSDAQ</button>
+            <button class="refresh-btn" id="discRefreshBtn" onclick="loadDisclosures()">새로고침</button>
+          </div>
+          <div class="filter-bar" id="lbl-filter-bar">
+            <button class="filter-btn active" onclick="setLabelFilter('',this)">전체</button>
+            <button class="filter-btn" onclick="setLabelFilter('내종목',this)">💼 내종목</button>
+            <button class="filter-btn" onclick="setLabelFilter('관심종목',this)">⭐ 관심종목</button>
+            <button class="filter-btn" onclick="setLabelFilter('추천종목',this)">🔥 추천종목</button>
+            <button class="filter-btn" onclick="setLabelFilter('주요공시',this)">📌 주요공시</button>
+          </div>
+          <div class="filter-bar" id="period-filter-bar">
+            <button class="filter-btn active" onclick="setDiscPeriod(7,this)">7일</button>
+            <button class="filter-btn" onclick="setDiscPeriod(30,this)">30일</button>
+            <button class="filter-btn" onclick="setDiscPeriod(60,this)">60일</button>
+          </div>
+        </div>
+      </div>
+      <div class="qc-pinned-card">
+        <div class="qc-pinned-label">📌 분기비교 분석 예시 · 삼성전자(005930)</div>
+        <div class="qc-pinned-meta">2024 사업보고서(연간) → 2025 1분기보고서</div>
+        <div class="qc-indices-row">
+          <div class="qc-idx-item down"><div class="qc-idx-nm">ROE</div><div class="qc-idx-vals">8.997% → 2.033%</div></div>
+          <div class="qc-idx-item down"><div class="qc-idx-nm">매출총이익률</div><div class="qc-idx-vals">37.993% → 35.545%</div></div>
+          <div class="qc-idx-item down"><div class="qc-idx-nm">순이익률</div><div class="qc-idx-vals">11.451% → 10.39%</div></div>
+        </div>
+        <div class="qc-summary">ROE 급락(8.9%→2.0%) · 원가 부담 확대 · 반도체 업황 모니터링 필요</div>
+        <div class="qc-actions">
+          <span style="font-size:11px;color:var(--muted);">관심종목·텐배거 종목은 종목 분석 하단에서 분기비교 자동 조회</span>
+          <a href="index.html?q=005930"
+            style="padding:4px 12px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;">
+            삼성전자 분석 →
+          </a>
+        </div>
+      </div>
+      <div class="disc-list" id="discList">
+        <div class="loading-row"><div class="spinner"></div><div>공시 데이터 로딩 중…</div></div>
+      </div>
+    </div>
+
+    <!-- ── 뉴스 섹션 ── -->
+    <div id="feedNewsSection" style="display:none;">
+      <div class="section-header">
+        <div>
+          <div class="section-title">📰 AI 뉴스 감성 분석</div>
+          <div class="section-desc">GPT-4o-mini가 매일 새벽 전종목·전업종 뉴스를 분석해 투자 시그널을 제공합니다</div>
+        </div>
+        <button class="refresh-btn" onclick="loadNewsDashboard()">새로고침</button>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;">🏭 업종별 감성 현황</div>
+        <div id="sectorHeatmap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+          <div class="loading-row" style="grid-column:1/-1;padding:32px;"><div class="spinner"></div></div>
+        </div>
+        <div id="sectorDetail" style="display:none;margin-top:16px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+        <button class="filter-btn active" id="sigBtn-BUY_SIGNAL"  onclick="loadSignalStocks('BUY_SIGNAL',this)">🟢 매수 신호</button>
+        <button class="filter-btn"        id="sigBtn-POSITIVE"    onclick="loadSignalStocks('POSITIVE',this)">🟡 긍정적</button>
+        <button class="filter-btn"        id="sigBtn-NEUTRAL"     onclick="loadSignalStocks('NEUTRAL',this)">⚪ 중립</button>
+        <button class="filter-btn"        id="sigBtn-CAUTION"     onclick="loadSignalStocks('CAUTION',this)">🟠 주의</button>
+        <button class="filter-btn"        id="sigBtn-SELL_SIGNAL" onclick="loadSignalStocks('SELL_SIGNAL',this)">🔴 매도 신호</button>
+      </div>
+      <div id="newsAnalysisBasis" style="font-size:11px;color:var(--muted);margin-bottom:8px;"></div>
+      <div id="signalStockList">
+        <div class="loading-row"><div class="spinner"></div></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-top:24px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:14px;">🔍 종목별 뉴스 감성 조회</div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;">
+          <input id="newsSentimentInput" placeholder="종목코드 (예: 005930)"
+                 style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;"
+                 onkeydown="if(event.key==='Enter')loadTickerSentiment()" />
+          <button onclick="loadTickerSentiment()"
+                  style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:8px;padding:10px 22px;color:#fff;font-weight:700;cursor:pointer;">조회</button>
+        </div>
+        <div id="tickerSentimentResult"></div>
+      </div>
     </div>
   </div>
 
@@ -773,54 +812,6 @@
     <div id="pfResult"></div>
   </div>
 
-  <div class="tab-panel" id="tab-news">
-    <!-- 업종 감성 히트맵 -->
-    <div class="section-header">
-      <div>
-        <div class="section-title">📰 AI 뉴스 감성 분석</div>
-        <div class="section-desc">GPT-4o-mini가 매일 새벽 전종목·전업종 뉴스를 분석해 투자 시그널을 제공합니다</div>
-      </div>
-      <button class="refresh-btn" onclick="loadNewsDashboard()">새로고침</button>
-    </div>
-
-    <!-- 업종 히트맵 -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:16px;">🏭 업종별 감성 현황</div>
-      <div id="sectorHeatmap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
-        <div class="loading-row" style="grid-column:1/-1;padding:32px;"><div class="spinner"></div></div>
-      </div>
-      <div id="sectorDetail" style="display:none;margin-top:16px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;"></div>
-    </div>
-
-    <!-- 시그널 탭 -->
-    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-      <button class="filter-btn active" id="sigBtn-BUY_SIGNAL"  onclick="loadSignalStocks('BUY_SIGNAL',this)">🟢 매수 신호</button>
-      <button class="filter-btn"        id="sigBtn-POSITIVE"    onclick="loadSignalStocks('POSITIVE',this)">🟡 긍정적</button>
-      <button class="filter-btn"        id="sigBtn-NEUTRAL"     onclick="loadSignalStocks('NEUTRAL',this)">⚪ 중립</button>
-      <button class="filter-btn"        id="sigBtn-CAUTION"     onclick="loadSignalStocks('CAUTION',this)">🟠 주의</button>
-      <button class="filter-btn"        id="sigBtn-SELL_SIGNAL" onclick="loadSignalStocks('SELL_SIGNAL',this)">🔴 매도 신호</button>
-    </div>
-
-    <!-- 시그널 종목 리스트 -->
-    <div id="newsAnalysisBasis" style="font-size:11px;color:var(--muted);margin-bottom:8px;"></div>
-    <div id="signalStockList">
-      <div class="loading-row"><div class="spinner"></div></div>
-    </div>
-
-    <!-- 종목 감성 조회 -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-top:24px;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">🔍 종목별 뉴스 감성 조회</div>
-      <div style="display:flex;gap:10px;margin-bottom:16px;">
-        <input id="newsSentimentInput" placeholder="종목코드 (예: 005930)"
-               style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;"
-               onkeydown="if(event.key==='Enter')loadTickerSentiment()" />
-        <button onclick="loadTickerSentiment()"
-                style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:8px;padding:10px 22px;color:#fff;font-weight:700;cursor:pointer;">조회</button>
-      </div>
-      <div id="tickerSentimentResult"></div>
-    </div>
-  </div>
-
 
   <!-- ── TAB: 리스크 분석 ── -->
   <div class="tab-panel" id="tab-risk">
@@ -1027,10 +1018,30 @@
     if (id === 'watchlist') loadWatchlist();
     if (id === 'mystock')  loadMyHoldings();
     if (id === 'portfolio') { loadTrustBanner(); if (!switchTab._pfRan) { switchTab._pfRan = true; runPortfolioSimulation(); } }
-    if (id === 'news') loadNewsDashboard();
-    if (id === 'disclosures') loadDisclosures();
+    if (id === 'feed') {
+      if (!switchTab._discLoaded) { switchTab._discLoaded = true; loadDisclosures(); }
+    }
     if (id === 'risk') renderRiskTabDash();
     if (id === 'dividend') loadDividendTopStocks();
+  }
+
+  // ── 공시·뉴스 서브탭 전환 ──────────────────────────────────────
+  function switchFeedTab(sub, btn) {
+    const isDisc = sub === 'disc';
+    document.getElementById('feedDiscSection').style.display = isDisc ? '' : 'none';
+    document.getElementById('feedNewsSection').style.display = isDisc ? 'none' : '';
+
+    const discBtn = document.getElementById('feedSubDiscBtn');
+    const newsBtn = document.getElementById('feedSubNewsBtn');
+    const activeStyle  = { borderBottomColor: 'var(--blue)', color: '#93c5fd' };
+    const inactiveStyle = { borderBottomColor: 'transparent', color: 'var(--muted)' };
+    Object.assign(discBtn.style, isDisc ? activeStyle : inactiveStyle);
+    Object.assign(newsBtn.style, isDisc ? inactiveStyle : activeStyle);
+
+    if (!isDisc && !switchFeedTab._newsLoaded) {
+      switchFeedTab._newsLoaded = true;
+      loadNewsDashboard();
+    }
   }
 
   // ── 관심종목 ──────────────────────────────────────────────────
@@ -4067,7 +4078,8 @@
       .catch(() => {});
   })();
   loadRanking();
-  // DB 동기화 완료 후 공시 로드 (실패해도 반드시 loadDisclosures 실행)
+  // DB 동기화 완료 후 공시 백그라운드 로드 (탭 전환 시 이중 로드 방지)
+  switchTab._discLoaded = true;
   _syncLocalHoldingsToDB().then(() => loadDisclosures()).catch(() => loadDisclosures());
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -4387,7 +4399,7 @@
   <a href="#" onclick="event.preventDefault(); switchTab('watchlist', document.querySelector('[onclick*=watchlist]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">⭐</span>관심</a>
   <a href="#" onclick="event.preventDefault(); switchTab('mystock', document.querySelector('[onclick*=mystock]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">💼</span>내주식</a>
   <a href="#" onclick="event.preventDefault(); switchTab('risk', document.querySelector('[onclick*=risk]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">⚠️</span>리스크</a>
-  <a href="#" onclick="event.preventDefault(); switchTab('news', document.querySelector('[onclick*=news]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">📰</span>뉴스</a>
+  <a href="#" onclick="event.preventDefault(); switchTab('feed', document.querySelector('[onclick*=feed]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">📡</span>공시·뉴스</a>
 </nav>
 </body>
 </html>
