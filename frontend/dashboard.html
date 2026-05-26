@@ -380,7 +380,6 @@
   <button class="tab-btn" onclick="switchTab('watchlist',this)">⭐ 관심종목</button>
   <button class="tab-btn" onclick="switchTab('mystock',this)">💼 내 주식</button>
   <button class="tab-btn" onclick="switchTab('portfolio',this)">🔍 추천 검증</button>
-  <button class="tab-btn" onclick="switchTab('risk',this)">⚠️ 리스크 분석</button>
   <button class="tab-btn" onclick="switchTab('dividend',this)">💰 배당 시나리오</button>
   <button class="tab-btn" onclick="switchTab('feed',this)">📡 공시·뉴스</button>
 </div>
@@ -550,6 +549,19 @@
       <button class="refresh-btn" onclick="renderMyHoldings()">현재가 갱신</button>
     </div>
 
+    <!-- 내 주식 서브탭 -->
+    <div style="display:flex;gap:20px;border-bottom:1px solid var(--border);margin-bottom:24px;margin-top:4px;">
+      <button id="mystockSubHoldingsBtn" onclick="switchMystockTab('holdings')"
+        style="padding:8px 2px;font-size:13px;font-weight:700;background:none;border:none;border-bottom:2px solid var(--blue);color:#93c5fd;cursor:pointer;margin-bottom:-1px;white-space:nowrap;">📋 보유현황</button>
+      <button id="mystockSubSimBtn" onclick="switchMystockTab('sim')"
+        style="padding:8px 2px;font-size:13px;font-weight:700;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;margin-bottom:-1px;white-space:nowrap;">📊 시뮬레이션</button>
+      <button id="mystockSubRiskBtn" onclick="switchMystockTab('risk')"
+        style="padding:8px 2px;font-size:13px;font-weight:700;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;margin-bottom:-1px;white-space:nowrap;">⚠️ 리스크</button>
+    </div>
+
+    <!-- 보유현황 서브패널 -->
+    <div id="mystockSubHoldings">
+
     <!-- 종목 추가 폼 -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
 
@@ -628,6 +640,11 @@
 
     <!-- 요약 카드 -->
     <div id="myHoldingsSummary"></div>
+
+    </div><!-- /mystockSubHoldings -->
+
+    <!-- 시뮬레이션 서브패널 -->
+    <div id="mystockSubSim" style="display:none;">
 
     <!-- 포트폴리오 배당 성장 시뮬레이터 -->
     <div id="mhSimSection" style="margin-top:24px;">
@@ -723,6 +740,39 @@
         </div>
       </div>
     </div>
+    </div><!-- /mystockSubSim -->
+
+    <!-- 리스크 서브패널 -->
+    <div id="mystockSubRisk" style="display:none;">
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;color:var(--muted);">보유 종목 기준 · 최대낙폭·변동성·집중도 분석</div>
+      </div>
+      <div class="risk-summary" id="riskSummaryDash">
+        <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">포트폴리오 MDD</div></div>
+        <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">연간 변동성</div></div>
+        <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">집중도 (최대 비중)</div></div>
+        <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">분산도 점수</div></div>
+      </div>
+      <div class="dash-card" id="concCardDash" style="display:none;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:12px;">📊 종목별 비중</div>
+        <div id="concBarsDash"></div>
+      </div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;margin-top:20px;">📉 하락 시나리오</div>
+      <div class="scenario-grid" id="scenarioGridDash">
+        <div class="sc-card"><div class="sc-pct" style="color:#f59e0b;">-20%</div><div class="sc-label">완만한 조정</div><div class="sc-loss" style="color:var(--muted);">보유현황 탭 먼저 추가</div></div>
+        <div class="sc-card"><div class="sc-pct" style="color:var(--red);">-30%</div><div class="sc-label">일반 하락장</div><div class="sc-loss" style="color:var(--muted);">—</div></div>
+        <div class="sc-card"><div class="sc-pct" style="color:#a78bfa;">-50%</div><div class="sc-label">심각한 위기</div><div class="sc-loss" style="color:var(--muted);">—</div></div>
+      </div>
+      <div class="dash-card" style="margin-bottom:20px;margin-top:20px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:14px;">종목별 개별 리스크</div>
+        <div id="tickerRiskListDash"><div class="empty-row">보유현황 탭에서 종목을 먼저 추가하세요.</div></div>
+      </div>
+      <div class="dash-card" style="background:linear-gradient(135deg,rgba(59,130,246,.07),rgba(139,92,246,.05));border-color:rgba(59,130,246,.25);">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📈 시장 대비 비교 (KOSPI vs 텐배거 시스템)</div>
+        <div id="marketCmpDash"><div class="empty-row">데이터 로딩 중…</div></div>
+        <div id="alphaDash" style="margin-top:12px;font-size:18px;font-weight:800;color:var(--muted);"></div>
+      </div>
+    </div><!-- /mystockSubRisk -->
 
   </div>
 
@@ -812,39 +862,6 @@
     <div id="pfResult"></div>
   </div>
 
-
-  <!-- ── TAB: 리스크 분석 ── -->
-  <div class="tab-panel" id="tab-risk">
-    <div style="margin-bottom:20px;">
-      <div class="section-title">⚠️ 포트폴리오 리스크 분석</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px;">내 주식 탭 보유 종목 기준 · 최대낙폭·변동성·집중도 분석</div>
-    </div>
-    <div class="risk-summary" id="riskSummaryDash">
-      <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">포트폴리오 MDD</div></div>
-      <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">연간 변동성</div></div>
-      <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">집중도 (최대 비중)</div></div>
-      <div class="risk-box"><div class="r-num" style="color:var(--muted);">—</div><div class="r-lbl">분산도 점수</div></div>
-    </div>
-    <div class="dash-card" id="concCardDash" style="display:none;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">📊 종목별 비중</div>
-      <div id="concBarsDash"></div>
-    </div>
-    <div style="font-size:14px;font-weight:700;margin-bottom:12px;">📉 하락 시나리오</div>
-    <div class="scenario-grid" id="scenarioGridDash">
-      <div class="sc-card"><div class="sc-pct" style="color:#f59e0b;">-20%</div><div class="sc-label">완만한 조정</div><div class="sc-loss" style="color:var(--muted);">내 주식 탭 먼저 추가</div></div>
-      <div class="sc-card"><div class="sc-pct" style="color:var(--red);">-30%</div><div class="sc-label">일반 하락장</div><div class="sc-loss" style="color:var(--muted);">—</div></div>
-      <div class="sc-card"><div class="sc-pct" style="color:#a78bfa;">-50%</div><div class="sc-label">심각한 위기</div><div class="sc-loss" style="color:var(--muted);">—</div></div>
-    </div>
-    <div class="dash-card" style="margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">종목별 개별 리스크</div>
-      <div id="tickerRiskListDash"><div class="empty-row">내 주식 탭에서 보유 종목을 먼저 추가하세요.</div></div>
-    </div>
-    <div class="dash-card" style="background:linear-gradient(135deg,rgba(59,130,246,.07),rgba(139,92,246,.05));border-color:rgba(59,130,246,.25);">
-      <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📈 시장 대비 비교 (KOSPI vs 텐배거 시스템)</div>
-      <div id="marketCmpDash"><div class="empty-row">데이터 로딩 중…</div></div>
-      <div id="alphaDash" style="margin-top:12px;font-size:18px;font-weight:800;color:var(--muted);"></div>
-    </div>
-  </div>
 
   <!-- ── TAB: 배당 시나리오 ── -->
   <div class="tab-panel" id="tab-dividend">
@@ -1021,7 +1038,6 @@
     if (id === 'feed') {
       if (!switchTab._discLoaded) { switchTab._discLoaded = true; loadDisclosures(); }
     }
-    if (id === 'risk') renderRiskTabDash();
     if (id === 'dividend') loadDividendTopStocks();
   }
 
@@ -1041,6 +1057,21 @@
     if (!isDisc && !switchFeedTab._newsLoaded) {
       switchFeedTab._newsLoaded = true;
       loadNewsDashboard();
+    }
+  }
+
+  // ── 내 주식 서브탭 전환 ──────────────────────────────────────
+  function switchMystockTab(sub) {
+    ['holdings', 'sim', 'risk'].forEach(s => {
+      const cap = s.charAt(0).toUpperCase() + s.slice(1);
+      document.getElementById('mystockSub' + cap).style.display = s === sub ? '' : 'none';
+      const b = document.getElementById('mystockSub' + cap + 'Btn');
+      b.style.borderBottomColor = s === sub ? 'var(--blue)' : 'transparent';
+      b.style.color = s === sub ? '#93c5fd' : 'var(--muted)';
+    });
+    if (sub === 'risk' && !switchMystockTab._riskLoaded) {
+      switchMystockTab._riskLoaded = true;
+      renderRiskTabDash();
     }
   }
 
@@ -4398,7 +4429,7 @@
   <a href="#" onclick="event.preventDefault(); switchTab('ranking', document.querySelector('[onclick*=ranking]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');" class="active"><span class="t-icon">🏆</span>추천</a>
   <a href="#" onclick="event.preventDefault(); switchTab('watchlist', document.querySelector('[onclick*=watchlist]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">⭐</span>관심</a>
   <a href="#" onclick="event.preventDefault(); switchTab('mystock', document.querySelector('[onclick*=mystock]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">💼</span>내주식</a>
-  <a href="#" onclick="event.preventDefault(); switchTab('risk', document.querySelector('[onclick*=risk]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">⚠️</span>리스크</a>
+  <a href="#" onclick="event.preventDefault(); switchTab('dividend', document.querySelector('[onclick*=dividend]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">💰</span>배당</a>
   <a href="#" onclick="event.preventDefault(); switchTab('feed', document.querySelector('[onclick*=feed]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">📡</span>공시·뉴스</a>
 </nav>
 </body>
