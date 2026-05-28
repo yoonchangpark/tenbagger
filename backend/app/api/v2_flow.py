@@ -1,7 +1,7 @@
 """
 GET /api/v2/flow/{ticker}  — 기관·외국인 수급 데이터 (Naver Finance 기반)
   최근 N거래일 기관/외국인/개인 순매수 추이 + 요약 신호
-  pykrx 대신 Naver Finance investors.naver 사용 (Railway IP 차단 우회)
+  단위: 주(株) → 현재가 × 주수 / 1억 = 억원 자동환산
 """
 import datetime
 import re
@@ -26,6 +26,79 @@ _HEADERS = {
 }
 
 
+def _fetch_current_price(ticker: str) -> float | None:
+    """
+    현재가 조회. 순서대로 시도, 성공하면 즉시 반환.
+    1. price_daily_cache DB  2. frgn.naver  3. Yahoo Finance  4. FinanceDataReader
+    """
+    # 1순위: DB price_daily_cache 최근 종가
+    try:
+        with SessionLocal() as session:
+            row = session.execute(text("""
+                SELECT close_price FROM price_daily_cache
+                WHERE ticker = :t AND close_price > 0
+                ORDER BY trade_date DESC LIMIT 1
+            """), {"t": ticker}).fetchone()
+        if row and row[0]:
+            print(f"[FLOW] price DB hit: {ticker} = {row[0]}")
+            return float(row[0])
+    except Exception as e:
+        print(f"[FLOW] DB price 실패 ({ticker}): {e}")
+
+    # 2순위: frgn.naver 최신 종가 파싱
+    try:
+        from bs4 import BeautifulSoup
+        resp = requests.get(
+            "https://finance.naver.com/item/frgn.naver",
+            params={"code": ticker}, headers=_HEADERS, timeout=8,
+        )
+        resp.encoding = "euc-kr"
+        soup = BeautifulSoup(resp.text, "html.parser")
+        table = soup.find("table", {"class": "type2"})
+        if table:
+            for tr in table.find_all("tr"):
+                tds = tr.find_all("td")
+                if len(tds) >= 2:
+                    price_txt = tds[1].get_text(strip=True).replace(",", "")
+                    if re.match(r"^\d+$", price_txt) and int(price_txt) > 0:
+                        print(f"[FLOW] price frgn.naver: {ticker} = {price_txt}")
+                        return float(price_txt)
+    except Exception as e:
+        print(f"[FLOW] frgn.naver price 실패 ({ticker}): {e}")
+
+    # 3순위: Yahoo Finance (KOSPI → .KS, KOSDAQ → .KQ 순서로 시도)
+    for suffix in (".KS", ".KQ"):
+        try:
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}{suffix}"
+            resp = requests.get(url, params={"interval": "1d", "range": "1d"},
+                                headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
+            if resp.status_code == 200:
+                price = resp.json()["chart"]["result"][0]["meta"]["regularMarketPrice"]
+                if price and price > 0:
+                    print(f"[FLOW] price Yahoo({suffix}): {ticker} = {price}")
+                    return float(price)
+        except Exception as e:
+            print(f"[FLOW] Yahoo{suffix} price 실패 ({ticker}): {e}")
+
+    # 4순위: FinanceDataReader
+    try:
+        import FinanceDataReader as fdr
+        import datetime
+        end   = datetime.date.today()
+        start = end - datetime.timedelta(days=7)
+        df = fdr.DataReader(ticker, start, end)
+        if not df.empty:
+            price = float(df["Close"].iloc[-1])
+            if price > 0:
+                print(f"[FLOW] price FDR: {ticker} = {price}")
+                return price
+    except Exception as e:
+        print(f"[FLOW] FDR price 실패 ({ticker}): {e}")
+
+    print(f"[FLOW] price 조회 전체 실패 ({ticker}) → 만주 표시로 fallback")
+    return None
+
+
 def _parse_int(cell) -> int:
     """네이버 파이낸스 셀 → 정수 (부호 포함, 단위: 주)"""
     text = cell.get_text(strip=True).replace(",", "").strip()
@@ -47,7 +120,7 @@ def _fetch_flow_naver(ticker: str, days: int) -> dict | None:
         from bs4 import BeautifulSoup
 
         end   = datetime.date.today()
-        start = end - datetime.timedelta(days=days * 2 + 20)  # 주말·공휴일 여유
+        start = end - datetime.timedelta(days=days * 2 + 20)
 
         url = "https://finance.naver.com/item/investors.naver"
         params = {
@@ -60,7 +133,7 @@ def _fetch_flow_naver(ticker: str, days: int) -> dict | None:
         resp = requests.get(url, params=params, headers=_HEADERS, timeout=12)
         resp.encoding = "euc-kr"
 
-        soup  = BeautifulSoup(resp.text, "html.parser")
+        soup  = __import__("bs4").BeautifulSoup(resp.text, "html.parser")
         table = soup.find("table", {"class": "type2"})
         if table is None:
             return None
@@ -75,23 +148,22 @@ def _fetch_flow_naver(ticker: str, days: int) -> dict | None:
                 continue
             rows.append({
                 "date":        date_txt,
-                "retail":      _parse_int(tds[1]),   # 개인
-                "foreign":     _parse_int(tds[2]),   # 외국인
-                "institution": _parse_int(tds[3]),   # 기관합계
+                "retail":      _parse_int(tds[1]),
+                "foreign":     _parse_int(tds[2]),
+                "institution": _parse_int(tds[3]),
             })
 
         if not rows:
             return None
 
-        rows = rows[:days]   # 최신 N건 (Naver는 최신순 반환)
-        rows.reverse()       # 오래된 순서로 정렬
+        rows = rows[:days]
+        rows.reverse()
 
         dates            = [r["date"]        for r in rows]
         foreign_vals     = [r["foreign"]     for r in rows]
         institution_vals = [r["institution"] for r in rows]
         retail_vals      = [r["retail"]      for r in rows]
 
-        # 5일·20일 합산
         f5  = sum(foreign_vals[-5:])      if len(foreign_vals)     >= 5  else sum(foreign_vals)
         i5  = sum(institution_vals[-5:])  if len(institution_vals) >= 5  else sum(institution_vals)
         f20 = sum(foreign_vals[-20:])     if len(foreign_vals)     >= 20 else sum(foreign_vals)
@@ -131,14 +203,18 @@ def _fetch_flow_naver(ticker: str, days: int) -> dict | None:
         return None
 
 
-def _fmt_shares(v: int) -> str:
-    """만주 단위 포맷 (단위: 주)"""
-    man = v / 10_000
-    if abs(man) >= 10_000:
-        return f"{man/10_000:.1f}억주"
-    if abs(man) >= 1_000:
-        return f"{man/1_000:.1f}천만주"
-    return f"{man:.0f}만주"
+def _to_bil(shares: int, price: float | None) -> float | None:
+    """주수 × 현재가 / 1억 = 억원. price 없으면 None."""
+    if price is None or price <= 0:
+        return None
+    return round(shares * price / 1e8, 1)
+
+
+def _fmt_bil(v: float) -> str:
+    """억원 단위 포맷"""
+    if abs(v) >= 1000:
+        return f"{v/1000:.1f}천억"
+    return f"{v:+.0f}억"
 
 
 @router.get("/{ticker}")
@@ -168,21 +244,41 @@ def get_flow(
             "message": "수급 데이터를 가져올 수 없습니다 (Naver Finance 응답 없음)",
         }
 
+    # 현재가로 억원 환산
+    price = _fetch_current_price(ticker)
+
+    def bil(shares: int) -> str | None:
+        v = _to_bil(shares, price)
+        return _fmt_bil(v) if v is not None else None
+
+    summ = data["summary"]
     resp = {
-        "ticker":      ticker,
-        "days":        days,
-        "dates":       data["dates"],
-        "institution": data.get("institution", []),
-        "foreign":     data.get("foreign", []),
-        "retail":      data.get("retail", []),
-        "summary":     data["summary"],
-        "signal":      data["signal"],
+        "ticker":        ticker,
+        "days":          days,
+        "dates":         data["dates"],
+        "institution":   data.get("institution", []),
+        "foreign":       data.get("foreign", []),
+        "retail":        data.get("retail", []),
+        "current_price": price,
+        "summary": {
+            # 주수 원본
+            "foreign_5d":     summ["foreign_5d"],
+            "foreign_20d":    summ["foreign_20d"],
+            "institution_5d": summ["institution_5d"],
+            "institution_20d":summ["institution_20d"],
+            # 억원 환산 (price 없으면 null)
+            "foreign_5d_bil":      bil(summ["foreign_5d"]),
+            "foreign_20d_bil":     bil(summ["foreign_20d"]),
+            "institution_5d_bil":  bil(summ["institution_5d"]),
+            "institution_20d_bil": bil(summ["institution_20d"]),
+        },
+        "signal":       data["signal"],
         "signal_color": data["signal_color"],
         "smart_money": {
-            "5d_label":  _fmt_shares(data["smart_5d"]),
-            "20d_label": _fmt_shares(data["smart_20d"]),
             "5d":        data["smart_5d"],
             "20d":       data["smart_20d"],
+            "5d_label":  bil(data["smart_5d"])  or f"{data['smart_5d']//10000:+d}만주",
+            "20d_label": bil(data["smart_20d"]) or f"{data['smart_20d']//10000:+d}만주",
         },
     }
     _CACHE[cache_key] = {"ts": datetime.datetime.now(), "data": resp}
