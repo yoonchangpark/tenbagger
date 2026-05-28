@@ -793,22 +793,28 @@
         const sm=d.smart_money||{};
         const s=d.signal||'중립';
         const sColor=d.signal_color||'#9ca3af';
-        const fmtBil=v=>{const m=v/10000;const s=m>=0?'+':'-';const a=Math.abs(m);return a>=10000?s+(a/10000).toFixed(1)+'억주':a>=1000?s+(a/1000).toFixed(1)+'천만주':s+Math.round(a)+'만주';};
+        // 억원 환산값 우선, 없으면 주수 표시
+        const fmtVal=(bilStr,shares)=>bilStr||((shares>=0?'+':'')+Math.round(shares/10000)+'만주');
         let html='<div class="flow-chips">';
         if(d.summary){
           const summ=d.summary;
-          const pairs=[['기관(5일)','institution_5d'],['기관(20일)','institution_20d'],['외국인(5일)','foreign_5d'],['외국인(20일)','foreign_20d']];
-          pairs.forEach(([label,key])=>{
+          const pairs=[
+            ['기관(5일)',  'institution_5d',  'institution_5d_bil'],
+            ['기관(20일)', 'institution_20d', 'institution_20d_bil'],
+            ['외국인(5일)','foreign_5d',      'foreign_5d_bil'],
+            ['외국인(20일)','foreign_20d',    'foreign_20d_bil'],
+          ];
+          pairs.forEach(([label,key,bilKey])=>{
             const v=summ[key]||0;
             const c=v>=0?'#34d399':'#f87171';
-            html+='<div class="flow-chip"><div class="fc-label">'+label+'</div><div class="fc-val" style="color:'+c+'">'+fmtBil(v)+'</div></div>';
+            html+='<div class="flow-chip"><div class="fc-label">'+label+'</div><div class="fc-val" style="color:'+c+'">'+fmtVal(summ[bilKey],v)+'</div></div>';
           });
         }
         html+='</div>';
         html+='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
         html+='<div class="flow-signal-badge" style="background:'+sColor+'22;color:'+sColor+';">'+s+'</div>';
-        if(sm['5d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">스마트머니 5일 <strong style="color:'+(sm['5d']>=0?'#34d399':'#f87171')+'">'+fmtBil(sm['5d'])+'</strong></span>';
-        if(sm['20d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">20일 <strong style="color:'+(sm['20d']>=0?'#34d399':'#f87171')+'">'+fmtBil(sm['20d'])+'</strong></span>';
+        if(sm['5d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">스마트머니 5일 <strong style="color:'+(sm['5d']>=0?'#34d399':'#f87171')+'">'+sm['5d_label']+'</strong></span>';
+        if(sm['20d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">20일 <strong style="color:'+(sm['20d']>=0?'#34d399':'#f87171')+'">'+sm['20d_label']+'</strong></span>';
         html+='</div>';
         el.innerHTML=html;
       }catch(e){el.innerHTML='<span style="font-size:12px;color:#6b7280;">수급 데이터를 불러올 수 없습니다</span>';}
