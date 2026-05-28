@@ -28,7 +28,7 @@ _HEADERS = {
 
 def _fetch_current_price(ticker: str) -> float | None:
     """
-    현재가 조회. price_daily_cache DB 우선, Naver Finance polling fallback.
+    현재가 조회. price_daily_cache DB 우선, Naver Finance 모바일 API fallback.
     반환값: 원(₩) 단위 float, 실패 시 None
     """
     # 1순위: DB price_daily_cache 최근 종가
@@ -44,17 +44,36 @@ def _fetch_current_price(ticker: str) -> float | None:
     except Exception as e:
         print(f"[FLOW] DB price 조회 실패 ({ticker}): {e}")
 
-    # 2순위: Naver Finance 실시간 폴링 API
+    # 2순위: Naver Finance 모바일 JSON API
     try:
-        url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{ticker}"
+        url = f"https://m.stock.naver.com/api/stock/{ticker}/basic"
         resp = requests.get(url, headers=_HEADERS, timeout=6)
         data = resp.json()
-        price_str = data.get("datas", [{}])[0].get("closePrice", "")
-        price = float(str(price_str).replace(",", ""))
+        price_str = str(data.get("closePrice", "") or data.get("currentPrice", ""))
+        price = float(price_str.replace(",", ""))
         if price > 0:
             return price
     except Exception as e:
-        print(f"[FLOW] Naver price 조회 실패 ({ticker}): {e}")
+        print(f"[FLOW] Naver 모바일 price 조회 실패 ({ticker}): {e}")
+
+    # 3순위: frgn.naver 페이지 최신 종가 파싱
+    try:
+        from bs4 import BeautifulSoup
+        url = "https://finance.naver.com/item/frgn.naver"
+        resp = requests.get(url, params={"code": ticker}, headers=_HEADERS, timeout=8)
+        resp.encoding = "euc-kr"
+        soup = BeautifulSoup(resp.text, "html.parser")
+        table = soup.find("table", {"class": "type2"})
+        if table:
+            for tr in table.find_all("tr"):
+                tds = tr.find_all("td")
+                if len(tds) >= 2:
+                    import re as _re
+                    price_txt = tds[1].get_text(strip=True).replace(",", "")
+                    if _re.match(r"^\d+$", price_txt):
+                        return float(price_txt)
+    except Exception as e:
+        print(f"[FLOW] frgn.naver price 조회 실패 ({ticker}): {e}")
 
     return None
 
