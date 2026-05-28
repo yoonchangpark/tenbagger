@@ -793,7 +793,7 @@
         const sm=d.smart_money||{};
         const s=d.signal||'중립';
         const sColor=d.signal_color||'#9ca3af';
-        const fmtBil=v=>{const b=v/1e8;return(b>=0?'+':'')+Math.round(b)+'억';};
+        const fmtBil=v=>{const m=v/10000;const s=m>=0?'+':'-';const a=Math.abs(m);return a>=10000?s+(a/10000).toFixed(1)+'억주':a>=1000?s+(a/1000).toFixed(1)+'천만주':s+Math.round(a)+'만주';};
         let html='<div class="flow-chips">';
         if(d.summary){
           const summ=d.summary;
