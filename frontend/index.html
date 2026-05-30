@@ -1571,7 +1571,8 @@
     // ── 초기화 ──
     renderHistory();
     window.addEventListener("load",()=>{
-      const t=new URLSearchParams(location.search).get("ticker");
+      const p=new URLSearchParams(location.search);
+      const t=p.get("ticker")||p.get("q");
       if(t){inp.value=t;analyze();}
     });
   </script>
