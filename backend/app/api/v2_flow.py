@@ -156,13 +156,13 @@ def _fetch_flow_naver(ticker: str, days: int) -> dict | None:
         rows = []
         for tr in table.find_all("tr"):
             tds = tr.find_all("td")
-            if len(tds) < 5:
+            if len(tds) < 7:
                 continue
             date_txt = tds[0].get_text(strip=True)
             if not re.match(r"\d{4}\.\d{2}\.\d{2}", date_txt):
                 continue
-            institution = _parse_int(tds[3])
-            foreign     = _parse_int(tds[4])
+            institution = _parse_int(tds[5])
+            foreign     = _parse_int(tds[6])
             rows.append({
                 "date":        date_txt,
                 "institution": institution,
