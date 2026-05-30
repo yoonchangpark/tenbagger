@@ -113,6 +113,12 @@ def _flatten_topics(sentiments: list[dict], top_n: int = 5) -> list[str]:
 
 # ── 종목 뉴스 분석 ────────────────────────────────────────────────────────────
 
+def _is_relevant(title: str, name: str) -> bool:
+    """기사 제목이 해당 종목과 관련 있는지 확인 (종목명 앞 2~3자 포함 여부)."""
+    key = name[:min(3, len(name))]
+    return key in title
+
+
 async def analyze_ticker(
     ticker: str,
     name: str,
@@ -122,9 +128,14 @@ async def analyze_ticker(
     """단일 종목 뉴스 감성 분석 → DB 저장. 반환값: "ok"|"skip"|"error" """
     try:
         # 뉴스 수집
-        articles = await fetch_stock_news(ticker, name, count=10)
+        articles = await fetch_stock_news(ticker, name, count=15)
         if not articles:
             return "no_news"
+
+        # 관련성 필터: 제목에 종목명이 포함된 기사만 분석
+        articles = [a for a in articles if _is_relevant(a["title"], name)]
+        if not articles:
+            return "no_relevant_news"
 
         # Delta: 신규 기사만 필터
         new_articles = []
