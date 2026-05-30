@@ -29,7 +29,7 @@ _HEADERS = {
 def _fetch_current_price(ticker: str) -> float | None:
     """
     현재가 조회. 순서대로 시도, 성공하면 즉시 반환.
-    1. price_daily_cache DB  2. frgn.naver  3. Yahoo Finance  4. FinanceDataReader
+    1. price_daily_cache DB  2. scores.close (ETL)  3. frgn.naver  4. Yahoo Finance  5. FinanceDataReader
     """
     # 1순위: DB price_daily_cache 최근 종가
     try:
@@ -45,7 +45,19 @@ def _fetch_current_price(ticker: str) -> float | None:
     except Exception as e:
         print(f"[FLOW] DB price 실패 ({ticker}): {e}")
 
-    # 2순위: frgn.naver 최신 종가 파싱
+    # 2순위: scores.close (ETL이 항상 채움 — 가장 안정적인 내부 소스)
+    try:
+        with SessionLocal() as session:
+            row = session.execute(text("""
+                SELECT close FROM scores WHERE ticker = :t AND close > 0 LIMIT 1
+            """), {"t": ticker}).fetchone()
+        if row and row[0]:
+            print(f"[FLOW] price scores hit: {ticker} = {row[0]}")
+            return float(row[0])
+    except Exception as e:
+        print(f"[FLOW] scores price 실패 ({ticker}): {e}")
+
+    # 3순위: frgn.naver 최신 종가 파싱
     try:
         from bs4 import BeautifulSoup
         resp = requests.get(
@@ -66,7 +78,7 @@ def _fetch_current_price(ticker: str) -> float | None:
     except Exception as e:
         print(f"[FLOW] frgn.naver price 실패 ({ticker}): {e}")
 
-    # 3순위: Yahoo Finance (KOSPI → .KS, KOSDAQ → .KQ 순서로 시도)
+    # 4순위: Yahoo Finance (KOSPI → .KS, KOSDAQ → .KQ 순서로 시도)
     for suffix in (".KS", ".KQ"):
         try:
             url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}{suffix}"
@@ -80,7 +92,7 @@ def _fetch_current_price(ticker: str) -> float | None:
         except Exception as e:
             print(f"[FLOW] Yahoo{suffix} price 실패 ({ticker}): {e}")
 
-    # 4순위: FinanceDataReader
+    # 5순위: FinanceDataReader
     try:
         import FinanceDataReader as fdr
         import datetime
