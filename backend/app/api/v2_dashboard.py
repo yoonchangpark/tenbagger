@@ -88,10 +88,11 @@ def _label_priority(stock_code: str, report_nm: str,
         return "내종목"
     if ticker in watchlist:
         return "관심종목"
-    if ticker in high_grade:
-        return "추천종목"
+    # 주요 이벤트 공시는 등급(추천종목)보다 우선 — 대형주 유상증자·합병 등이 주요공시 탭에 표시됨
     if _is_must_show(report_nm):
         return "주요공시"
+    if ticker in high_grade:
+        return "추천종목"
     return None  # 나머지는 숨김
 
 
@@ -158,7 +159,24 @@ async def get_disclosures(
         except Exception:
             return []
 
+    async def _fetch_type(pblntf_ty: str) -> list:
+        """공시 유형별 전체 조회 (주요사항보고 B, 발행공시 C, 지분공시 D)"""
+        try:
+            r = await _get("list.json", {**params, "pblntf_ty": pblntf_ty, "page_count": "40"})
+            return r.get("list", [])
+        except Exception:
+            return []
+
     seen = {i.get("rcept_no") for i in items}
+
+    # 주요 이벤트 공시 타입 별도 조회 (주요사항보고·발행공시·지분공시)
+    # → 유상증자, 합병, 전환사채, 자기주식 등이 여기에 포함됨
+    type_results = await asyncio.gather(*[_fetch_type(t) for t in ("B", "C", "D")])
+    for type_items in type_results:
+        for item in type_items:
+            if item.get("rcept_no") not in seen:
+                items.append(item)
+                seen.add(item.get("rcept_no"))
 
     # 보유/관심 종목 — per-company 조회
     personal_tickers = user_tickers["holdings"] | user_tickers["watchlist"]
