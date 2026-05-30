@@ -57,7 +57,7 @@ def _fetch_current_price(ticker: str) -> float | None:
     except Exception as e:
         print(f"[FLOW] scores price 실패 ({ticker}): {e}")
 
-    # 3순위: frgn.naver 최신 종가 파싱
+    # 3순위: frgn.naver 두 번째 테이블 tds[1] = 종가
     try:
         from bs4 import BeautifulSoup
         resp = requests.get(
@@ -65,14 +65,15 @@ def _fetch_current_price(ticker: str) -> float | None:
             params={"code": ticker}, headers=_HEADERS, timeout=8,
         )
         resp.encoding = "euc-kr"
-        soup = BeautifulSoup(resp.text, "html.parser")
-        table = soup.find("table", {"class": "type2"})
+        soup   = BeautifulSoup(resp.text, "html.parser")
+        tables = soup.find_all("table", {"class": "type2"})
+        table  = tables[1] if len(tables) >= 2 else None
         if table:
             for tr in table.find_all("tr"):
                 tds = tr.find_all("td")
                 if len(tds) >= 2:
                     price_txt = tds[1].get_text(strip=True).replace(",", "")
-                    if re.match(r"^\d+$", price_txt) and int(price_txt) > 0:
+                    if re.match(r"^\d+$", price_txt) and int(price_txt) > 100:
                         print(f"[FLOW] price frgn.naver: {ticker} = {price_txt}")
                         return float(price_txt)
     except Exception as e:
@@ -125,7 +126,8 @@ def _parse_int(cell) -> int:
 
 def _fetch_flow_naver(ticker: str, days: int) -> dict | None:
     """
-    Naver Finance investors.naver에서 기관·외국인·개인 순매수 스크래핑.
+    Naver Finance frgn.naver에서 기관·외국인·개인 순매수 스크래핑.
+    컬럼: tds[0]=날짜, tds[1]=종가, tds[2]=거래량, tds[3]=기관순매매, tds[4]=외국인순매매
     단위: 주(株). 충분한 날짜 범위를 요청해 영업일 기준 days개를 확보.
     """
     try:
@@ -134,35 +136,38 @@ def _fetch_flow_naver(ticker: str, days: int) -> dict | None:
         end   = datetime.date.today()
         start = end - datetime.timedelta(days=days * 2 + 20)
 
-        url = "https://finance.naver.com/item/investors.naver"
+        url = "https://finance.naver.com/item/frgn.naver"
         params = {
             "code":      ticker,
             "startDate": start.strftime("%Y%m%d"),
             "endDate":   end.strftime("%Y%m%d"),
-            "search":    "",
         }
 
         resp = requests.get(url, params=params, headers=_HEADERS, timeout=12)
         resp.encoding = "euc-kr"
 
-        soup  = __import__("bs4").BeautifulSoup(resp.text, "html.parser")
-        table = soup.find("table", {"class": "type2"})
+        soup   = BeautifulSoup(resp.text, "html.parser")
+        # 두 번째 type2 테이블 = "외국인 기관 순매매 거래량" (첫 번째는 거래원 정보)
+        tables = soup.find_all("table", {"class": "type2"})
+        table  = tables[1] if len(tables) >= 2 else (tables[0] if tables else None)
         if table is None:
             return None
 
         rows = []
         for tr in table.find_all("tr"):
             tds = tr.find_all("td")
-            if len(tds) < 4:
+            if len(tds) < 5:
                 continue
             date_txt = tds[0].get_text(strip=True)
             if not re.match(r"\d{4}\.\d{2}\.\d{2}", date_txt):
                 continue
+            institution = _parse_int(tds[3])
+            foreign     = _parse_int(tds[4])
             rows.append({
                 "date":        date_txt,
-                "retail":      _parse_int(tds[1]),
-                "foreign":     _parse_int(tds[2]),
-                "institution": _parse_int(tds[3]),
+                "institution": institution,
+                "foreign":     foreign,
+                "retail":      -(institution + foreign),
             })
 
         if not rows:
