@@ -786,37 +786,125 @@
     async function loadFlowData(ticker){
       const el=document.getElementById("flowContent_"+ticker);
       if(!el)return;
+      // 기존 차트 인스턴스 파괴 (재로드 시 중복 방지)
+      if(loadFlowData._charts && loadFlowData._charts[ticker]){
+        loadFlowData._charts[ticker].destroy();
+        delete loadFlowData._charts[ticker];
+      }
       try{
-        const r=await fetch(API+"/api/v2/flow/"+ticker+"?days=20");
+        // 40일 요청 → 이전 기간(앞 20일) 비교 가능
+        const r=await fetch(API+"/api/v2/flow/"+ticker+"?days=40");
         const d=await r.json();
         if(d.no_data){el.innerHTML='<span style="font-size:12px;color:#6b7280;">'+d.message+'</span>';return;}
+
+        const inst=d.institution||[];
+        const frgn=d.foreign||[];
+        const price=d.current_price||0;
+        const len=Math.min(inst.length,frgn.length);
+
+        // 억원 환산
+        const toAok=v=>price>0?Math.round(v*price/1e8*10)/10:null;
+        const fmtAok=v=>{
+          if(v===null)return null;
+          if(Math.abs(v)>=1000)return (v/1000).toFixed(1)+'천억';
+          return (v>=0?'+':'')+v.toFixed(0)+'억';
+        };
+        const fmtShares=v=>(v>=0?'+':'')+Math.round(v/10000)+'만주';
+        const fmt=v=>{const a=toAok(v);return a!==null?fmtAok(a):fmtShares(v);};
+
+        // 구간 합산
+        const sum=(arr,from,to)=>arr.slice(from,to===undefined?arr.length:to).reduce((a,b)=>a+b,0);
+
+        // 현재 기간
+        const ic5 =sum(inst,-5);
+        const fc5 =sum(frgn,-5);
+        const ic20=len>=20?sum(inst,-20):sum(inst);
+        const fc20=len>=20?sum(frgn,-20):sum(frgn);
+        // 이전 기간 (비교 기준)
+        const ip5 =len>=10?sum(inst,-10,-5):null;
+        const fp5 =len>=10?sum(frgn,-10,-5):null;
+        const ip20=len>=40?sum(inst,-40,-20):null;
+        const fp20=len>=40?sum(frgn,-40,-20):null;
+
+        // 이전 대비 변화 뱃지 (이전 기간이 없으면 생략)
+        const chgBadge=(curr,prev)=>{
+          if(prev===null||prev===0)return '';
+          const pct=Math.round((curr-prev)/Math.abs(prev)*100);
+          const up=curr>prev;
+          return '<span style="font-size:10px;color:'+(up?'#34d399':'#f87171')+';">'+(up?'↑':'↓')+Math.abs(pct)+'% 전기간比</span>';
+        };
+
+        const makeChip=(label,curr,prev)=>{
+          const c=curr>=0?'#34d399':'#f87171';
+          return '<div class="flow-chip">'
+            +'<div class="fc-label">'+label+'</div>'
+            +'<div class="fc-val" style="color:'+c+'">'+fmt(curr)+'</div>'
+            +'<div style="min-height:14px;margin-top:1px;">'+chgBadge(curr,prev)+'</div>'
+            +'</div>';
+        };
+
         const sm=d.smart_money||{};
         const s=d.signal||'중립';
         const sColor=d.signal_color||'#9ca3af';
-        // 억원 환산값 우선, 없으면 주수 표시
-        const fmtVal=(bilStr,shares)=>bilStr||((shares>=0?'+':'')+Math.round(shares/10000)+'만주');
+
         let html='<div class="flow-chips">';
-        if(d.summary){
-          const summ=d.summary;
-          const pairs=[
-            ['기관(5일)',  'institution_5d',  'institution_5d_bil'],
-            ['기관(20일)', 'institution_20d', 'institution_20d_bil'],
-            ['외국인(5일)','foreign_5d',      'foreign_5d_bil'],
-            ['외국인(20일)','foreign_20d',    'foreign_20d_bil'],
-          ];
-          pairs.forEach(([label,key,bilKey])=>{
-            const v=summ[key]||0;
-            const c=v>=0?'#34d399':'#f87171';
-            html+='<div class="flow-chip"><div class="fc-label">'+label+'</div><div class="fc-val" style="color:'+c+'">'+fmtVal(summ[bilKey],v)+'</div></div>';
-          });
-        }
+        html+=makeChip('기관(5일)',ic5,ip5);
+        html+=makeChip('기관(20일)',ic20,ip20);
+        html+=makeChip('외국인(5일)',fc5,fp5);
+        html+=makeChip('외국인(20일)',fc20,fp20);
         html+='</div>';
-        html+='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
+        html+='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">';
         html+='<div class="flow-signal-badge" style="background:'+sColor+'22;color:'+sColor+';">'+s+'</div>';
         if(sm['5d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">스마트머니 5일 <strong style="color:'+(sm['5d']>=0?'#34d399':'#f87171')+'">'+sm['5d_label']+'</strong></span>';
         if(sm['20d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">20일 <strong style="color:'+(sm['20d']>=0?'#34d399':'#f87171')+'">'+sm['20d_label']+'</strong></span>';
         html+='</div>';
+        // 바 차트 컨테이너 (최근 20일)
+        html+='<div style="position:relative;height:140px;"><canvas id="flowChart_'+ticker+'"></canvas></div>';
         el.innerHTML=html;
+
+        // Chart.js 기관/외국인 일별 바 차트
+        const n=Math.min(len,20);
+        const labels=d.dates.slice(-n).map(dt=>dt.slice(5));
+        const instData=inst.slice(-n).map(v=>{const a=toAok(v);return a!==null?a:Math.round(v/10000);});
+        const frgnData=frgn.slice(-n).map(v=>{const a=toAok(v);return a!==null?a:Math.round(v/10000);});
+        const unit=price>0?'억':'만주';
+
+        const ctx=document.getElementById('flowChart_'+ticker);
+        if(ctx&&window.Chart){
+          const chart=new Chart(ctx,{
+            type:'bar',
+            data:{
+              labels,
+              datasets:[
+                {
+                  label:'기관',
+                  data:instData,
+                  backgroundColor:instData.map(v=>v>=0?'rgba(52,211,153,0.75)':'rgba(248,113,113,0.75)'),
+                  borderRadius:2,barPercentage:0.42,categoryPercentage:0.85,
+                },
+                {
+                  label:'외국인',
+                  data:frgnData,
+                  backgroundColor:frgnData.map(v=>v>=0?'rgba(96,165,250,0.75)':'rgba(251,146,60,0.75)'),
+                  borderRadius:2,barPercentage:0.42,categoryPercentage:0.85,
+                }
+              ]
+            },
+            options:{
+              responsive:true,maintainAspectRatio:false,animation:{duration:350},
+              plugins:{
+                legend:{labels:{color:'#9ca3af',font:{size:11},boxWidth:10,padding:10}},
+                tooltip:{callbacks:{label:c=>(c.dataset.label+': '+(c.raw>=0?'+':'')+c.raw+unit)}}
+              },
+              scales:{
+                x:{ticks:{color:'#6b7280',font:{size:9},maxRotation:45,autoSkip:true,maxTicksLimit:10},grid:{color:'rgba(255,255,255,0.04)'}},
+                y:{ticks:{color:'#6b7280',font:{size:10},callback:v=>{if(Math.abs(v)>=1000)return (v/1000).toFixed(0)+'천억';return v+unit;}},grid:{color:'rgba(255,255,255,0.06)'}}
+              }
+            }
+          });
+          if(!loadFlowData._charts)loadFlowData._charts={};
+          loadFlowData._charts[ticker]=chart;
+        }
       }catch(e){el.innerHTML='<span style="font-size:12px;color:#6b7280;">수급 데이터를 불러올 수 없습니다</span>';}
     }
 
