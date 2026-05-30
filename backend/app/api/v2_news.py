@@ -93,6 +93,12 @@ async def get_ticker_sentiment(
                 "message": "뉴스 분석을 시작했습니다. 30~60초 후 다시 조회하세요.",
             }
 
+        # 종목명 조회 (관련성 필터에 사용)
+        name_row = session.execute(text(
+            "SELECT name FROM scores WHERE ticker = :t LIMIT 1"
+        ), {"t": ticker}).fetchone()
+        stock_name = name_row.name if name_row else ticker
+
         # 최신 감성 정보
         latest = rows[0]
         signal = latest.signal or "NEUTRAL"
@@ -100,20 +106,24 @@ async def get_ticker_sentiment(
 
         # 24시간 이상 오래된 데이터면 백그라운드 갱신 트리거
         if _needs_refresh(latest.sentiment_date):
-            name_row = session.execute(text(
-                "SELECT name FROM scores WHERE ticker = :t LIMIT 1"
-            ), {"t": ticker}).fetchone()
-            stock_name = name_row.name if name_row else ticker
             asyncio.create_task(_lazy_analyze_ticker(ticker, stock_name))
 
-        # 최근 10개 기사 (ticker 기준)
+        # 최근 기사 (ticker 기준, 필터 후 10개 확보를 위해 30개 조회)
         recent_articles = session.execute(text("""
             SELECT title, url, published_at, sentiment_score, sentiment_label, key_topics
             FROM news_articles
             WHERE ticker = :ticker
             ORDER BY published_at DESC NULLS LAST
-            LIMIT 10
+            LIMIT 30
         """), {"ticker": ticker}).fetchall()
+
+    # 관련성 필터: 제목에 종목명 앞 2~3자가 없는 기사 제거
+    name_key = stock_name[:min(3, len(stock_name))] if stock_name else ""
+    relevant_articles = [a for a in recent_articles if not name_key or name_key in (a.title or "")]
+
+    # 관련 기사가 전혀 없으면 DB 오염 가능성 — 재분석 트리거
+    if not relevant_articles and stock_name:
+        asyncio.create_task(_lazy_analyze_ticker(ticker, stock_name))
 
     history = [
         {
@@ -137,7 +147,7 @@ async def get_ticker_sentiment(
             "label": a.sentiment_label,
             "topics": a.key_topics or [],
         }
-        for a in recent_articles
+        for a in relevant_articles[:10]
     ]
 
     # ── 주가 모멘텀 (price_daily_cache에서 1M/3M 수익률 계산) ─────────────
