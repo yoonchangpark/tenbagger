@@ -129,23 +129,11 @@
     /* ── 수급·서프라이즈 패널 ── */
     .flow-panel{background:linear-gradient(135deg,rgba(59,130,246,.06),rgba(16,185,129,.04));border:1px solid rgba(59,130,246,.2);border-radius:20px;padding:22px 26px;margin-bottom:24px;}
     .flow-panel h3{font-size:15px;font-weight:700;margin-bottom:14px;}
-    .flow-signal-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-radius:12px;padding:10px 14px;margin-bottom:14px;}
-    .flow-signal-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:8px;font-size:14px;font-weight:800;border:1px solid rgba(255,255,255,.15);white-space:nowrap;}
-    .flow-signal-desc{font-size:12px;color:var(--muted);line-height:1.6;}
-    .flow-signal-desc strong{font-weight:700;}
-    .entity-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;}
-    .entity-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:12px 14px;}
-    .entity-card .ec-title{font-size:11px;font-weight:700;letter-spacing:.05em;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.07);}
-    .entity-card .ec-row{display:flex;flex-direction:column;gap:1px;margin-bottom:7px;}
-    .entity-card .ec-row:last-child{margin-bottom:0;}
-    .entity-card .ec-period{font-size:9px;color:#6b7280;font-weight:600;letter-spacing:.04em;}
-    .entity-card .ec-amount{font-size:14px;font-weight:800;}
-    .entity-card .ec-chg{font-size:10px;min-height:13px;margin-top:1px;}
-    .flow-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--muted);margin-bottom:8px;}
-    .flow-legend span{display:flex;align-items:center;gap:5px;}
-    .flow-legend .fl-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
-    .flow-legend .fl-line{width:18px;height:2px;border-radius:1px;flex-shrink:0;position:relative;}
-    .flow-legend .fl-line::after{content:'';position:absolute;width:5px;height:5px;border-radius:50%;background:inherit;top:-1.5px;left:6px;}
+    .flow-chips{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+    .flow-chip{display:flex;flex-direction:column;align-items:center;gap:3px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 16px;min-width:80px;}
+    .flow-chip .fc-label{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.04em;}
+    .flow-chip .fc-val{font-size:14px;font-weight:700;}
+    .flow-signal-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;border:1px solid rgba(255,255,255,.1);}
     .surprise-panel{background:linear-gradient(135deg,rgba(245,158,11,.06),rgba(239,68,68,.04));border:1px solid rgba(245,158,11,.2);border-radius:20px;padding:22px 26px;margin-bottom:24px;}
     .surprise-panel h3{font-size:15px;font-weight:700;margin-bottom:14px;}
     .surprise-items{display:flex;flex-direction:column;gap:8px;}
@@ -640,7 +628,7 @@
       // 뉴스 시그널 패널 (자동 로드)
       html+='<div class="news-panel">';
       html+='<h3>📰 최근 뉴스 감성 분석 (지난 14일)</h3>';
-      html+='<div id="newsContent_'+d.ticker+'"><div class="news-empty"><div style="display:inline-block;width:18px;height:18px;border:2px solid rgba(99,102,241,.3);border-top-color:#a5b4fc;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:8px;"></div>뉴스 데이터 조회 중...</div></div>';
+      html+='<div id="newsContent"><div class="news-empty"><div style="display:inline-block;width:18px;height:18px;border:2px solid rgba(99,102,241,.3);border-top-color:#a5b4fc;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:8px;"></div>뉴스 데이터 조회 중...</div></div>';
       html+='</div>';
 
       // 차트
@@ -798,126 +786,37 @@
     async function loadFlowData(ticker){
       const el=document.getElementById("flowContent_"+ticker);
       if(!el)return;
-      if(loadFlowData._charts&&loadFlowData._charts[ticker]){
-        loadFlowData._charts[ticker].destroy();
-        delete loadFlowData._charts[ticker];
-      }
       try{
-        const r=await fetch(API+"/api/v2/flow/"+ticker+"?days=40");
+        const r=await fetch(API+"/api/v2/flow/"+ticker+"?days=20");
         const d=await r.json();
         if(d.no_data){el.innerHTML='<span style="font-size:12px;color:#6b7280;">'+d.message+'</span>';return;}
-
-        const inst=d.institution||[], frgn=d.foreign||[], retl=d.retail||[];
-        const price=d.current_price||0;
-        const len=Math.min(inst.length,frgn.length);
-
-        const toAok=v=>price>0?Math.round(v*price/1e8*10)/10:null;
-        const fmt=v=>{
-          const a=toAok(v);
-          if(a!==null)return Math.abs(a)>=1000?(a/1000).toFixed(1)+'천억':(a>=0?'+':'')+a.toFixed(0)+'억';
-          return (v>=0?'+':'')+Math.round(v/10000)+'만주';
-        };
-        const sliceSum=(arr,from,to)=>arr.slice(from,to).reduce((a,b)=>a+b,0);
-        const unit=price>0?'억':'만주';
-
-        const ic5=sliceSum(inst,-5), ip5=len>=10?sliceSum(inst,-10,-5):null;
-        const fc5=sliceSum(frgn,-5), fp5=len>=10?sliceSum(frgn,-10,-5):null;
-        const rc5=retl.length>=5?sliceSum(retl,-5):null, rp5=retl.length>=10?sliceSum(retl,-10,-5):null;
-        const ic20=len>=20?sliceSum(inst,-20):sliceSum(inst,0);
-        const fc20=len>=20?sliceSum(frgn,-20):sliceSum(frgn,0);
-
-        const chgBadge=(curr,prev)=>{
-          if(prev===null||prev===0)return '';
-          const pct=Math.round((curr-prev)/Math.abs(prev)*100);
-          const up=curr>prev;
-          return '<span style="color:'+(up?'#34d399':'#f87171')+'">'+(up?'↑':'↓')+Math.abs(pct)+'% 직전5일比</span>';
-        };
-
-        const mkCard=(title,color,v5,p5,v20)=>{
-          const c5=v5>=0?'#34d399':'#f87171';
-          const c20=v20!==null?(v20>=0?'#34d399':'#f87171'):'#4b5563';
-          return '<div class="entity-card">'
-            +'<div class="ec-title" style="color:'+color+'">'+title+'</div>'
-            +'<div class="ec-row">'
-              +'<div class="ec-period">5일</div>'
-              +'<div class="ec-amount" style="color:'+c5+'">'+fmt(v5)+'</div>'
-              +'<div class="ec-chg">'+chgBadge(v5,p5)+'</div>'
-            +'</div>'
-            +'<div class="ec-row">'
-              +'<div class="ec-period">20일</div>'
-              +'<div class="ec-amount" style="color:'+c20+'">'+(v20!==null?fmt(v20):'—')+'</div>'
-            +'</div>'
-            +'</div>';
-        };
-
-        const sm=d.smart_money||{}, s=d.signal||'중립', sColor=d.signal_color||'#9ca3af';
-
-        // ① 신호 블록 (상단)
-        let html='<div class="flow-signal-top" style="background:'+sColor+'11;border:1px solid '+sColor+'33;">';
-        html+='<div class="flow-signal-badge" style="background:'+sColor+'22;color:'+sColor+';">'+s+'</div>';
-        html+='<div class="flow-signal-desc">';
-        if(sm['5d']!=null)html+='스마트머니 5일 <strong style="color:'+(sm['5d']>=0?'#34d399':'#f87171')+'">'+sm['5d_label']+'</strong>';
-        if(sm['20d']!=null)html+=' &middot; 20일 <strong style="color:'+(sm['20d']>=0?'#34d399':'#f87171')+'">'+sm['20d_label']+'</strong>';
-        html+='</div></div>';
-
-        // ② 3열 카드
-        html+='<div class="entity-grid">';
-        html+=mkCard('기관','#34d399',ic5,ip5,ic20);
-        html+=mkCard('외국인','#93c5fd',fc5,fp5,fc20);
-        html+=mkCard('개인','#fbbf24',rc5!==null?rc5:0,rp5,null);
-        html+='</div>';
-
-        // ③ 커스텀 4색+개인라인 범례
-        html+='<div class="flow-legend">'
-          +'<span><span class="fl-dot" style="background:rgba(52,211,153,0.85)"></span>기관 매수</span>'
-          +'<span><span class="fl-dot" style="background:rgba(248,113,113,0.85)"></span>기관 매도</span>'
-          +'<span><span class="fl-dot" style="background:rgba(96,165,250,0.85)"></span>외국인 매수</span>'
-          +'<span><span class="fl-dot" style="background:rgba(251,146,60,0.85)"></span>외국인 매도</span>'
-          +'<span><span class="fl-line" style="background:#fbbf24"></span>개인</span>'
-          +'</div>';
-
-        // ④ 차트
-        html+='<div style="position:relative;height:150px;"><canvas id="flowChart_'+ticker+'"></canvas></div>';
-        el.innerHTML=html;
-
-        const n=Math.min(len,20);
-        const labels=d.dates.slice(-n).map(dt=>dt.slice(5));
-        const iD=inst.slice(-n).map(v=>{const a=toAok(v);return a!==null?a:Math.round(v/10000);});
-        const fD=frgn.slice(-n).map(v=>{const a=toAok(v);return a!==null?a:Math.round(v/10000);});
-        const rD=retl.length>=n?retl.slice(-n).map(v=>{const a=toAok(v);return a!==null?a:Math.round(v/10000);}):null;
-
-        const ctx=document.getElementById('flowChart_'+ticker);
-        if(ctx&&window.Chart){
-          const datasets=[
-            {label:'기관',type:'bar',data:iD,backgroundColor:iD.map(v=>v>=0?'rgba(52,211,153,0.8)':'rgba(248,113,113,0.8)'),borderRadius:2,barPercentage:0.38,categoryPercentage:0.85,order:2},
-            {label:'외국인',type:'bar',data:fD,backgroundColor:fD.map(v=>v>=0?'rgba(96,165,250,0.8)':'rgba(251,146,60,0.8)'),borderRadius:2,barPercentage:0.38,categoryPercentage:0.85,order:2},
+        const sm=d.smart_money||{};
+        const s=d.signal||'중립';
+        const sColor=d.signal_color||'#9ca3af';
+        // 억원 환산값 우선, 없으면 주수 표시
+        const fmtVal=(bilStr,shares)=>bilStr||((shares>=0?'+':'')+Math.round(shares/10000)+'만주');
+        let html='<div class="flow-chips">';
+        if(d.summary){
+          const summ=d.summary;
+          const pairs=[
+            ['기관(5일)',  'institution_5d',  'institution_5d_bil'],
+            ['기관(20일)', 'institution_20d', 'institution_20d_bil'],
+            ['외국인(5일)','foreign_5d',      'foreign_5d_bil'],
+            ['외국인(20일)','foreign_20d',    'foreign_20d_bil'],
           ];
-          if(rD)datasets.push({label:'개인',type:'line',data:rD,borderColor:'rgba(251,191,36,0.9)',backgroundColor:'rgba(251,191,36,0.06)',pointBackgroundColor:'rgba(251,191,36,0.9)',pointRadius:2.5,pointHoverRadius:5,borderWidth:1.8,tension:0.35,fill:false,order:1});
-
-          const chart=new Chart(ctx,{
-            type:'bar',
-            data:{labels,datasets},
-            options:{
-              responsive:true,maintainAspectRatio:false,animation:{duration:350},
-              plugins:{
-                legend:{display:false},
-                tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.raw>=0?'+':'')+c.raw+unit}}
-              },
-              scales:{
-                x:{ticks:{color:'#6b7280',font:{size:9},maxRotation:45,autoSkip:true,maxTicksLimit:10},grid:{color:'rgba(255,255,255,0.04)'}},
-                y:{
-                  ticks:{color:'#6b7280',font:{size:10},callback:v=>Math.abs(v)>=1000?(v/1000).toFixed(0)+'천억':v+unit},
-                  grid:{
-                    color:c=>c.tick&&c.tick.value===0?'rgba(255,255,255,0.28)':'rgba(255,255,255,0.06)',
-                    lineWidth:c=>c.tick&&c.tick.value===0?1.5:1,
-                  }
-                }
-              }
-            }
+          pairs.forEach(([label,key,bilKey])=>{
+            const v=summ[key]||0;
+            const c=v>=0?'#34d399':'#f87171';
+            html+='<div class="flow-chip"><div class="fc-label">'+label+'</div><div class="fc-val" style="color:'+c+'">'+fmtVal(summ[bilKey],v)+'</div></div>';
           });
-          if(!loadFlowData._charts)loadFlowData._charts={};
-          loadFlowData._charts[ticker]=chart;
         }
+        html+='</div>';
+        html+='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
+        html+='<div class="flow-signal-badge" style="background:'+sColor+'22;color:'+sColor+';">'+s+'</div>';
+        if(sm['5d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">스마트머니 5일 <strong style="color:'+(sm['5d']>=0?'#34d399':'#f87171')+'">'+sm['5d_label']+'</strong></span>';
+        if(sm['20d']!=null)html+='<span style="font-size:12px;color:#9ca3af;">20일 <strong style="color:'+(sm['20d']>=0?'#34d399':'#f87171')+'">'+sm['20d_label']+'</strong></span>';
+        html+='</div>';
+        el.innerHTML=html;
       }catch(e){el.innerHTML='<span style="font-size:12px;color:#6b7280;">수급 데이터를 불러올 수 없습니다</span>';}
     }
 
@@ -955,7 +854,7 @@
 
     // ── 뉴스 시그널 로더 ──
     async function loadNewsForTicker(ticker, name, retry=true) {
-      const el = document.getElementById("newsContent_" + ticker);
+      const el = document.getElementById("newsContent");
       if (!el) return;
       try {
         const r = await fetch(API + "/api/v2/news/sentiment/" + ticker + "?days=14");
@@ -1571,8 +1470,7 @@
     // ── 초기화 ──
     renderHistory();
     window.addEventListener("load",()=>{
-      const p=new URLSearchParams(location.search);
-      const t=p.get("ticker")||p.get("q");
+      const t=new URLSearchParams(location.search).get("ticker");
       if(t){inp.value=t;analyze();}
     });
   </script>

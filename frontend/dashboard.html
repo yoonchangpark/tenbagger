@@ -2048,19 +2048,18 @@
         const mktLabel = { Y: "KOSPI", K: "KOSDAQ", N: "비상장", E: "ETC" }[mktCls] || mktCls;
         const dateStr = formatDate(item.rcept_dt || "");
         const rcept_no = item.rcept_no || "";
-        const pls = item.priority_labels || (item.priority_label ? [item.priority_label] : []);
-        const badges = pls.map(pl => PRIORITY_BADGE[pl]
+        const pl = item.priority_label || "";
+        const badge = pl && PRIORITY_BADGE[pl]
           ? `<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:${PRIORITY_BADGE[pl].bg};color:${PRIORITY_BADGE[pl].color};border:1px solid ${PRIORITY_BADGE[pl].color}40;">${PRIORITY_BADGE[pl].icon} ${pl}</span>`
-          : "").join(" ");
-        const pl = pls[0] || "";
+          : "";
         return `
-          <div class="disc-wrapper" data-labels="${pls.join(' ')}"
+          <div class="disc-wrapper" data-label="${pl}">
             <div class="disc-item" id="disc-${rcept_no}">
               <div class="disc-meta">
                 <div class="disc-corp">${esc(item.corp_name || "-")}</div>
                 <div class="disc-date">${dateStr}</div>
                 <span class="disc-market ${mktCls}">${mktLabel}</span>
-                ${badges}
+                ${badge}
               </div>
               <div class="disc-main">
                 <a class="disc-title" href="${dartUrl}" target="_blank" rel="noopener">${esc(item.report_nm || "-")}</a>
@@ -2070,7 +2069,7 @@
                     style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);border-radius:6px;color:#a78bfa;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
                     🤖 AI 분석
                   </button>
-                  ${isPhaseDTrigger(item.report_nm, pls[0]||'') && item.stock_code ? `<button class="phased-btn" onclick="loadPhaseD('${item.stock_code}','${rcept_no}',this)">🎯 이벤트 분석</button>` : ''}
+                  ${isPhaseDTrigger(item.report_nm, pl) && item.stock_code ? `<button class="phased-btn" onclick="loadPhaseD('${item.stock_code}','${rcept_no}',this)">🎯 이벤트 분석</button>` : ''}
                 </div>
               </div>
             </div>
@@ -2083,8 +2082,7 @@
       if (_labelFilter) {
         let visibleCount = 0;
         document.querySelectorAll("#discList .disc-wrapper").forEach(w => {
-          const wLabels = (w.dataset.labels || w.dataset.label || "").split(" ");
-          const show = wLabels.includes(_labelFilter);
+          const show = w.dataset.label === _labelFilter;
           w.style.display = show ? "" : "none";
           if (show) visibleCount++;
         });
