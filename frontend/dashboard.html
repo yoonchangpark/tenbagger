@@ -687,8 +687,7 @@
           <div style="display:flex;align-items:center;gap:8px;padding-top:2px;">
             <label style="position:relative;display:inline-block;width:44px;height:24px;">
               <input type="checkbox" id="mhGoalAfterTax" style="opacity:0;width:0;height:0;">
-              <span onclick="document.getElementById('mhGoalAfterTax').click()"
-                style="position:absolute;cursor:pointer;inset:0;background:#374151;border-radius:24px;transition:.3s;"
+              <span style="position:absolute;cursor:pointer;inset:0;background:#374151;border-radius:24px;transition:.3s;"
                 id="mhGoalAfterTaxTrack"></span>
               <span id="mhGoalAfterTaxThumb"
                 style="position:absolute;width:18px;height:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;"></span>
@@ -741,7 +740,8 @@
         <div>
           <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">매입가 (원, 선택)</label>
           <input type="number" id="mhWhatIfPrice" placeholder="현재가 자동" min="0" step="100" class="mh-input"
-            style="width:120px;text-align:center;padding:8px 10px;font-size:13px;" />
+            style="width:120px;text-align:center;padding:8px 10px;font-size:13px;"
+            onkeydown="if(event.key==='Enter'){mhWhatIfAdd();}" />
         </div>
         <button onclick="mhWhatIfAdd()" id="mhWhatIfAddBtn"
           style="padding:9px 18px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.5);border-radius:10px;color:#a78bfa;font-size:13px;font-weight:700;cursor:pointer;">
@@ -828,8 +828,7 @@
             <span style="font-size:13px;font-weight:600;">배당금 재투자</span>
             <label style="position:relative;display:inline-block;width:44px;height:24px;">
               <input type="checkbox" id="mhSimReinvest" checked style="opacity:0;width:0;height:0;">
-              <span onclick="document.getElementById('mhSimReinvest').click()"
-                style="position:absolute;cursor:pointer;inset:0;background:#374151;border-radius:24px;transition:.3s;"
+              <span style="position:absolute;cursor:pointer;inset:0;background:#374151;border-radius:24px;transition:.3s;"
                 id="mhSimReinvestTrack"></span>
               <span id="mhSimReinvestThumb"
                 style="position:absolute;width:18px;height:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;"></span>
@@ -841,8 +840,7 @@
             <span style="font-size:13px;font-weight:600;">세후 배당</span>
             <label style="position:relative;display:inline-block;width:44px;height:24px;">
               <input type="checkbox" id="mhSimAfterTax" style="opacity:0;width:0;height:0;">
-              <span onclick="document.getElementById('mhSimAfterTax').click()"
-                style="position:absolute;cursor:pointer;inset:0;background:#374151;border-radius:24px;transition:.3s;"
+              <span style="position:absolute;cursor:pointer;inset:0;background:#374151;border-radius:24px;transition:.3s;"
                 id="mhSimAfterTaxTrack"></span>
               <span id="mhSimAfterTaxThumb"
                 style="position:absolute;width:18px;height:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;"></span>
@@ -4306,6 +4304,7 @@
         <div style="margin-top:10px;font-size:11px;color:#4b5563;">※ 추가 투자금 ${simFmtWon(addedVal)} 기준 · 시뮬레이션 기간 ${years}년</div>
       </div>`;
     resultEl.style.display = 'block';
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function mhSimGetInputs() {
