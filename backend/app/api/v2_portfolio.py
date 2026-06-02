@@ -731,8 +731,40 @@ async def parse_portfolio_image(file: UploadFile = File(...)):
 
 # ── 배당 시나리오 계산 ────────────────────────────────────────────────────────
 
+async def _fetch_dart_per_share(ticker: str) -> dict:
+    """DART alotMatter.json에서 EPS/DPS/BPS 직접 조회 (ETL 미실행 fallback)"""
+    from app.infra.clients.dart_client import get_corp_code, get_dividend_info
+    corp_code, _ = await get_corp_code(ticker)
+    if not corp_code:
+        return {}
+    year = datetime.date.today().year - 1
+    data = await get_dividend_info(corp_code, year)
+    items = data.get("list", [])
+    result: dict = {}
+    for item in items:
+        # 보통주만 처리
+        knd = item.get("stock_knd", "")
+        if knd and "우선주" in knd:
+            continue
+        se = item.get("se", "")
+        raw = item.get("thstrm", "") or ""
+        try:
+            val = float(raw.replace(",", "").strip()) if raw and raw.strip() not in ("-", "") else None
+        except (ValueError, TypeError):
+            val = None
+        if val is None:
+            continue
+        if "주당순이익" in se and "eps" not in result:
+            result["eps"] = val
+        elif "현금배당금" in se and "주당" in se and "dps" not in result:
+            result["dps"] = val
+        elif "주당순자산" in se and "bps" not in result:
+            result["bps"] = val
+    return result
+
+
 @router.get("/portfolio/dividend-scenario/{ticker}")
-def dividend_scenario(
+async def dividend_scenario(
     ticker: str,
     current_price: float = Query(None, description="현재가 직접 입력 (없으면 DB 조회)"),
 ):
@@ -773,6 +805,16 @@ def dividend_scenario(
 
         # BPS = 현재가 / PBR (scores 기반)
         bps = round(float(sc.close) / float(sc.pbr)) if sc and sc.close and sc.pbr and float(sc.pbr) > 0 else None
+
+        # DB에 EPS/DPS 없으면 DART API 직접 조회
+        if not eps or not dps:
+            try:
+                dart = await _fetch_dart_per_share(ticker)
+                eps = eps or dart.get("eps")
+                dps = dps or dart.get("dps")
+                bps = bps or dart.get("bps")
+            except Exception as e:
+                print(f"[DART fallback] {ticker} EPS/DPS 조회 실패: {e}")
 
         if price:
             if eps and eps > 0:
