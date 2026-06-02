@@ -4105,6 +4105,7 @@
          </div>
          <div style="margin-top:12px;font-size:11px;color:#4b5563;">※ ${afterTax?'세후(배당소득세 15.4%) 기준':'세전 기준'} · 포트폴리오 가중평균 주가CAGR ${wtPriceCagr.toFixed(1)}% / 배당CAGR ${wtDivCagr.toFixed(1)}% 적용</div>`;
     resultEl.style.display = 'block';
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   // ── 가상 종목 추가 시뮬레이션 (질문 2) ──────────────────────────────────
