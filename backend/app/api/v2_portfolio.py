@@ -731,11 +731,36 @@ async def parse_portfolio_image(file: UploadFile = File(...)):
 
 # ── 배당 시나리오 계산 ────────────────────────────────────────────────────────
 
-async def _fetch_dart_per_share(ticker: str) -> dict:
-    """DART alotMatter.json에서 EPS/DPS/BPS 직접 조회 (ETL 미실행 fallback).
-    연도 및 보고서 종류를 순차 시도해 인프라펀드·리츠도 커버.
+def _parse_dart_items(items: list) -> dict:
+    """DART alotMatter items → {eps, dps, bps} 추출 (보통주 기준)"""
+    result: dict = {}
+    for item in items:
+        knd = item.get("stock_knd", "")
+        if knd and "우선주" in knd:
+            continue
+        se = item.get("se", "")
+        raw = item.get("thstrm", "") or ""
+        try:
+            val = float(raw.replace(",", "").strip()) if raw and raw.strip() not in ("-", "") else None
+        except (ValueError, TypeError):
+            val = None
+        if val is None:
+            continue
+        if "주당순이익" in se and "eps" not in result:
+            result["eps"] = val
+        elif "현금배당금" in se and "주당" in se and "dps" not in result:
+            result["dps"] = val
+        elif "주당순자산" in se and "bps" not in result:
+            result["bps"] = val
+    return result
+
+
+async def _fetch_dart_history(ticker: str) -> dict:
+    """DART에서 최근 5년 EPS/DPS 히스토리 병렬 수집.
+    Returns: {name, history: [{year, eps, dps, payout_ratio}]}
     """
     from app.infra.clients.dart_client import get_corp_code, get_dividend_info, _load_corp_cache
+
     corp_code, _ = await get_corp_code(ticker)
     if not corp_code:
         return {}
@@ -751,43 +776,36 @@ async def _fetch_dart_per_share(ticker: str) -> dict:
     except Exception:
         pass
 
-    result: dict = {}
-    if corp_name:
-        result["name"] = corp_name
-
     this_year = datetime.date.today().year
-    # 최근 3년 × 주요 보고서 종류 순서로 시도
-    for year in (this_year - 1, this_year - 2, this_year - 3):
-        for reprt in ("11011", "11012", "11013", "11014"):
-            try:
-                data = await get_dividend_info(corp_code, year)
-                items = data.get("list", [])
-            except Exception:
-                items = []
-            if not items:
-                continue
-            for item in items:
-                knd = item.get("stock_knd", "")
-                if knd and "우선주" in knd:
-                    continue
-                se = item.get("se", "")
-                raw = item.get("thstrm", "") or ""
-                try:
-                    val = float(raw.replace(",", "").strip()) if raw and raw.strip() not in ("-", "") else None
-                except (ValueError, TypeError):
-                    val = None
-                if val is None:
-                    continue
-                if "주당순이익" in se and "eps" not in result:
-                    result["eps"] = val
-                elif "현금배당금" in se and "주당" in se and "dps" not in result:
-                    result["dps"] = val
-                elif "주당순자산" in se and "bps" not in result:
-                    result["bps"] = val
-            # EPS 또는 DPS 하나라도 찾으면 이 연도로 확정
-            if "eps" in result or "dps" in result:
-                return result
-    return result
+    years = list(range(this_year - 1, this_year - 6, -1))  # 최근 5년
+
+    # 병렬 조회
+    tasks = [get_dividend_info(corp_code, y) for y in years]
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    history = []
+    for y, res in zip(years, raw_results):
+        if isinstance(res, Exception) or not isinstance(res, dict):
+            continue
+        items = res.get("list", [])
+        if not items:
+            continue
+        row = _parse_dart_items(items)
+        if not row.get("dps") and not row.get("eps"):
+            continue
+        row["year"] = y
+        if row.get("eps") and row.get("dps") and row["eps"] > 0:
+            row["payout_ratio"] = round(row["dps"] / row["eps"] * 100, 1)
+        history.append(row)
+
+    history.sort(key=lambda r: r["year"])
+    return {"name": corp_name, "history": history}
+
+
+def _calc_cagr(start: float, end: float, years: int) -> float | None:
+    if not start or not end or start <= 0 or end <= 0 or years <= 0:
+        return None
+    return round(((end / start) ** (1 / years) - 1) * 100, 1)
 
 
 def _fetch_yahoo_price(ticker: str) -> float | None:
@@ -815,62 +833,50 @@ async def dividend_scenario(
     current_price: float = Query(None, description="현재가 직접 입력 (없으면 DB 조회)"),
 ):
     """
-    한라산불곰 L1+L2 스타일 배당 시나리오 계산.
-    - 이익수익률, 배당수익률, PBR 계산
-    - 비관(DPS -50%) / 기본(DPS 유지) / 낙관(DPS +30%) 시나리오
-    - 안전마진 판단: 비관 시나리오 배당수익률 >= 3% → "있음"
+    배당 성장 시나리오 분석.
+    - 최근 5년 EPS/DPS 히스토리 (DART)
+    - DPS·EPS CAGR 계산
+    - Bear/Base/Bull × 1/3/5/10년 배당수익률 투영
+    - 안전마진: 비관 시나리오 배당수익률 >= 3%
     """
     ticker = ticker.upper()
     try:
         with SessionLocal() as session:
-            sc = session.execute(text("""
-                SELECT close, pbr, per, name
-                FROM scores WHERE ticker = :t LIMIT 1
-            """), {"t": ticker}).fetchone()
-
-            # financials_annual은 company_id 기반 — companies JOIN 필요
-            fd = session.execute(text("""
-                SELECT fa.eps, fa.dps, fa.total_equity, fa.net_income
-                FROM financials_annual fa
-                JOIN companies c ON c.id = fa.company_id
-                WHERE c.ticker = :t
-                ORDER BY fa.year DESC LIMIT 1
-            """), {"t": ticker}).fetchone()
-
-            co = session.execute(text("""
-                SELECT name FROM companies WHERE ticker = :t LIMIT 1
-            """), {"t": ticker}).fetchone()
+            sc = session.execute(text(
+                "SELECT close, pbr, per, name FROM scores WHERE ticker = :t LIMIT 1"
+            ), {"t": ticker}).fetchone()
+            co = session.execute(text(
+                "SELECT name FROM companies WHERE ticker = :t LIMIT 1"
+            ), {"t": ticker}).fetchone()
 
         price = current_price or (float(sc.close) if sc and sc.close else None)
-        name = (co.name if co else None) or (sc.name if sc else None) or None
+        name  = (co.name if co else None) or (sc.name if sc else None)
+        per   = float(sc.per) if sc and sc.per else None
+        pbr   = float(sc.pbr) if sc and sc.pbr else None
+        bps   = round(float(sc.close) / float(sc.pbr)) if sc and sc.close and sc.pbr and float(sc.pbr) > 0 else None
 
-        eps = float(fd.eps) if fd and fd.eps else None
-        dps = float(fd.dps) if fd and fd.dps else None
-        per = float(sc.per) if sc and sc.per else None
-        pbr = float(sc.pbr) if sc and sc.pbr else None
+        # DART 5년 히스토리 수집
+        dart = {}
+        try:
+            dart = await _fetch_dart_history(ticker)
+        except Exception as e:
+            print(f"[DART history] {ticker} 실패: {e}")
 
-        # BPS = 현재가 / PBR (scores 기반)
-        bps = round(float(sc.close) / float(sc.pbr)) if sc and sc.close and sc.pbr and float(sc.pbr) > 0 else None
+        history = dart.get("history", [])
+        name = name or dart.get("name") or ticker
 
-        # DB에 EPS/DPS/이름 없으면 DART API 직접 조회
-        if not eps or not dps or not name:
-            try:
-                dart = await _fetch_dart_per_share(ticker)
-                eps = eps or dart.get("eps")
-                dps = dps or dart.get("dps")
-                bps = bps or dart.get("bps")
-                name = name or dart.get("name")
-            except Exception as e:
-                print(f"[DART fallback] {ticker} EPS/DPS 조회 실패: {e}")
-
-        name = name or ticker
-
-        # 현재가도 없으면 Yahoo Finance 폴백
+        # 현재가 Yahoo 폴백
         if not price:
             try:
                 price = await asyncio.to_thread(_fetch_yahoo_price, ticker)
-            except Exception as e:
-                print(f"[Yahoo price] {ticker} 조회 실패: {e}")
+            except Exception:
+                pass
+
+        # 최신 EPS/DPS
+        latest = history[-1] if history else {}
+        eps = latest.get("eps")
+        dps = latest.get("dps")
+        bps = bps or latest.get("bps")
 
         if price:
             if eps and eps > 0:
@@ -880,46 +886,73 @@ async def dividend_scenario(
 
         earnings_yield = round(1 / per * 100, 2) if per and per > 0 else None
         dividend_yield = round(dps / price * 100, 2) if dps and price and price > 0 else None
+        payout_ratio   = round(dps / eps * 100, 1) if dps and eps and eps > 0 else None
 
-        def _scenario(dps_val, label):
-            dy = round(dps_val / price * 100, 2) if price and price > 0 else None
-            return {"dps": round(dps_val), "div_yield": dy, "label": label}
+        # CAGR 계산 (3년·5년)
+        dps_vals = [r["dps"] for r in history if r.get("dps") and r["dps"] > 0]
+        eps_vals = [r["eps"] for r in history if r.get("eps") and r["eps"] > 0]
+        dps_cagr_3y = _calc_cagr(dps_vals[-4], dps_vals[-1], 3) if len(dps_vals) >= 4 else None
+        dps_cagr_5y = _calc_cagr(dps_vals[0],  dps_vals[-1], len(dps_vals) - 1) if len(dps_vals) >= 3 else None
+        eps_cagr_5y = _calc_cagr(eps_vals[0],  eps_vals[-1], len(eps_vals) - 1) if len(eps_vals) >= 3 else None
+        base_cagr = dps_cagr_3y or dps_cagr_5y or 0.0
 
-        scenarios = None
-        if dps:
-            scenarios = {
-                "bear": _scenario(dps * 0.5,  "DPS -50% (비관)"),
-                "base": _scenario(dps,         "DPS 유지 (기본)"),
-                "bull": _scenario(dps * 1.3,   "DPS +30% (낙관)"),
+        # Bear/Base/Bull CAGR
+        bear_cagr = max(0.0, base_cagr * 0.5 - 1)
+        bull_cagr = base_cagr * 1.5 + 1
+
+        def _project(cagr_pct: float) -> list[dict]:
+            if not dps or not price:
+                return []
+            return [
+                {
+                    "year": y,
+                    "dps": round(dps * (1 + cagr_pct / 100) ** y),
+                    "yield": round(dps * (1 + cagr_pct / 100) ** y / price * 100, 2),
+                }
+                for y in (1, 3, 5, 10)
+            ]
+
+        projections = None
+        if dps and price:
+            projections = {
+                "bear": {"cagr": round(bear_cagr, 1), "rows": _project(bear_cagr)},
+                "base": {"cagr": round(base_cagr, 1), "rows": _project(base_cagr)},
+                "bull": {"cagr": round(bull_cagr, 1), "rows": _project(bull_cagr)},
             }
 
-        safety_margin = None
-        safety_reason = None
-        if scenarios and scenarios["bear"]["div_yield"] is not None:
-            bear_dy = scenarios["bear"]["div_yield"]
-            if bear_dy >= 3.0:
-                safety_margin = "있음"
-                safety_reason = f"비관 시나리오 배당수익률 {bear_dy:.1f}% — 3% 이상으로 안전마진 확보"
-            else:
-                safety_margin = "없음"
-                safety_reason = f"비관 시나리오 배당수익률 {bear_dy:.1f}% — 3% 미달, 배당 삭감 시 매력 감소"
+        # 안전마진 (비관 10년 수익률 >= 3%)
+        safety_margin = safety_reason = None
+        if projections:
+            bear10 = next((r["yield"] for r in projections["bear"]["rows"] if r["year"] == 10), None)
+            if bear10 is not None:
+                if bear10 >= 3.0:
+                    safety_margin = "있음"
+                    safety_reason = f"비관 시나리오 10년 후 배당수익률 {bear10:.1f}% ≥ 3% — 장기 안전마진 확보"
+                else:
+                    safety_margin = "없음"
+                    safety_reason = f"비관 시나리오 10년 후 배당수익률 {bear10:.1f}% — 3% 미달"
         elif not dps:
             safety_margin = "불확실"
             safety_reason = "배당 데이터 없음 — 이익수익률로 대체 판단 필요"
 
         return {
-            "ticker": ticker,
-            "name": name,
-            "current_price": price,
-            "eps": eps,
-            "dps": dps,
-            "bps": bps,
-            "per": per,
-            "pbr": pbr,
+            "ticker":         ticker,
+            "name":           name,
+            "current_price":  price,
+            "eps":            eps,
+            "dps":            dps,
+            "bps":            bps,
+            "per":            per,
+            "pbr":            pbr,
+            "payout_ratio":   payout_ratio,
             "earnings_yield": earnings_yield,
             "dividend_yield": dividend_yield,
-            "scenarios": scenarios,
-            "safety_margin": safety_margin,
+            "dps_cagr_3y":    dps_cagr_3y,
+            "dps_cagr_5y":    dps_cagr_5y,
+            "eps_cagr_5y":    eps_cagr_5y,
+            "history":        history,
+            "projections":    projections,
+            "safety_margin":       safety_margin,
             "safety_margin_reason": safety_reason,
         }
     except Exception as e:

@@ -4375,43 +4375,115 @@
 
   function renderDividendResult(d) {
     const el = document.getElementById('divResult');
-    const fmtN = (v,u='') => v!=null ? Number(v).toLocaleString()+u : '—';
-    const fmtP = (v) => v!=null ? v.toFixed(1)+'%' : '—';
-    const badgesHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-      ${d.earnings_yield!=null?`<span style="background:rgba(52,211,153,.15);color:#34d399;padding:5px 14px;border-radius:10px;font-weight:700;font-size:13px;">이익수익률 ${fmtP(d.earnings_yield)}</span>`:''}
-      ${d.dividend_yield!=null?`<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:5px 14px;border-radius:10px;font-weight:700;font-size:13px;">배당수익률 ${fmtP(d.dividend_yield)}</span>`:''}
-      ${d.pbr!=null?`<span style="background:rgba(96,165,250,.12);color:#60a5fa;padding:5px 14px;border-radius:10px;font-size:13px;">PBR ${d.pbr.toFixed(2)}x</span>`:''}
-      ${d.per!=null?`<span style="background:rgba(167,139,250,.12);color:#a78bfa;padding:5px 14px;border-radius:10px;font-size:13px;">PER ${d.per.toFixed(1)}x</span>`:''}
-    </div>`;
-    let scHtml = '';
-    if (d.scenarios) {
-      const keys=['bear','base','bull'], colors={bear:'#f87171',base:'#60a5fa',bull:'#34d399'}, icons={bear:'📉',base:'📊',bull:'📈'};
-      const cards = keys.map(k => {
-        const sc = d.scenarios[k]; if (!sc) return '';
-        const dy = sc.div_yield!=null ? sc.div_yield.toFixed(1)+'%' : '—';
-        const safeNote = k==='bear'&&sc.div_yield!=null ? (sc.div_yield>=3?'<div style="font-size:10px;color:#34d399;">✅ 안전마진</div>':'<div style="font-size:10px;color:#f87171;">⚠️ 안전마진 미달</div>') : '';
-        return `<div style="flex:1;min-width:100px;background:rgba(255,255,255,.04);border:1px solid ${colors[k]};border-radius:12px;padding:14px;text-align:center;">
-          <div style="font-size:16px;margin-bottom:4px;">${icons[k]}</div><div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${sc.label||k}</div>
-          <div style="font-size:20px;font-weight:800;color:${colors[k]};">${dy}</div><div style="font-size:11px;color:var(--muted);margin-top:4px;">DPS ${fmtN(sc.dps,'원')}</div>${safeNote}</div>`;
-      }).join('');
-      scHtml = `<div style="margin-bottom:16px;"><div style="font-size:11px;color:var(--muted);margin-bottom:8px;">📊 배당 시나리오 — 비관/기본/낙관</div><div style="display:flex;gap:10px;">${cards}</div></div>`;
+    const fmtN = (v, u='') => v != null ? Number(v).toLocaleString() + u : '—';
+    const fmtP = (v) => v != null ? v.toFixed(1) + '%' : '—';
+    const fmtC = (v) => v != null ? (v >= 0 ? '+' : '') + v.toFixed(1) + '%' : '—';
+
+    // ── 상단 배지 ──
+    const badges = [
+      d.earnings_yield != null ? `<span style="background:rgba(52,211,153,.15);color:#34d399;padding:5px 14px;border-radius:10px;font-weight:700;font-size:13px;">이익수익률 ${fmtP(d.earnings_yield)}</span>` : '',
+      d.dividend_yield != null ? `<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:5px 14px;border-radius:10px;font-weight:700;font-size:13px;">배당수익률 ${fmtP(d.dividend_yield)}</span>` : '',
+      d.per != null ? `<span style="background:rgba(167,139,250,.12);color:#a78bfa;padding:5px 14px;border-radius:10px;font-size:13px;">PER ${d.per.toFixed(1)}x</span>` : '',
+      d.payout_ratio != null ? `<span style="background:rgba(96,165,250,.12);color:#60a5fa;padding:5px 14px;border-radius:10px;font-size:13px;">배당성향 ${fmtP(d.payout_ratio)}</span>` : '',
+    ].filter(Boolean).join('');
+    const badgesHtml = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">${badges}</div>`;
+
+    // ── DPS CAGR 요약 ──
+    let cagrHtml = '';
+    if (d.dps_cagr_3y != null || d.dps_cagr_5y != null) {
+      const c3 = d.dps_cagr_3y != null ? `<span>DPS 3년 CAGR <b style="color:#34d399;">${fmtC(d.dps_cagr_3y)}</b></span>` : '';
+      const c5 = d.dps_cagr_5y != null ? `<span>DPS 5년 CAGR <b style="color:#60a5fa;">${fmtC(d.dps_cagr_5y)}</b></span>` : '';
+      const ce = d.eps_cagr_5y != null ? `<span>EPS 5년 CAGR <b style="color:#a78bfa;">${fmtC(d.eps_cagr_5y)}</b></span>` : '';
+      cagrHtml = `<div style="display:flex;gap:20px;flex-wrap:wrap;padding:12px 16px;background:rgba(255,255,255,.04);border-radius:10px;margin-bottom:20px;font-size:13px;">${[c3,c5,ce].filter(Boolean).join('')}</div>`;
     }
-    const smColor = d.safety_margin==='있음'?'#34d399':d.safety_margin==='없음'?'#f87171':'#94a3b8';
-    const smHtml = d.safety_margin ? `<div style="padding:10px 16px;background:rgba(255,255,255,.04);border-radius:10px;font-size:13px;margin-bottom:16px;">안전마진: <span style="color:${smColor};font-weight:700;">${d.safety_margin}</span>${d.safety_margin_reason?` <span style="color:var(--muted);font-size:12px;">— ${escHtml(d.safety_margin_reason)}</span>`:''}</div>` : '';
-    const rows = [['현재가',fmtN(d.current_price,'원')],['EPS',fmtN(d.eps,'원')],['DPS',fmtN(d.dps,'원')],['BPS',fmtN(d.bps,'원')]].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;"><span style="color:var(--muted);">${k}</span><span style="font-weight:600;">${v}</span></div>`).join('');
-    // EPS·DPS 모두 없을 때 안내
-    const noDataWarn = (!d.eps && !d.dps) ? `
-      <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:#fcd34d;line-height:1.6;">
-        ⚠️ <b>EPS·DPS 데이터가 없습니다.</b><br>
-        이 종목은 배당 이력이 없거나 ETL이 아직 수집하지 못했을 수 있습니다.<br>
-        <span style="color:#9ca3af;">배당수익률 2% 이상 종목 (KT&G, 맥쿼리인프라, 금융주 등)에서 이 분석이 의미 있습니다.</span>
-      </div>` : '';
+
+    // ── 히스토리 바 차트 ──
+    let histHtml = '';
+    if (d.history && d.history.length > 0) {
+      const maxDps = Math.max(...d.history.map(r => r.dps || 0));
+      const bars = d.history.map(r => {
+        const pct = maxDps > 0 ? Math.round((r.dps || 0) / maxDps * 100) : 0;
+        const pr = r.payout_ratio != null ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;">${r.payout_ratio.toFixed(0)}%</div>` : '';
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+          <div style="font-size:10px;font-weight:600;color:#fbbf24;">${(r.dps||0).toLocaleString()}</div>
+          <div style="width:100%;background:rgba(251,191,36,.12);border-radius:4px;overflow:hidden;height:60px;display:flex;align-items:flex-end;">
+            <div style="width:100%;height:${pct}%;background:linear-gradient(180deg,#f59e0b,#fbbf24);border-radius:3px 3px 0 0;"></div>
+          </div>
+          <div style="font-size:10px;color:var(--muted);">${r.year}</div>${pr}
+        </div>`;
+      }).join('');
+      histHtml = `<div style="margin-bottom:20px;">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;">📈 DPS 히스토리 (원 / 배당성향%)</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;">${bars}</div>
+      </div>`;
+    }
+
+    // ── 투영 테이블 ──
+    let projHtml = '';
+    if (d.projections) {
+      const keys = ['bear','base','bull'];
+      const labels = {bear:'📉 비관', base:'📊 기본', bull:'📈 낙관'};
+      const colors = {bear:'#f87171', base:'#60a5fa', bull:'#34d399'};
+      const horizons = [1, 3, 5, 10];
+      const thead = `<tr style="border-bottom:1px solid rgba(255,255,255,.08);">
+        <th style="text-align:left;padding:8px 12px;font-size:11px;color:var(--muted);font-weight:600;">시나리오</th>
+        <th style="text-align:center;padding:8px 6px;font-size:11px;color:var(--muted);font-weight:600;">CAGR</th>
+        ${horizons.map(y=>`<th style="text-align:center;padding:8px 6px;font-size:11px;color:var(--muted);font-weight:600;">${y}년 후</th>`).join('')}
+      </tr>`;
+      const tbody = keys.map(k => {
+        const sc = d.projections[k];
+        const rowMap = {};
+        (sc.rows || []).forEach(r => { rowMap[r.year] = r; });
+        const cells = horizons.map(y => {
+          const r = rowMap[y];
+          if (!r) return '<td style="text-align:center;padding:6px;">—</td>';
+          const yc = r.yield >= 5 ? '#34d399' : r.yield >= 3 ? '#fbbf24' : '#94a3b8';
+          return `<td style="text-align:center;padding:6px 4px;">
+            <div style="font-size:13px;font-weight:700;color:${yc};">${r.yield.toFixed(1)}%</div>
+            <div style="font-size:10px;color:var(--muted);">${r.dps.toLocaleString()}원</div>
+          </td>`;
+        }).join('');
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,.05);">
+          <td style="padding:8px 12px;font-size:13px;font-weight:700;color:${colors[k]};">${labels[k]}</td>
+          <td style="text-align:center;padding:8px 6px;font-size:12px;color:${colors[k]};">${fmtC(sc.cagr)}</td>
+          ${cells}
+        </tr>`;
+      }).join('');
+      projHtml = `<div style="margin-bottom:20px;">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;">🔮 배당수익률 투영 (현재가 ${fmtN(d.current_price,'원')} 기준)</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">${thead}<tbody>${tbody}</tbody></table>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;">* 현재 주가를 그대로 유지한다고 가정. 색상: 녹색≥5% · 노란색≥3% · 회색&lt;3%</div>
+      </div>`;
+    }
+
+    // ── 안전마진 ──
+    const smColor = d.safety_margin === '있음' ? '#34d399' : d.safety_margin === '없음' ? '#f87171' : '#94a3b8';
+    const smHtml = d.safety_margin ? `<div style="padding:10px 16px;background:rgba(255,255,255,.04);border-radius:10px;font-size:13px;margin-bottom:16px;">
+      안전마진: <span style="color:${smColor};font-weight:700;">${d.safety_margin}</span>
+      ${d.safety_margin_reason ? `<span style="color:var(--muted);font-size:12px;"> — ${escHtml(d.safety_margin_reason)}</span>` : ''}
+    </div>` : '';
+
+    // ── 기본 지표 ──
+    const rows = [
+      ['현재가', fmtN(d.current_price, '원')],
+      ['EPS', fmtN(d.eps, '원')],
+      ['DPS', fmtN(d.dps, '원')],
+      ['배당성향', d.payout_ratio != null ? d.payout_ratio.toFixed(1) + '%' : '—'],
+    ].map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;"><span style="color:var(--muted);">${k}</span><span style="font-weight:600;">${v}</span></div>`).join('');
+
+    const noDataWarn = (!d.eps && !d.dps) ? `<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:#fcd34d;line-height:1.6;">
+      ⚠️ <b>EPS·DPS 데이터가 없습니다.</b><br>배당 이력이 없거나 DART에 데이터가 없습니다.<br>
+      <span style="color:#9ca3af;">배당수익률 2% 이상 종목 (KT&G, 맥쿼리인프라, 금융주 등)에 적합합니다.</span></div>` : '';
 
     el.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;">
-      <div style="font-size:18px;font-weight:800;margin-bottom:4px;">${escHtml(d.name||d.ticker)}</div>
+      <div style="font-size:18px;font-weight:800;margin-bottom:4px;">${escHtml(d.name || d.ticker)}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">${d.ticker}</div>
-      ${noDataWarn}${badgesHtml}${scHtml}${smHtml}<div>${rows}</div>
-      <div style="margin-top:16px;font-size:11px;color:var(--muted);">💡 이익수익률=EPS/현재가×100 | 배당수익률=DPS/현재가×100 | 안전마진 기준: 비관 배당수익률 ≥ 3%</div></div>`;
+      ${noDataWarn}${badgesHtml}${cagrHtml}${histHtml}${projHtml}${smHtml}
+      <div>${rows}</div>
+      <div style="margin-top:16px;font-size:11px;color:var(--muted);">💡 CAGR 기준: 비관=역사CAGR×0.5−1% / 기본=역사CAGR / 낙관=역사CAGR×1.5+1% | 데이터: DART 공시</div>
+    </div>`;
   }
 
   function showToast(msg, type='info') {
