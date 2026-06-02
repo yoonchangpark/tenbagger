@@ -29,7 +29,7 @@ _HEADERS = {
 def _fetch_current_price(ticker: str) -> float | None:
     """
     현재가 조회. 순서대로 시도, 성공하면 즉시 반환.
-    1. price_daily_cache DB  2. frgn.naver  3. Yahoo Finance  4. FinanceDataReader
+    1. price_daily_cache DB  2. scores.close (ETL)  3. frgn.naver  4. Yahoo Finance  5. FinanceDataReader
     """
     # 1순위: DB price_daily_cache 최근 종가
     try:
@@ -45,7 +45,19 @@ def _fetch_current_price(ticker: str) -> float | None:
     except Exception as e:
         print(f"[FLOW] DB price 실패 ({ticker}): {e}")
 
-    # 2순위: frgn.naver 최신 종가 파싱
+    # 2순위: scores.close (ETL이 항상 채움 — 가장 안정적인 내부 소스)
+    try:
+        with SessionLocal() as session:
+            row = session.execute(text("""
+                SELECT close FROM scores WHERE ticker = :t AND close > 0 LIMIT 1
+            """), {"t": ticker}).fetchone()
+        if row and row[0]:
+            print(f"[FLOW] price scores hit: {ticker} = {row[0]}")
+            return float(row[0])
+    except Exception as e:
+        print(f"[FLOW] scores price 실패 ({ticker}): {e}")
+
+    # 3순위: frgn.naver 두 번째 테이블 tds[1] = 종가
     try:
         from bs4 import BeautifulSoup
         resp = requests.get(
@@ -53,20 +65,21 @@ def _fetch_current_price(ticker: str) -> float | None:
             params={"code": ticker}, headers=_HEADERS, timeout=8,
         )
         resp.encoding = "euc-kr"
-        soup = BeautifulSoup(resp.text, "html.parser")
-        table = soup.find("table", {"class": "type2"})
+        soup   = BeautifulSoup(resp.text, "html.parser")
+        tables = soup.find_all("table", {"class": "type2"})
+        table  = tables[1] if len(tables) >= 2 else None
         if table:
             for tr in table.find_all("tr"):
                 tds = tr.find_all("td")
                 if len(tds) >= 2:
                     price_txt = tds[1].get_text(strip=True).replace(",", "")
-                    if re.match(r"^\d+$", price_txt) and int(price_txt) > 0:
+                    if re.match(r"^\d+$", price_txt) and int(price_txt) > 100:
                         print(f"[FLOW] price frgn.naver: {ticker} = {price_txt}")
                         return float(price_txt)
     except Exception as e:
         print(f"[FLOW] frgn.naver price 실패 ({ticker}): {e}")
 
-    # 3순위: Yahoo Finance (KOSPI → .KS, KOSDAQ → .KQ 순서로 시도)
+    # 4순위: Yahoo Finance (KOSPI → .KS, KOSDAQ → .KQ 순서로 시도)
     for suffix in (".KS", ".KQ"):
         try:
             url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}{suffix}"
@@ -80,7 +93,7 @@ def _fetch_current_price(ticker: str) -> float | None:
         except Exception as e:
             print(f"[FLOW] Yahoo{suffix} price 실패 ({ticker}): {e}")
 
-    # 4순위: FinanceDataReader
+    # 5순위: FinanceDataReader
     try:
         import FinanceDataReader as fdr
         import datetime
@@ -113,7 +126,8 @@ def _parse_int(cell) -> int:
 
 def _fetch_flow_naver(ticker: str, days: int) -> dict | None:
     """
-    Naver Finance investors.naver에서 기관·외국인·개인 순매수 스크래핑.
+    Naver Finance frgn.naver에서 기관·외국인·개인 순매수 스크래핑.
+    컬럼: tds[0]=날짜, tds[1]=종가, tds[2]=거래량, tds[3]=기관순매매, tds[4]=외국인순매매
     단위: 주(株). 충분한 날짜 범위를 요청해 영업일 기준 days개를 확보.
     """
     try:
@@ -122,35 +136,38 @@ def _fetch_flow_naver(ticker: str, days: int) -> dict | None:
         end   = datetime.date.today()
         start = end - datetime.timedelta(days=days * 2 + 20)
 
-        url = "https://finance.naver.com/item/investors.naver"
+        url = "https://finance.naver.com/item/frgn.naver"
         params = {
             "code":      ticker,
             "startDate": start.strftime("%Y%m%d"),
             "endDate":   end.strftime("%Y%m%d"),
-            "search":    "",
         }
 
         resp = requests.get(url, params=params, headers=_HEADERS, timeout=12)
         resp.encoding = "euc-kr"
 
-        soup  = __import__("bs4").BeautifulSoup(resp.text, "html.parser")
-        table = soup.find("table", {"class": "type2"})
+        soup   = BeautifulSoup(resp.text, "html.parser")
+        # 두 번째 type2 테이블 = "외국인 기관 순매매 거래량" (첫 번째는 거래원 정보)
+        tables = soup.find_all("table", {"class": "type2"})
+        table  = tables[1] if len(tables) >= 2 else (tables[0] if tables else None)
         if table is None:
             return None
 
         rows = []
         for tr in table.find_all("tr"):
             tds = tr.find_all("td")
-            if len(tds) < 4:
+            if len(tds) < 7:
                 continue
             date_txt = tds[0].get_text(strip=True)
             if not re.match(r"\d{4}\.\d{2}\.\d{2}", date_txt):
                 continue
+            institution = _parse_int(tds[5])
+            foreign     = _parse_int(tds[6])
             rows.append({
                 "date":        date_txt,
-                "retail":      _parse_int(tds[1]),
-                "foreign":     _parse_int(tds[2]),
-                "institution": _parse_int(tds[3]),
+                "institution": institution,
+                "foreign":     foreign,
+                "retail":      -(institution + foreign),
             })
 
         if not rows:

@@ -78,21 +78,54 @@ def _get_top_high_grade_tickers(limit: int = 25) -> list:
         return []
 
 
-def _label_priority(stock_code: str, report_nm: str,
-                    holdings: set, watchlist: set, high_grade: set) -> Optional[str]:
-    """공시 우선순위 라벨 반환. None이면 표시 안 함."""
+def _get_notable_tickers() -> set:
+    """주요공시 대상: 우량주(비AVOID 상위 150) + 급등종목(28일 내 15%↑)"""
+    try:
+        with SessionLocal() as db:
+            quality = db.execute(text(
+                "SELECT ticker FROM scores WHERE grade != 'AVOID' "
+                "ORDER BY total_score DESC NULLS LAST LIMIT 150"
+            )).fetchall()
+            quality_set = {r.ticker.upper() for r in quality}
+
+            cutoff = (datetime.date.today() - datetime.timedelta(days=28)).isoformat()
+            try:
+                surge = db.execute(text("""
+                    SELECT ticker FROM (
+                        SELECT ticker,
+                               (MAX(close) - MIN(close)) / NULLIF(MIN(close), 0) AS gain
+                        FROM price_daily_cache
+                        WHERE date >= :cutoff
+                        GROUP BY ticker
+                    ) t WHERE gain >= 0.15
+                """), {"cutoff": cutoff}).fetchall()
+                quality_set |= {r.ticker.upper() for r in surge}
+            except Exception:
+                pass
+
+        return quality_set
+    except Exception:
+        return set()
+
+
+def _get_labels(stock_code: str, report_nm: str,
+                holdings: set, watchlist: set,
+                high_grade: set, notable: set) -> list:
+    """공시 표시 라벨 목록 반환. 빈 리스트면 표시 안 함.
+    내종목/관심종목은 개인화 전용(단독). 주요공시·추천종목은 동시 부여 가능."""
     if _is_noise(report_nm):
-        return None
+        return []
     ticker = (stock_code or "").upper()
     if ticker in holdings:
-        return "내종목"
+        return ["내종목"]
     if ticker in watchlist:
-        return "관심종목"
+        return ["관심종목"]
+    labels = []
+    if ticker in notable or _is_must_show(report_nm):
+        labels.append("주요공시")
     if ticker in high_grade:
-        return "추천종목"
-    if _is_must_show(report_nm):
-        return "주요공시"
-    return None  # 나머지는 숨김
+        labels.append("추천종목")
+    return labels
 
 
 @router.get("/disclosures")
@@ -143,6 +176,7 @@ async def get_disclosures(
 
     user_tickers = _get_user_tickers(user_id) if user_id else {"holdings": set(), "watchlist": set()}
     high_grade = _get_high_grade_tickers()
+    notable = _get_notable_tickers()
 
     # corp_code ↔ stock_code 양방향 맵 — 항상 await로 캐시 보장
     from app.infra.clients.dart_client import _load_corp_cache
@@ -158,7 +192,24 @@ async def get_disclosures(
         except Exception:
             return []
 
+    async def _fetch_type(pblntf_ty: str) -> list:
+        """공시 유형별 전체 조회 (주요사항보고 B, 발행공시 C, 지분공시 D)"""
+        try:
+            r = await _get("list.json", {**params, "pblntf_ty": pblntf_ty, "page_count": "40"})
+            return r.get("list", [])
+        except Exception:
+            return []
+
     seen = {i.get("rcept_no") for i in items}
+
+    # 주요 이벤트 공시 타입 별도 조회 (주요사항보고·발행공시·지분공시)
+    # → 유상증자, 합병, 전환사채, 자기주식 등이 여기에 포함됨
+    type_results = await asyncio.gather(*[_fetch_type(t) for t in ("B", "C", "D")])
+    for type_items in type_results:
+        for item in type_items:
+            if item.get("rcept_no") not in seen:
+                items.append(item)
+                seen.add(item.get("rcept_no"))
 
     # 보유/관심 종목 — per-company 조회
     personal_tickers = user_tickers["holdings"] | user_tickers["watchlist"]
@@ -183,21 +234,26 @@ async def get_disclosures(
                     items.append(item)
                     seen.add(item.get("rcept_no"))
 
-    priority_order = {"내종목": 0, "관심종목": 1, "추천종목": 2, "주요공시": 3}
+    _label_rank = {"내종목": 0, "관심종목": 1, "주요공시": 2, "추천종목": 3}
     labeled = []
     for item in items:
         stock_code = (item.get("stock_code") or "").upper()
-        # stock_code 누락 시 corp_code로 역조회
         if not stock_code:
             corp_code_val = item.get("corp_code", "")
             stock_code = _corp_code_map.get(corp_code_val, "").upper()
         report_nm = item.get("report_nm", "")
-        label = _label_priority(stock_code, report_nm,
-                                user_tickers["holdings"], user_tickers["watchlist"], high_grade)
-        if label:
-            labeled.append({**item, "priority_label": label, "stock_code": stock_code})
+        labels = _get_labels(stock_code, report_nm,
+                             user_tickers["holdings"], user_tickers["watchlist"],
+                             high_grade, notable)
+        if labels:
+            labeled.append({
+                **item,
+                "priority_labels": labels,
+                "priority_label": labels[0],  # 하위호환
+                "stock_code": stock_code,
+            })
 
-    labeled.sort(key=lambda x: priority_order.get(x["priority_label"], 9))
+    labeled.sort(key=lambda x: min(_label_rank.get(l, 9) for l in x["priority_labels"]))
     return {**result, "list": labeled[:page_count], "personalized": True, "total_filtered": len(labeled)}
 
 
