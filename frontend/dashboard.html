@@ -6,6 +6,7 @@
   <title>대시보드 · 텐배거 헌터</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#10b981">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="텐배거">
@@ -701,6 +702,22 @@
             ✅ 전체 종목에 적용
           </button>
           <span style="font-size:11px;color:var(--muted);margin-left:10px;">배당·주가 CAGR 기본값을 모든 종목 행에 일괄 적용</span>
+          <!-- Monte Carlo 설정 -->
+          <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
+            <div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:10px;">🎲 Monte Carlo 변동성 설정</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">주가 CAGR 변동성 σ (%)</label>
+                <input type="number" id="mhSimSigmaPrice" value="4" min="1" max="20" step="1"
+                  class="mh-input" style="width:100%;text-align:center;padding:7px 10px;" />
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">배당 CAGR 변동성 σ (%)</label>
+                <input type="number" id="mhSimSigmaDiv" value="2" min="1" max="15" step="1"
+                  class="mh-input" style="width:100%;text-align:center;padding:7px 10px;" />
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 종목별 가정 입력 테이블 -->
@@ -724,17 +741,50 @@
             </label>
             <span id="mhSimReinvestLabel" style="font-size:12px;color:#10b981;font-weight:600;">ON</span>
           </div>
+          <!-- 세후 배당 toggle -->
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:13px;font-weight:600;">세후 배당</span>
+            <label style="position:relative;display:inline-block;width:44px;height:24px;">
+              <input type="checkbox" id="mhSimAfterTax" style="opacity:0;width:0;height:0;">
+              <span onclick="document.getElementById('mhSimAfterTax').click()"
+                style="position:absolute;cursor:pointer;inset:0;background:#374151;border-radius:24px;transition:.3s;"
+                id="mhSimAfterTaxTrack"></span>
+              <span id="mhSimAfterTaxThumb"
+                style="position:absolute;width:18px;height:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;"></span>
+            </label>
+            <span id="mhSimAfterTaxLabel" style="font-size:12px;color:#6b7280;font-weight:600;">OFF</span>
+          </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <span style="font-size:13px;font-weight:600;">시뮬레이션 기간</span>
             <button id="mhSimYear5Btn"  onclick="mhSimSetYears(5,this)"  style="padding:7px 16px;border-radius:8px;font-weight:700;font-size:13px;border:1px solid var(--blue);background:rgba(59,130,246,.2);color:#60a5fa;cursor:pointer;">5년</button>
             <button id="mhSimYear10Btn" onclick="mhSimSetYears(10,this)" style="padding:7px 16px;border-radius:8px;font-weight:700;font-size:13px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">10년</button>
             <button id="mhSimYear20Btn" onclick="mhSimSetYears(20,this)" style="padding:7px 16px;border-radius:8px;font-weight:700;font-size:13px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">20년</button>
           </div>
+          <!-- 목표 월배당 -->
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:600;">목표 월배당</span>
+            <input type="number" id="mhSimTargetMonthly" value="" placeholder="0"
+              min="0" step="10" class="mh-input"
+              style="width:80px;text-align:center;padding:7px 8px;" />
+            <span style="font-size:12px;color:var(--muted);">만원/월</span>
+          </div>
+          <!-- 월 추가 투자 -->
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:600;">월 추가투자</span>
+            <input type="number" id="mhSimMonthlyAdd" value="0"
+              min="0" step="10" class="mh-input"
+              style="width:80px;text-align:center;padding:7px 8px;" />
+            <span style="font-size:12px;color:var(--muted);">만원/월</span>
+          </div>
           <button id="mhSimRunBtn" class="sim-run-btn" style="margin-bottom:0;" onclick="mhSimRun()">🚀 시뮬레이션 실행</button>
         </div>
 
         <!-- 결과 -->
         <div id="mhSimResult" style="display:none;">
+          <!-- 목표 달성 날짜 (Feature 1) -->
+          <div id="mhSimTargetResult" style="display:none;margin-bottom:20px;padding:16px 20px;background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(59,130,246,.1));border:1px solid rgba(16,185,129,.3);border-radius:14px;"></div>
+          <!-- 세후 경고 (Feature 2) -->
+          <div id="mhSimTaxWarning" style="display:none;margin-bottom:20px;padding:12px 16px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:12px;font-size:12px;color:#fbbf24;"></div>
           <!-- 마일스톤 카드 -->
           <div id="mhSimMilestones" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;"></div>
           <!-- 차트 -->
@@ -742,10 +792,24 @@
             <div style="font-size:13px;font-weight:700;margin-bottom:16px;">📈 연도별 포트폴리오 가치</div>
             <canvas id="mhSimCanvas" height="260"></canvas>
           </div>
+          <!-- Monte Carlo 확률 밴드 (Feature 3) -->
+          <div id="mhSimMonteSection" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;">
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px;">🎲 Monte Carlo 확률 시뮬레이션</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:16px;">300회 시뮬레이션 · 10%ile / 50%ile / 90%ile 밴드</div>
+            <canvas id="mhSimMonteCanvas" height="220"></canvas>
+          </div>
           <!-- 연도별 테이블 -->
-          <div style="overflow-x:auto;">
+          <div style="overflow-x:auto;margin-bottom:20px;">
             <table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="mhSimYearTable">
             </table>
+          </div>
+          <!-- 포트폴리오 구성 분석 (Feature 5) -->
+          <div id="mhSimSectorSection" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;">
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px;">📊 포트폴리오 구성 분석</div>
+            <div id="mhSimSectorContent" style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin-top:16px;">
+              <div style="flex:0 0 200px;"><canvas id="mhSimSectorCanvas" height="200" width="200"></canvas></div>
+              <div id="mhSimSectorList" style="flex:1;min-width:180px;"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -3503,6 +3567,8 @@
   // ── 포트폴리오 배당 성장 시뮬레이터 ──────────────────────────────────────
   let _mhSimHoldYears = 20;
   let _mhSimChart = null;
+  let _mhSimMonteChart = null;
+  let _mhSimSectorChart = null;
   let _mhSimEnriched = [];
   let _mhSimLastHoldings = null;   // 마지막 실행 holdings 캐시 (비교 시뮬레이터 재사용용)
 
@@ -3713,6 +3779,17 @@
     // 초기 상태 반영
     document.getElementById('mhSimReinvestTrack').style.background = '#10b981';
     document.getElementById('mhSimReinvestThumb').style.left       = '23px';
+    // 세후 배당 토글
+    const cbAt = document.getElementById('mhSimAfterTax');
+    if (cbAt) {
+      cbAt.addEventListener('change', () => {
+        const on = cbAt.checked;
+        document.getElementById('mhSimAfterTaxTrack').style.background = on ? '#f59e0b' : '#374151';
+        document.getElementById('mhSimAfterTaxThumb').style.left       = on ? '23px' : '3px';
+        document.getElementById('mhSimAfterTaxLabel').textContent      = on ? 'ON' : 'OFF';
+        document.getElementById('mhSimAfterTaxLabel').style.color      = on ? '#f59e0b' : '#6b7280';
+      });
+    }
   });
 
   function mhSimSetYears(n, btn) {
@@ -3828,15 +3905,17 @@
     });
   }
 
-  function mhSimCalcPortfolio(holdings, years, reinvest) {
-    // 연도별 포트폴리오 가치 계산
+  function mhSimCalcPortfolio(holdings, years, reinvest, opts = {}) {
+    const { afterTax = false, monthlyAdd = 0 } = opts;
+    const taxFactor   = afterTax ? (1 - 0.154) : 1;
+    const annualAdd   = monthlyAdd * 12 * 10000;   // 만원/월 → 원/년
+    const totalInitVal = holdings.reduce((s, h) => s + h.qty * h.close, 0);
+
     const yearly = [];
     for (let y = 0; y <= years; y++) {
       let totalValue = 0, totalDividend = 0;
       for (const h of holdings) {
-        // 연도별 주가 (복리)
-        const price = h.close * Math.pow(1 + h.priceCagr / 100, y);
-        // 연도별 배당수익률 (복리)
+        const price   = h.close * Math.pow(1 + h.priceCagr / 100, y);
         const divRate = (h.divYield / 100) * Math.pow(1 + h.divCagr / 100, y);
 
         // 배당 재투자: t=1~y 각 연도 배당금으로 주식 누적 매수
@@ -3849,12 +3928,114 @@
           }
         }
 
-        totalValue    += shares * price;
-        totalDividend += y > 0 ? shares * price * divRate : 0;
+        // 적립식 추가 투자 (Feature 4): 매년 초 annualAdd 원 중 이 종목 비중만큼 투자
+        let addValue = 0;
+        if (annualAdd > 0 && y > 0 && totalInitVal > 0) {
+          const w = (h.qty * h.close) / totalInitVal;
+          for (let t = 1; t <= y; t++) {
+            const priceAtT  = h.close * Math.pow(1 + h.priceCagr / 100, t - 1);
+            const addShares = (annualAdd * w) / priceAtT;
+            addValue += addShares * price;   // t년에 산 주식의 y년 시점 가치
+          }
+        }
+
+        totalValue    += shares * price + addValue;
+        totalDividend += y > 0 ? (shares * price + addValue) * divRate * taxFactor : 0;
       }
       yearly.push({ year: y, value: Math.round(totalValue), dividend: Math.round(totalDividend) });
     }
     return yearly;
+  }
+
+  function randn() {
+    const u = 1 - Math.random(), v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  function mhSimRunMonteCarlo(holdings, years, reinvest, opts = {}) {
+    const N          = 300;
+    const sigmaPrice = parseFloat(document.getElementById('mhSimSigmaPrice')?.value) || 4;
+    const sigmaDiv   = parseFloat(document.getElementById('mhSimSigmaDiv')?.value)   || 2;
+    const simResults = [];
+    for (let s = 0; s < N; s++) {
+      const ph = holdings.map(h => ({
+        ...h,
+        priceCagr: h.priceCagr + randn() * sigmaPrice,
+        divCagr:   Math.max(-5, h.divCagr + randn() * sigmaDiv),
+      }));
+      const yr = mhSimCalcPortfolio(ph, years, reinvest, opts);
+      simResults.push(yr.map(r => r.value));
+    }
+    return Array.from({ length: years + 1 }, (_, y) => {
+      const vals = simResults.map(r => r[y]).sort((a, b) => a - b);
+      return { year: y, p10: vals[Math.floor(N * 0.10)], p50: vals[Math.floor(N * 0.50)], p90: vals[Math.floor(N * 0.90)] };
+    });
+  }
+
+  function mhSimRenderSector(holdings) {
+    const sectorSection = document.getElementById('mhSimSectorSection');
+    const sectorList    = document.getElementById('mhSimSectorList');
+    const sectorCanvas  = document.getElementById('mhSimSectorCanvas');
+    if (!sectorSection || !sectorList || !sectorCanvas) return;
+
+    const totalVal = holdings.reduce((s, h) => s + h.qty * h.close, 0);
+    if (totalVal === 0) { sectorSection.style.display = 'none'; return; }
+
+    // 등급별 그룹핑
+    const groups = {};
+    for (const h of holdings) {
+      const grp = h.grade || 'ETF/기타';
+      if (!groups[grp]) groups[grp] = { name: grp, value: 0, items: [] };
+      groups[grp].value += h.qty * h.close;
+      groups[grp].items.push(h);
+    }
+    const sorted = Object.values(groups).sort((a, b) => b.value - a.value);
+    const grpColors = { TENBAGGER: '#10b981', COMPOUNDER: '#60a5fa', WATCHLIST: '#f59e0b', AVOID: '#ef4444', 'ETF/기타': '#8b5cf6', UNKNOWN: '#6b7280' };
+
+    // HHI (개별 종목 기준)
+    const hhi = holdings.reduce((s, h) => s + Math.pow((h.qty * h.close) / totalVal * 100, 2), 0);
+    const maxW = Math.max(...holdings.map(h => (h.qty * h.close) / totalVal * 100));
+
+    if (_mhSimSectorChart) { _mhSimSectorChart.destroy(); _mhSimSectorChart = null; }
+    _mhSimSectorChart = new Chart(sectorCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: sorted.map(g => g.name),
+        datasets: [{ data: sorted.map(g => g.value), backgroundColor: sorted.map(g => grpColors[g.name] || '#6b7280'), borderWidth: 2, borderColor: '#1f2937' }],
+      },
+      options: {
+        responsive: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${simFmtWon(ctx.raw)} (${(ctx.raw/totalVal*100).toFixed(1)}%)` } },
+        },
+      },
+    });
+
+    const hhiOk = hhi <= 2500;
+    sectorList.innerHTML = sorted.map(g => {
+      const pct = (g.value / totalVal * 100).toFixed(1);
+      const col = grpColors[g.name] || '#6b7280';
+      return `<div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:12px;font-weight:700;color:${col};">● ${g.name}</span>
+          <span style="font-size:12px;font-weight:700;">${pct}%</span>
+        </div>
+        <div style="background:var(--border);border-radius:4px;height:6px;margin-bottom:4px;">
+          <div style="width:${pct}%;background:${col};height:6px;border-radius:4px;transition:.5s;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);">${g.items.map(h => h.name).join(' · ')}</div>
+      </div>`;
+    }).join('') +
+    `<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+      <div style="font-size:11px;color:${hhiOk ? '#10b981' : '#f59e0b'};font-weight:700;">
+        ${hhiOk ? '✅' : '⚠️'} 집중도 HHI: ${hhi.toFixed(0)} ${hhiOk ? '(분산 양호)' : '(집중 — 2500 이하 권장)'}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;">최대 단일 종목 비중: ${maxW.toFixed(1)}%</div>
+      <div style="font-size:10px;color:#4b5563;margin-top:3px;">HHI: 0=완전분산 / 2500이하=적절 / 5000이상=고집중</div>
+    </div>`;
+
+    sectorSection.style.display = 'block';
   }
 
   function mhSimRun() {
@@ -3866,8 +4047,12 @@
     _mhSimLastHoldings = holdings;   // 비교 시뮬레이터용 캐시
 
     const reinvest   = document.getElementById('mhSimReinvest')?.checked ?? true;
+    const afterTax   = document.getElementById('mhSimAfterTax')?.checked ?? false;
+    const monthlyAdd = parseFloat(document.getElementById('mhSimMonthlyAdd')?.value) || 0;
+    const targetMon  = parseFloat(document.getElementById('mhSimTargetMonthly')?.value) || 0;
+    const opts       = { afterTax, monthlyAdd };
     const years      = _mhSimHoldYears;
-    const yearly     = mhSimCalcPortfolio(holdings, years, reinvest);
+    const yearly     = mhSimCalcPortfolio(holdings, years, reinvest, opts);
     const totalInvest = holdings.reduce((s, h) => s + h.qty * h.avgPrice, 0);
 
     // ── 벤치마크 (마일스톤 카드보다 먼저 계산) ────────────────────────────
@@ -3876,9 +4061,46 @@
     const savingsVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1 + savingsRate, i)));
     const housingVals = Array.from({ length: years + 1 }, (_, i) => Math.round(totalInvest * Math.pow(1 + aptRate,     i)));
 
+    // ── Feature 1: 목표 달성 날짜 ────────────────────────────────────────
+    const targetDiv = document.getElementById('mhSimTargetResult');
+    if (targetDiv) {
+      if (targetMon > 0) {
+        const targetWon  = targetMon * 10000;
+        const longYearly = mhSimCalcPortfolio(holdings, 30, reinvest, opts);
+        const hitRow     = longYearly.find(r => r.year > 0 && r.dividend / 12 >= targetWon);
+        if (hitRow) {
+          const hitYear2 = new Date().getFullYear() + hitRow.year;
+          targetDiv.innerHTML = `<div style="font-size:15px;font-weight:800;color:#10b981;">🎯 목표 달성: ${hitRow.year}년 후 (${hitYear2}년)</div>
+            <div style="font-size:13px;color:#d1fae5;margin-top:6px;">월 배당 <b>${targetMon}만원</b> 달성 · 연간 ${simFmtWon(hitRow.dividend)}</div>`;
+        } else {
+          targetDiv.innerHTML = `<div style="font-size:13px;color:#f87171;font-weight:700;">🎯 목표 월배당 ${targetMon}만원 — 30년 내 달성이 어렵습니다</div>
+            <div style="font-size:12px;color:#fca5a5;margin-top:4px;">추가 투자 확대 또는 CAGR 가정 상향 검토 권장</div>`;
+        }
+        targetDiv.style.display = 'block';
+      } else {
+        targetDiv.style.display = 'none';
+      }
+    }
+
+    // ── Feature 2: 세후 실수령액 경고 ────────────────────────────────────
+    const taxWarnDiv = document.getElementById('mhSimTaxWarning');
+    if (taxWarnDiv) {
+      const maxAnnualDiv = Math.max(...yearly.map(r => r.dividend));
+      if (afterTax && maxAnnualDiv > 20_000_000) {
+        taxWarnDiv.innerHTML = `⚠️ <b>금융소득 종합과세 주의</b>: 연간 배당금이 2,000만원을 초과하면 금융소득 종합과세 대상이 됩니다. 실제 세율은 개인 소득에 따라 높아질 수 있어 세후 실수령액이 더 줄어들 수 있습니다.`;
+        taxWarnDiv.style.display = 'block';
+      } else if (afterTax) {
+        taxWarnDiv.innerHTML = `ℹ️ 배당소득세 15.4% (소득세 14% + 지방소득세 1.4%) 차감 후 실수령액 기준으로 계산됩니다.`;
+        taxWarnDiv.style.display = 'block';
+      } else {
+        taxWarnDiv.style.display = 'none';
+      }
+    }
+
     // ── 마일스톤 카드 ──────────────────────────────────────────────────────
     const milestones = [5, 10, 20].filter(n => n <= years);
     const initVal    = yearly[0].value;
+    const modeLabel  = [reinvest ? '재투자' : '미재투자', afterTax ? '세후' : '', monthlyAdd > 0 ? `+${monthlyAdd}만` : ''].filter(Boolean).join('/');
     document.getElementById('mhSimMilestones').innerHTML = milestones.map(n => {
       const row      = yearly[n] || yearly[yearly.length - 1];
       const pfRet    = initVal > 0 ? ((row.value    - initVal) / initVal * 100).toFixed(0) : 0;
@@ -3893,7 +4115,7 @@
         <!-- 포트폴리오 -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
           <span style="font-size:11px;color:#60a5fa;font-weight:600;">💼 내 포트폴리오</span>
-          <span style="font-size:11px;color:#6b7280;">${reinvest ? '재투자' : '미재투자'}</span>
+          <span style="font-size:11px;color:#6b7280;">${modeLabel}</span>
         </div>
         <div style="text-align:center;margin-bottom:2px;">
           <span style="font-size:22px;font-weight:800;color:#60a5fa;">${simFmtWon(row.value)}</span>
@@ -3931,7 +4153,7 @@
     const labels   = Array.from({ length: years + 1 }, (_, i) => i === 0 ? '현재' : i + '년');
     const pfValues = yearly.map(r => r.value);
     // 배당 재투자 없는 순수 주가 성장 (비교용)
-    const noReinvest = mhSimCalcPortfolio(holdings, years, false).map(r => r.value);
+    const noReinvest = mhSimCalcPortfolio(holdings, years, false, { afterTax, monthlyAdd }).map(r => r.value);
 
     if (_mhSimChart) { _mhSimChart.destroy(); _mhSimChart = null; }
     _mhSimChart = new Chart(document.getElementById('mhSimCanvas'), {
@@ -3957,6 +4179,36 @@
         },
       },
     });
+
+    // ── Feature 3: Monte Carlo 확률 밴드 ────────────────────────────────
+    const monteBands    = mhSimRunMonteCarlo(holdings, years, reinvest, opts);
+    const monteSection  = document.getElementById('mhSimMonteSection');
+    if (monteSection) {
+      monteSection.style.display = 'block';
+      if (_mhSimMonteChart) { _mhSimMonteChart.destroy(); _mhSimMonteChart = null; }
+      _mhSimMonteChart = new Chart(document.getElementById('mhSimMonteCanvas'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: '90%ile (낙관)', data: monteBands.map(r => r.p90), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.12)', fill: '+1', tension: .3, borderWidth: 1.5, pointRadius: 0 },
+            { label: '50%ile (중간)', data: monteBands.map(r => r.p50), borderColor: '#60a5fa', backgroundColor: 'rgba(59,130,246,.1)',   fill: '+1', tension: .3, borderWidth: 2,   pointRadius: 0 },
+            { label: '10%ile (비관)', data: monteBands.map(r => r.p10), borderColor: '#f87171', backgroundColor: 'transparent',            fill: false, tension: .3, borderWidth: 1.5, pointRadius: 0 },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 14 } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${simFmtWon(ctx.raw)}` } },
+          },
+          scales: {
+            x: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(255,255,255,.05)' } },
+            y: { ticks: { color: '#6b7280', callback: v => simFmtWon(v) }, grid: { color: 'rgba(255,255,255,.05)' } },
+          },
+        },
+      });
+    }
 
     // ── 연도별 상세 테이블 ────────────────────────────────────────────────
     let cumDiv = 0;
@@ -3984,6 +4236,9 @@
         <th style="padding:10px 12px;text-align:right;font-size:11px;color:#6b7280;font-weight:600;">누적 배당금</th>
       </tr></thead>
       <tbody>${tableRows}</tbody>`;
+
+    // ── Feature 5: 포트폴리오 구성 분석 ─────────────────────────────────
+    mhSimRenderSector(holdings);
 
     document.getElementById('mhSimResult').style.display = 'block';
     document.getElementById('mhSimResult').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
