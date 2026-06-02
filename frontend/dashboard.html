@@ -741,7 +741,8 @@
         <div>
           <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">매입가 (원, 선택)</label>
           <input type="number" id="mhWhatIfPrice" placeholder="현재가 자동" min="0" step="100" class="mh-input"
-            style="width:120px;text-align:center;padding:8px 10px;font-size:13px;" />
+            style="width:120px;text-align:center;padding:8px 10px;font-size:13px;"
+            onkeydown="if(event.key==='Enter'){mhWhatIfAdd();}" />
         </div>
         <button onclick="mhWhatIfAdd()" id="mhWhatIfAddBtn"
           style="padding:9px 18px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.5);border-radius:10px;color:#a78bfa;font-size:13px;font-weight:700;cursor:pointer;">
@@ -4306,6 +4307,7 @@
         <div style="margin-top:10px;font-size:11px;color:#4b5563;">※ 추가 투자금 ${simFmtWon(addedVal)} 기준 · 시뮬레이션 기간 ${years}년</div>
       </div>`;
     resultEl.style.display = 'block';
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function mhSimGetInputs() {
