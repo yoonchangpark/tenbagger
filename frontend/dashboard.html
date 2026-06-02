@@ -668,6 +668,7 @@
           <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">목표 월 배당금</label>
           <div style="display:flex;align-items:center;gap:6px;">
             <input type="number" id="mhGoalMonthlyDiv" value="100" min="1" step="10" class="mh-input"
+              onkeydown="if(event.key==='Enter'){mhGoalCalc();}"
               style="width:90px;text-align:center;padding:8px 10px;font-size:14px;font-weight:700;" />
             <span style="font-size:13px;color:var(--muted);">만원/월</span>
           </div>
@@ -676,6 +677,7 @@
           <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">목표 기간</label>
           <div style="display:flex;align-items:center;gap:6px;">
             <input type="number" id="mhGoalYears" value="10" min="1" max="30" step="1" class="mh-input"
+              onkeydown="if(event.key==='Enter'){mhGoalCalc();}"
               style="width:70px;text-align:center;padding:8px 10px;font-size:14px;font-weight:700;" />
             <span style="font-size:13px;color:var(--muted);">년 후</span>
           </div>
@@ -708,23 +710,40 @@
         <div style="font-size:15px;font-weight:800;color:#a78bfa;margin-bottom:4px;">🔮 질문 2. 이 종목을 더 담으면?</div>
         <div style="font-size:12px;color:var(--muted);">가상으로 종목을 추가해 현재 포트폴리오 대비 <b>미래 가치 변화</b>를 비교합니다 (실제 매수 전 검토)</div>
       </div>
+
+      <!-- 추천 종목 칩 -->
+      <div id="mhWhatIfRecommends" style="margin-bottom:16px;">
+        <div style="font-size:11px;color:#a78bfa;font-weight:700;margin-bottom:8px;">⭐ 텐배거/컴파운더 추천 종목</div>
+        <div id="mhWhatIfChips" style="display:flex;flex-wrap:wrap;gap:6px;">
+          <span style="font-size:11px;color:var(--muted);">로딩 중…</span>
+        </div>
+      </div>
+
+      <!-- 검색 + 수량 입력 -->
       <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px;">
-        <div>
-          <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">종목 코드</label>
-          <input type="text" id="mhWhatIfTicker" placeholder="005930" maxlength="6" class="mh-input"
-            style="width:90px;text-align:center;padding:8px 10px;font-size:13px;text-transform:uppercase;" />
+        <div style="position:relative;">
+          <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">종목 검색</label>
+          <input type="text" id="mhWhatIfSearch" placeholder="삼성전자, KT&G…" class="mh-input"
+            autocomplete="off"
+            oninput="mhWhatIfSearchInput(this.value)"
+            onkeydown="if(event.key==='Enter'){mhWhatIfAdd();}"
+            style="width:180px;padding:8px 10px;font-size:13px;" />
+          <div id="mhWhatIfDropdown"
+            style="display:none;position:absolute;top:100%;left:0;z-index:200;width:260px;background:#1e293b;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5);max-height:220px;overflow-y:auto;margin-top:4px;">
+          </div>
         </div>
         <div>
           <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">수량 (주)</label>
           <input type="number" id="mhWhatIfQty" value="100" min="1" step="10" class="mh-input"
+            onkeydown="if(event.key==='Enter'){mhWhatIfAdd();}"
             style="width:80px;text-align:center;padding:8px 10px;font-size:13px;" />
         </div>
         <div>
-          <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">매입가 (원)</label>
-          <input type="number" id="mhWhatIfPrice" placeholder="자동" min="0" step="100" class="mh-input"
-            style="width:110px;text-align:center;padding:8px 10px;font-size:13px;" />
+          <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;">매입가 (원, 선택)</label>
+          <input type="number" id="mhWhatIfPrice" placeholder="현재가 자동" min="0" step="100" class="mh-input"
+            style="width:120px;text-align:center;padding:8px 10px;font-size:13px;" />
         </div>
-        <button onclick="mhWhatIfAdd()"
+        <button onclick="mhWhatIfAdd()" id="mhWhatIfAddBtn"
           style="padding:9px 18px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.5);border-radius:10px;color:#a78bfa;font-size:13px;font-weight:700;cursor:pointer;">
           + 추가
         </button>
@@ -1223,6 +1242,7 @@
       switchMystockTab._riskLoaded = true;
       renderRiskTabDash();
     }
+    if (sub === 'sim') mhWhatIfLoadStocks();
   }
 
   // ── 관심종목 ──────────────────────────────────────────────────
@@ -4085,45 +4105,133 @@
          </div>
          <div style="margin-top:12px;font-size:11px;color:#4b5563;">※ ${afterTax?'세후(배당소득세 15.4%) 기준':'세전 기준'} · 포트폴리오 가중평균 주가CAGR ${wtPriceCagr.toFixed(1)}% / 배당CAGR ${wtDivCagr.toFixed(1)}% 적용</div>`;
     resultEl.style.display = 'block';
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   // ── 가상 종목 추가 시뮬레이션 (질문 2) ──────────────────────────────────
-  let _mhWhatIfHoldings = [];   // 가상으로 추가한 종목 목록
+  let _mhWhatIfHoldings = [];
+  let _mhTopStocks      = null;   // 추천 종목 캐시 { ticker, name, grade, ... }
+  let _mhWhatIfSelected = null;   // 검색 드롭다운에서 선택된 종목
+
+  // 추천 종목 로드 (최초 1회)
+  async function mhWhatIfLoadStocks() {
+    if (_mhTopStocks) return _mhTopStocks;
+    try {
+      const res  = await fetch(`${API}/api/screener?grade=TENBAGGER,COMPOUNDER&limit=200`);
+      const data = await res.json();
+      _mhTopStocks = (data.results || data.companies || []).slice(0, 200);
+      mhWhatIfRenderChips();
+    } catch {
+      _mhTopStocks = [];
+    }
+    return _mhTopStocks;
+  }
+
+  function mhWhatIfRenderChips() {
+    const el = document.getElementById('mhWhatIfChips');
+    if (!el || !_mhTopStocks) return;
+    const top = _mhTopStocks.filter(s => s.grade === 'TENBAGGER').slice(0, 8)
+      .concat(_mhTopStocks.filter(s => s.grade === 'COMPOUNDER').slice(0, 4));
+    if (top.length === 0) { el.innerHTML = '<span style="font-size:11px;color:var(--muted);">데이터 없음 (ETL 실행 필요)</span>'; return; }
+    el.innerHTML = top.map(s => {
+      const col = s.grade === 'TENBAGGER' ? '#10b981' : '#60a5fa';
+      return `<button onclick="mhWhatIfSelectChip('${s.ticker}','${escHtml(s.name)}','${s.grade}')"
+        style="padding:5px 10px;background:rgba(${s.grade==='TENBAGGER'?'16,185,129':'59,130,246'},.12);
+               border:1px solid rgba(${s.grade==='TENBAGGER'?'16,185,129':'59,130,246'},.35);
+               border-radius:20px;color:${col};font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        ${escHtml(s.name)}
+      </button>`;
+    }).join('');
+  }
+
+  function mhWhatIfSelectChip(ticker, name, grade) {
+    _mhWhatIfSelected = { ticker, name, grade };
+    const si = document.getElementById('mhWhatIfSearch');
+    if (si) si.value = name;
+    document.getElementById('mhWhatIfDropdown').style.display = 'none';
+  }
+
+  function mhWhatIfSearchInput(q) {
+    const dd = document.getElementById('mhWhatIfDropdown');
+    if (!dd) return;
+    _mhWhatIfSelected = null;
+    if (!q.trim()) { dd.style.display = 'none'; return; }
+    const stocks = _mhTopStocks || [];
+    const filtered = stocks.filter(s =>
+      s.name?.includes(q) || s.ticker?.includes(q)
+    ).slice(0, 8);
+    if (filtered.length === 0) { dd.style.display = 'none'; return; }
+    dd.innerHTML = filtered.map(s => {
+      const col = s.grade === 'TENBAGGER' ? '#10b981' : s.grade === 'COMPOUNDER' ? '#60a5fa' : '#9ca3af';
+      return `<div onclick="mhWhatIfSelectChip('${s.ticker}','${escHtml(s.name)}','${s.grade||''}')"
+        style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"
+        onmouseenter="this.style.background='rgba(255,255,255,.05)'" onmouseleave="this.style.background=''">
+        <div>
+          <span style="font-size:13px;font-weight:600;">${escHtml(s.name)}</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:6px;">${s.ticker}</span>
+        </div>
+        <span style="font-size:10px;font-weight:700;color:${col};">${s.grade||''}</span>
+      </div>`;
+    }).join('');
+    dd.style.display = 'block';
+  }
+
+  // 외부 클릭 시 드롭다운 닫기
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#mhWhatIfSearch') && !e.target.closest('#mhWhatIfDropdown'))
+      document.getElementById('mhWhatIfDropdown')?.style && (document.getElementById('mhWhatIfDropdown').style.display = 'none');
+  });
 
   function mhWhatIfAdd() {
-    const ticker = (document.getElementById('mhWhatIfTicker')?.value || '').trim();
+    const searchVal = (document.getElementById('mhWhatIfSearch')?.value || '').trim();
     const qty    = parseInt(document.getElementById('mhWhatIfQty')?.value)    || 0;
     const price  = parseFloat(document.getElementById('mhWhatIfPrice')?.value) || 0;
-    if (!ticker || qty <= 0) { showToast('종목 코드와 수량을 입력하세요.', 'warn'); return; }
 
-    // API로 종목 데이터 가져오기
-    fetch(`${API}/api/company/${ticker}`)
+    if (!searchVal) { showToast('종목명을 입력하거나 추천 종목을 선택하세요.', 'warn'); return; }
+    if (qty <= 0)   { showToast('수량을 입력하세요.', 'warn'); return; }
+
+    // 드롭다운에서 선택한 종목이 없으면 이름으로 검색
+    const selected = _mhWhatIfSelected ||
+      (_mhTopStocks || []).find(s => s.name === searchVal || s.ticker === searchVal);
+
+    if (!selected) { showToast('목록에서 종목을 선택해주세요.', 'warn'); return; }
+
+    const btn = document.getElementById('mhWhatIfAddBtn');
+    if (btn) { btn.textContent = '로딩 중…'; btn.disabled = true; }
+
+    // API로 최신 데이터 가져오기
+    fetch(`${API}/api/company/${selected.ticker}`)
       .then(r => r.json())
       .then(data => {
-        const close = data.close || price || 0;
-        if (close === 0) { showToast('현재가를 가져오지 못했습니다. 매입가를 직접 입력하세요.', 'warn'); return; }
+        const close    = data.close || price || 0;
         const avgPrice = price > 0 ? price : close;
-        const h = {
-          ticker, qty, avgPrice, close,
-          name:          data.name || ticker,
-          grade:         data.grade || null,
+        if (close === 0) { showToast('현재가를 가져오지 못했습니다. 매입가를 직접 입력하세요.', 'warn'); return; }
+        _mhWhatIfHoldings.push({
+          ticker: selected.ticker, qty, avgPrice, close,
+          name:           data.name || selected.name,
+          grade:          data.grade || selected.grade || null,
           dividend_yield: data.dividend_yield || 0,
-          divYield:      data.dividend_yield || 0,
-          divCagr:       _GRADE_CAGR[data.grade]?.divCagr ?? 5,
-          priceCagr:     mhEstimateCagr(data).value,
-          eps_cagr_5y:   data.eps_cagr_5y,
+          divYield:       data.dividend_yield || 0,
+          divCagr:        _GRADE_CAGR[data.grade]?.divCagr ?? 5,
+          priceCagr:      mhEstimateCagr(data).value,
+          eps_cagr_5y:    data.eps_cagr_5y,
           revenue_cagr_5y: data.revenue_cagr_5y,
-          growth_score:  data.growth_score,
-        };
-        _mhWhatIfHoldings.push(h);
+          growth_score:   data.growth_score,
+        });
+        // 입력 초기화
+        const si = document.getElementById('mhWhatIfSearch');
+        if (si) si.value = '';
+        _mhWhatIfSelected = null;
         mhWhatIfRender();
       })
       .catch(() => {
-        // API 실패 시 기본값으로 추가
-        const close = price > 0 ? price : 0;
-        if (close === 0) { showToast('매입가를 입력하거나 잠시 후 다시 시도하세요.', 'warn'); return; }
-        _mhWhatIfHoldings.push({ ticker, qty, avgPrice: close, close, name: ticker, grade: null, dividend_yield: 0, divYield: 0, divCagr: 5, priceCagr: 7 });
+        if (price <= 0) { showToast('잠시 후 다시 시도하거나 매입가를 입력하세요.', 'warn'); return; }
+        _mhWhatIfHoldings.push({ ticker: selected.ticker, qty, avgPrice: price, close: price,
+          name: selected.name, grade: selected.grade || null, dividend_yield: 0, divYield: 0, divCagr: 5, priceCagr: 7 });
         mhWhatIfRender();
+      })
+      .finally(() => {
+        if (btn) { btn.textContent = '+ 추가'; btn.disabled = false; }
       });
   }
 
