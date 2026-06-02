@@ -17,7 +17,15 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import SessionLocal
 
+import datetime
+
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+@router.get("/ping")
+def ping():
+    """서버 상태 확인 (인증 불필요 — cron-job.org keep-alive용)"""
+    return {"status": "ok", "ts": datetime.datetime.now(datetime.timezone.utc).isoformat()}
 
 
 def _check_secret(secret: str):
