@@ -4036,21 +4036,18 @@
     const resultEl   = document.getElementById('mhGoalResult');
     if (!resultEl) return;
 
-    if (holdings.length === 0) {
-      resultEl.innerHTML = `<div style="color:#f87171;font-size:13px;">⚠️ 먼저 보유현황 탭에서 종목을 추가하세요.</div>`;
-      resultEl.style.display = 'block'; return;
-    }
+    const noHoldings = holdings.length === 0;
 
     const targetWon = targetMon * 10000;
     const taxFactor = afterTax ? (1 - 0.154) : 1;
 
     // 현재 포트폴리오 goalYears 후 예상 월배당 (적립 없음)
-    const baseYearly  = mhSimCalcPortfolio(holdings, goalYears, true, { afterTax, monthlyAdd: 0 });
-    const baseMonDiv  = (baseYearly[goalYears]?.dividend ?? 0) / 12;
+    const baseYearly  = noHoldings ? [] : mhSimCalcPortfolio(holdings, goalYears, true, { afterTax, monthlyAdd: 0 });
+    const baseMonDiv  = noHoldings ? 0 : (baseYearly[goalYears]?.dividend ?? 0) / 12;
     const gapMonDiv   = Math.max(0, targetWon - baseMonDiv);
 
     // 적립 없이도 달성 가능한 시점 계산
-    const longYearly  = mhSimCalcPortfolio(holdings, 30, true, { afterTax, monthlyAdd: 0 });
+    const longYearly  = noHoldings ? [] : mhSimCalcPortfolio(holdings, 30, true, { afterTax, monthlyAdd: 0 });
     const noAddHit    = longYearly.find(r => r.year > 0 && r.dividend / 12 >= targetWon);
 
     // 역산: 부족분을 채우기 위한 월 적립금
@@ -4094,10 +4091,12 @@
       const wr2    = tv2 > 0 ? ph.reduce((a, h) => a + (h.qty*h.close/tv2) * h.priceCagr, 0) : 7;
       const wd2    = tv2 > 0 ? ph.reduce((a, h) => a + (h.qty*h.close/tv2) * h.divYield, 0)  : 3;
       const wdc2   = tv2 > 0 ? ph.reduce((a, h) => a + (h.qty*h.close/tv2) * h.divCagr, 0)   : 5;
-      const baseD2 = mhSimCalcPortfolio(ph, T, true, { afterTax, monthlyAdd: 0 })[T]?.dividend ?? 0;
+      const baseD2 = noHoldings ? 0 : (mhSimCalcPortfolio(ph, T, true, { afterTax, monthlyAdd: 0 })[T]?.dividend ?? 0);
       const gap2   = Math.max(0, targetWon - baseD2/12);
-      const r2     = wr2/100;
-      const da2    = (wd2/100)*Math.pow(1+wdc2/100,T)*taxFactor;
+      const r2         = selETF ? Math.max(0.01, 0.07 + randn() * sigmaPrice * 0.01) : wr2/100;
+      const investWd2  = selETF ? Math.max(0.5, selETF.divYield + randn() * sigmaDiv * 0.5) : wd2;
+      const investWdc2 = selETF ? Math.max(0, 5 + randn() * sigmaDiv) : wdc2;
+      const da2        = (investWd2/100)*Math.pow(1+investWdc2/100,T)*taxFactor;
       if (mode === 'monthly') {
         const af2 = r2 > 0 ? ((Math.pow(1+r2,T)-1)/r2) : T;
         mcResults.push(gap2 > 0 && af2 > 0 && da2 > 0 ? Math.ceil((gap2*12)/(12*af2*da2)/10000)*10000 : 0);
@@ -4154,7 +4153,7 @@
              </button>` : ''}
            </div>
          </div>
-         <div style="margin-top:12px;font-size:11px;color:#4b5563;">※ ${afterTax?'세후(배당소득세 15.4%) 기준':'세전 기준'} · ${selETF ? `<b style="color:#f59e0b">${selETF.name}(${selETF.divYield.toFixed(1)}%)</b> 배당률 기준 · 배당CAGR 5% / 주가CAGR 7% 가정` : `포트폴리오 가중평균 주가CAGR ${wtPriceCagr.toFixed(1)}% / 배당CAGR ${wtDivCagr.toFixed(1)}% 적용`}</div>`;
+         <div style="margin-top:12px;font-size:11px;color:#4b5563;">※ ${afterTax?'세후(배당소득세 15.4%) 기준':'세전 기준'} · ${selETF ? `<b style="color:#f59e0b">${selETF.name}(${selETF.divYield.toFixed(1)}%)</b> 배당률 기준 · 배당CAGR 5% / 주가CAGR 7% 가정` : `포트폴리오 가중평균 주가CAGR ${wtPriceCagr.toFixed(1)}% / 배당CAGR ${wtDivCagr.toFixed(1)}% 적용`}${noHoldings ? ' · <span style="color:#f59e0b">보유 종목 없음 — 전액 신규 투자 기준</span>' : ''}</div>`;
     resultEl.style.display = 'block';
     resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
