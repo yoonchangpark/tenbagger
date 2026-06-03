@@ -4423,8 +4423,8 @@
 
   function mhWhatIfCompare() {
     const baseHoldings = mhSimGetInputs();
-    if (baseHoldings.length === 0) { showToast('먼저 보유현황 탭에서 종목을 추가하세요.', 'warn'); return; }
     if (_mhWhatIfHoldings.length === 0) { showToast('비교할 종목을 추가하세요.', 'warn'); return; }
+    const noBase = baseHoldings.length === 0;
 
     const years    = _mhSimHoldYears;
     const combined = [...baseHoldings, ..._mhWhatIfHoldings];
@@ -4438,25 +4438,26 @@
     if (!resultEl) return;
     resultEl.innerHTML = `
       <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
-        <div style="font-size:13px;font-weight:700;color:#a78bfa;margin-bottom:12px;">📊 비교 결과 (${_mhWhatIfHoldings.map(h=>h.name).join(', ')} 추가 시)</div>
+        ${noBase ? `<div style="margin-bottom:10px;padding:8px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;font-size:11px;color:#f59e0b;">💡 보유 종목 없음 — 가상 종목만의 투자 시뮬레이션입니다</div>` : ''}
+        <div style="font-size:13px;font-weight:700;color:#a78bfa;margin-bottom:12px;">📊 ${noBase ? '투자 시뮬레이션' : '비교 결과'} (${_mhWhatIfHoldings.map(h=>h.name).join(', ')} 기준)</div>
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
             <thead><tr style="background:var(--surface2);">
               <th style="padding:8px 12px;text-align:center;font-size:11px;color:#6b7280;">시점</th>
-              <th style="padding:8px 12px;text-align:right;font-size:11px;color:#60a5fa;">현재 포트폴리오</th>
-              <th style="padding:8px 12px;text-align:right;font-size:11px;color:#a78bfa;">+ ${_mhWhatIfHoldings.map(h=>h.name).join('·')}</th>
-              <th style="padding:8px 12px;text-align:right;font-size:11px;color:#10b981;">추가 효과</th>
+              ${noBase ? '' : `<th style="padding:8px 12px;text-align:right;font-size:11px;color:#60a5fa;">현재 포트폴리오</th>`}
+              <th style="padding:8px 12px;text-align:right;font-size:11px;color:#a78bfa;">${noBase ? '예상 포트폴리오 가치' : '+ ' + _mhWhatIfHoldings.map(h=>h.name).join('·')}</th>
+              ${noBase ? '' : `<th style="padding:8px 12px;text-align:right;font-size:11px;color:#10b981;">추가 효과</th>`}
             </tr></thead>
             <tbody>` +
       checkYrs.map(n => {
-        const b = baseY[n], c = newY[n];
+        const b = baseY[n] ?? { value: 0, dividend: 0 }, c = newY[n] ?? { value: 0, dividend: 0 };
         const diff = c.value - b.value;
         const diffDiv = c.dividend - b.dividend;
         return `<tr style="border-bottom:1px solid var(--border);">
           <td style="padding:8px 12px;text-align:center;font-size:12px;color:#6b7280;">${n}년 후</td>
-          <td style="padding:8px 12px;text-align:right;"><div style="font-size:13px;font-weight:600;color:#60a5fa;">${simFmtWon(b.value)}</div><div style="font-size:11px;color:#6b7280;">연배당 ${simFmtWon(b.dividend)}</div></td>
+          ${noBase ? '' : `<td style="padding:8px 12px;text-align:right;"><div style="font-size:13px;font-weight:600;color:#60a5fa;">${simFmtWon(b.value)}</div><div style="font-size:11px;color:#6b7280;">연배당 ${simFmtWon(b.dividend)}</div></td>`}
           <td style="padding:8px 12px;text-align:right;"><div style="font-size:13px;font-weight:600;color:#a78bfa;">${simFmtWon(c.value)}</div><div style="font-size:11px;color:#6b7280;">연배당 ${simFmtWon(c.dividend)}</div></td>
-          <td style="padding:8px 12px;text-align:right;"><div style="font-size:13px;font-weight:700;color:#10b981;">+${simFmtWon(diff)}</div><div style="font-size:11px;color:#10b981;">+${simFmtWon(diffDiv)}/년</div></td>
+          ${noBase ? '' : `<td style="padding:8px 12px;text-align:right;"><div style="font-size:13px;font-weight:700;color:#10b981;">+${simFmtWon(diff)}</div><div style="font-size:11px;color:#10b981;">+${simFmtWon(diffDiv)}/년</div></td>`}
         </tr>`;
       }).join('') +
       `</tbody></table></div>
@@ -4613,7 +4614,13 @@
   function mhSimRun() {
     const holdings = mhSimGetInputs();
     if (holdings.length === 0) {
-      showToast('먼저 보유 종목을 추가해주세요.', 'warn');
+      const resultEl = document.getElementById('mhSimResult');
+      if (resultEl) {
+        resultEl.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">
+          📋 보유현황 탭에서 종목을 추가하면 자동으로 시뮬레이션됩니다.
+        </div>`;
+        resultEl.style.display = 'block';
+      }
       return;
     }
     _mhSimLastHoldings = holdings;   // 비교 시뮬레이터용 캐시
