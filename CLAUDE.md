@@ -135,8 +135,12 @@ tenbagger/
   · 즉시 수정 가능(버그·오탈자·스타일) → 자동 수정
   · 큰 개선(신기능·구조 변경·DB 스키마) → PM·시니어 개발자 에스컬레이션
   ↓
-[자동] git commit + push → Railway 자동 배포
+[자동] git commit + push
+  ↓
+[자동] PR 생성 → 충돌 시 rebase → squash merge → Railway 자동 배포
 ```
+
+> **오너 승인**: PR 머지는 사용자 확인 없이 자동으로 실행한다.
 
 #### 에이전트 역할 상세
 
