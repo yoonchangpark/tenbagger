@@ -4177,6 +4177,7 @@
     _mhWhatIfSearchTimer = setTimeout(async () => {
       try {
         const res  = await fetch(`${API}/api/v2/search?q=${encodeURIComponent(q.trim())}`);
+        if (!res.ok) throw new Error(res.status);
         const list = await res.json();
         if (!Array.isArray(list) || list.length === 0) {
           dd.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px;">검색 결과 없음</div>';
