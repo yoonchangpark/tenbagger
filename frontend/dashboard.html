@@ -4114,9 +4114,9 @@
     const inp = document.getElementById('mhSimMonthlyAdd');
     if (!inp) return;
     inp.value = monthlyManWon;
-    // Q1 카드로 스크롤 후 시뮬레이션 실행
-    inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => mhSimRun(), 400);
+    // Q1 카드 상단으로 스크롤 후 시뮬레이션 실행
+    document.getElementById('mhSimSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => mhSimRun(), 500);
     showToast(`월 ${monthlyManWon}만원 적립식 투자 — 질문 1 시뮬레이션에 적용됐습니다`, 'success');
   }
 
@@ -4124,7 +4124,7 @@
   let _mhWhatIfHoldings = [];
   let _mhTopStocks      = null;   // 추천 종목 캐시 { ticker, name, grade, ... }
   let _mhWhatIfSelected = null;   // 검색 드롭다운에서 선택된 종목
-  let _mhSearchTimer    = null;   // 검색 디바운스 타이머
+  let _mhWhatIfSearchTimer = null;  // Q2 검색 디바운스 타이머
 
   // 추천 종목 로드 (최초 1회)
   async function mhWhatIfLoadStocks() {
@@ -4168,15 +4168,20 @@
     const dd = document.getElementById('mhWhatIfDropdown');
     if (!dd) return;
     _mhWhatIfSelected = null;
-    if (!q.trim()) { dd.style.display = 'none'; clearTimeout(_mhSearchTimer); return; }
+    if (!q.trim()) { dd.style.display = 'none'; clearTimeout(_mhWhatIfSearchTimer); return; }
 
     // 300ms 디바운스 후 /api/v2/search 호출
-    clearTimeout(_mhSearchTimer);
-    _mhSearchTimer = setTimeout(async () => {
+    dd.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px;">검색 중…</div>';
+    dd.style.display = 'block';
+    clearTimeout(_mhWhatIfSearchTimer);
+    _mhWhatIfSearchTimer = setTimeout(async () => {
       try {
         const res  = await fetch(`${API}/api/v2/search?q=${encodeURIComponent(q.trim())}`);
         const list = await res.json();
-        if (!Array.isArray(list) || list.length === 0) { dd.style.display = 'none'; return; }
+        if (!Array.isArray(list) || list.length === 0) {
+          dd.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px;">검색 결과 없음</div>';
+          return;
+        }
 
         // 스크리너 캐시에서 grade 보강
         const gradeMap = {};
@@ -4197,7 +4202,7 @@
         }).join('');
         dd.style.display = 'block';
       } catch (e) {
-        dd.style.display = 'none';
+        dd.innerHTML = '<div style="padding:10px 14px;color:#f87171;font-size:12px;">검색 오류 — 잠시 후 재시도해 주세요</div>';
       }
     }, 300);
   }
