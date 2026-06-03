@@ -54,10 +54,33 @@
     .toggle-btn.grade-WATCHLIST.active { border-color: var(--yellow); color: #fbbf24; background: rgba(245,158,11,.1); }
     .toggle-btn.grade-AVOID.active { border-color: var(--red); color: #f87171; background: rgba(239,68,68,.1); }
 
+    /* 섹터 버튼 */
+    .toggle-btn.sector-growth { border-color: rgba(16,185,129,.35); color: #10b981; }
+    .toggle-btn.sector-growth.active { border-color: #10b981; color: #10b981; background: rgba(16,185,129,.15); }
+    .toggle-btn.sector-cycle { border-color: rgba(245,158,11,.35); color: #f59e0b; }
+    .toggle-btn.sector-cycle.active { border-color: #f59e0b; color: #f59e0b; background: rgba(245,158,11,.12); }
+    .toggle-btn.sector-normal.active { border-color: #a78bfa; color: #a78bfa; background: rgba(139,92,246,.1); }
+
     /* 슬라이더 */
     .slider-row { display: flex; align-items: center; gap: 10px; }
     .slider-row input[type=range] { flex: 1; accent-color: var(--purple); }
     .slider-display { font-size: 13px; font-weight: 700; color: var(--purple); min-width: 44px; text-align: right; }
+
+    /* 매크로 슬라이더 */
+    .macro-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .macro-label { font-size: 11px; color: var(--muted); min-width: 52px; font-weight: 600; }
+    .macro-row input[type=range] { flex: 1; height: 4px; }
+    .macro-val { font-size: 11px; font-weight: 700; min-width: 28px; text-align: right; }
+    .macro-val.pos { color: var(--green); }
+    .macro-val.neg { color: var(--red); }
+    .macro-val.neu { color: var(--muted); }
+    .macro-hint { font-size: 10px; color: #4b5563; line-height: 1.5; margin-top: 6px; }
+    .macro-boost-banner {
+      margin-top: 8px; padding: 8px 12px; background: rgba(16,185,129,.08);
+      border: 1px solid rgba(16,185,129,.2); border-radius: 8px;
+      font-size: 11px; color: #6ee7b7; line-height: 1.6; display: none;
+    }
+    .macro-boost-banner.visible { display: block; }
 
     /* 실행 버튼 */
     .run-btn {
@@ -76,11 +99,27 @@
     .results-count strong { color: var(--text); font-size: 18px; }
 
     /* 요약 카드 */
-    .summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
     .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; text-align: center; }
     .summary-card .s-grade { font-size: 11px; font-weight: 700; margin-bottom: 4px; }
     .summary-card .s-count { font-size: 24px; font-weight: 800; }
     .summary-card .s-avg { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* 섹터 분포 요약 */
+    .sector-summary { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; align-items: center; }
+    .sector-summary-label { font-size: 11px; color: var(--muted); font-weight: 700; white-space: nowrap; }
+    .sector-pill { display: flex; align-items: center; gap: 4px; padding: 3px 9px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .sector-pill:hover { border-color: var(--purple); color: #a78bfa; }
+    .sector-pill.active-pill { border-color: #a78bfa; background: rgba(139,92,246,.1); color: #a78bfa; }
+    .sector-pill .sp-count { color: #a78bfa; font-weight: 800; }
+    .sector-growth-count { font-size: 11px; color: #10b981; font-weight: 700; white-space: nowrap; }
+    .sector-cycle-count { font-size: 11px; color: #f59e0b; font-weight: 700; white-space: nowrap; }
+
+    /* 섹터 칩 & 태그 */
+    .sector-chip { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 10px; font-weight: 700; background: rgba(139,92,246,.1); color: #a78bfa; }
+    .tag-growth { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(16,185,129,.15); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
+    .tag-cycle  { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
+    .macro-boost-badge { display: inline-block; padding: 1px 5px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(16,185,129,.15); color: #34d399; border: 1px solid rgba(16,185,129,.3); }
 
     /* 테이블 */
     .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -91,7 +130,7 @@
       background: var(--surface2); border-bottom: 1px solid var(--border);
       cursor: pointer; user-select: none; white-space: nowrap;
     }
-    .table-wrap th:first-child { text-align: left; }
+    .table-wrap th:first-child, .table-wrap th.left { text-align: left; }
     .table-wrap th:hover { color: var(--text); }
     .table-wrap th.sorted { color: var(--blue); }
     .table-wrap td { padding: 12px 16px; text-align: right; border-bottom: 1px solid rgba(55,65,81,.4); }
@@ -109,7 +148,7 @@
 
     /* 점수 바 */
     .score-bar-wrap { display: flex; align-items: center; gap: 8px; }
-    .score-bar-bg { flex: 1; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+    .score-bar-bg { flex: 1; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; min-width: 40px; }
     .score-bar-fill { height: 100%; border-radius: 2px; }
 
     /* 빈 상태 */
@@ -121,6 +160,9 @@
     .spinner { width: 28px; height: 28px; border: 3px solid rgba(99,102,241,.2); border-top-color: #818cf8; border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 10px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .loading-overlay { text-align: center; padding: 60px; }
+
+    /* NEW 배지 */
+    .new-badge { display: inline-block; padding: 1px 5px; background: rgba(16,185,129,.2); color: #10b981; border-radius: 4px; font-size: 9px; font-weight: 800; margin-left: 4px; vertical-align: middle; }
 
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
@@ -177,6 +219,27 @@
     </div>
 
     <div class="filter-group">
+      <label>업종 (섹터) <span class="new-badge">NEW</span></label>
+      <div class="btn-group" id="sectorGroup">
+        <button class="toggle-btn active" data-sector="전체" onclick="selectSector(this)">전체</button>
+        <button class="toggle-btn sector-growth" data-sector="구조적성장" onclick="selectSector(this)">🚀 구조적성장</button>
+        <button class="toggle-btn sector-cycle" data-sector="사이클주" onclick="selectSector(this)">🔄 사이클주</button>
+        <button class="toggle-btn sector-normal" data-sector="반도체" onclick="selectSector(this)">반도체</button>
+        <button class="toggle-btn sector-normal" data-sector="2차전지" onclick="selectSector(this)">2차전지</button>
+        <button class="toggle-btn sector-normal" data-sector="바이오" onclick="selectSector(this)">바이오</button>
+        <button class="toggle-btn sector-normal" data-sector="자동차" onclick="selectSector(this)">자동차</button>
+        <button class="toggle-btn sector-normal" data-sector="금융" onclick="selectSector(this)">금융</button>
+        <button class="toggle-btn sector-normal" data-sector="IT·소프트웨어" onclick="selectSector(this)">IT·SW</button>
+        <button class="toggle-btn sector-normal" data-sector="철강·소재" onclick="selectSector(this)">철강·소재</button>
+        <button class="toggle-btn sector-normal" data-sector="에너지" onclick="selectSector(this)">에너지</button>
+        <button class="toggle-btn sector-normal" data-sector="유통·소비재" onclick="selectSector(this)">유통·소비재</button>
+        <button class="toggle-btn sector-normal" data-sector="통신" onclick="selectSector(this)">통신</button>
+        <button class="toggle-btn sector-normal" data-sector="조선·중공업" onclick="selectSector(this)">조선</button>
+        <button class="toggle-btn sector-normal" data-sector="기타" onclick="selectSector(this)">기타</button>
+      </div>
+    </div>
+
+    <div class="filter-group">
       <label>최소 종합점수 <span id="minScoreDisplay" style="color:var(--purple)">0점</span></label>
       <div class="slider-row">
         <input type="range" id="minScore" min="0" max="9" value="0" step="0.5"
@@ -227,6 +290,43 @@
       </div>
     </div>
 
+    <!-- 매크로 탑다운 -->
+    <div class="filter-group">
+      <label>📡 매크로 환경 <span class="new-badge">NEW</span></label>
+      <div class="macro-row">
+        <span class="macro-label">금리</span>
+        <input type="range" id="macro-rate" min="-2" max="2" value="0" step="1"
+               oninput="updateMacro('rate', this.value)" style="accent-color:#ef4444">
+        <span class="macro-val neu" id="mv-rate">중립</span>
+      </div>
+      <div class="macro-row">
+        <span class="macro-label">달러</span>
+        <input type="range" id="macro-dollar" min="-2" max="2" value="0" step="1"
+               oninput="updateMacro('dollar', this.value)" style="accent-color:#f59e0b">
+        <span class="macro-val neu" id="mv-dollar">중립</span>
+      </div>
+      <div class="macro-row">
+        <span class="macro-label">경기사이클</span>
+        <input type="range" id="macro-economy" min="-2" max="2" value="0" step="1"
+               oninput="updateMacro('economy', this.value)" style="accent-color:#10b981">
+        <span class="macro-val neu" id="mv-economy">중립</span>
+      </div>
+      <div class="macro-row">
+        <span class="macro-label">유동성</span>
+        <input type="range" id="macro-liquidity" min="-2" max="2" value="0" step="1"
+               oninput="updateMacro('liquidity', this.value)" style="accent-color:#3b82f6">
+        <span class="macro-val neu" id="mv-liquidity">중립</span>
+      </div>
+      <div class="macro-row">
+        <span class="macro-label">지정학</span>
+        <input type="range" id="macro-geo" min="-2" max="2" value="0" step="1"
+               oninput="updateMacro('geo', this.value)" style="accent-color:#8b5cf6">
+        <span class="macro-val neu" id="mv-geo">중립</span>
+      </div>
+      <div class="macro-hint">-2 악화 / 0 중립 / +2 호조<br>매크로 환경에 유리한 섹터가 강조됩니다.</div>
+      <div class="macro-boost-banner" id="macroBanner"></div>
+    </div>
+
     <div class="filter-group">
       <label>결과 개수 <span id="limitDisplay" style="color:var(--purple)">50개</span></label>
       <div class="slider-row">
@@ -246,13 +346,16 @@
   <!-- 결과 패널 -->
   <main class="results-panel">
 
-    <!-- 요약 통계 -->
+    <!-- 등급별 요약 카드 -->
     <div class="summary-grid" id="summaryGrid">
       <div class="summary-card"><div class="s-grade" style="color:#10b981">✨ TENBAGGER</div><div class="s-count" id="cnt-TENBAGGER">-</div><div class="s-avg" id="avg-TENBAGGER"></div></div>
       <div class="summary-card"><div class="s-grade" style="color:#60a5fa">💙 COMPOUNDER</div><div class="s-count" id="cnt-COMPOUNDER">-</div><div class="s-avg" id="avg-COMPOUNDER"></div></div>
       <div class="summary-card"><div class="s-grade" style="color:#fbbf24">🌟 WATCHLIST</div><div class="s-count" id="cnt-WATCHLIST">-</div><div class="s-avg" id="avg-WATCHLIST"></div></div>
       <div class="summary-card"><div class="s-grade" style="color:#f87171">🚫 AVOID</div><div class="s-count" id="cnt-AVOID">-</div><div class="s-avg" id="avg-AVOID"></div></div>
     </div>
+
+    <!-- 섹터 분포 요약 -->
+    <div class="sector-summary" id="sectorSummary" style="display:none"></div>
 
     <div class="results-header">
       <div class="results-count">검색 결과: <strong id="resultCount">-</strong> 종목</div>
@@ -284,38 +387,155 @@
   let selectedGrades = new Set(["TENBAGGER", "COMPOUNDER", "WATCHLIST"]);
   let selectedMarket = "전체";
   let selectedSort = "total_score";
+  let selectedSector = "전체";
   let _debounceTimer = null;
+  let _lastResults = [];
+  let macroState = { rate: 0, dollar: 0, economy: 0, liquidity: 0, geo: 0 };
+
+  // 섹터 × 매크로 가중치 테이블
+  // rate(금리): 인하(+)=성장주유리, 인상(-)=금융유리
+  // dollar(달러): 강세(+)=수출주유리, 약세(-)=내수/성장유리
+  // economy(경기): 호조(+)=경기민감, 침체(-)=방어주유리
+  // liquidity(유동성): 확대(+)=성장주유리
+  // geo(지정학): 긴장(+)=에너지/방산유리
+  const MACRO_SECTOR_W = {
+    "반도체":       { rate:-0.5, dollar:+0.4, economy:+0.7, liquidity:+0.5, geo:-0.5 },
+    "2차전지":      { rate:-0.3, dollar:-0.2, economy:+0.5, liquidity:+0.4, geo:-0.3 },
+    "바이오":       { rate:-0.6, dollar:+0.1, economy:+0.2, liquidity:+0.6, geo: 0   },
+    "자동차":       { rate:-0.3, dollar:+0.5, economy:+0.7, liquidity:+0.2, geo:-0.4 },
+    "금융":         { rate:+0.8, dollar:+0.3, economy:+0.4, liquidity:-0.3, geo:-0.2 },
+    "IT·소프트웨어":{ rate:-0.5, dollar:+0.2, economy:+0.4, liquidity:+0.7, geo: 0   },
+    "철강·소재":    { rate:-0.2, dollar:+0.5, economy:+0.6, liquidity: 0,   geo:-0.3 },
+    "에너지":       { rate:+0.2, dollar:+0.4, economy:+0.3, liquidity: 0,   geo:+0.8 },
+    "유통·소비재":  { rate:-0.2, dollar: 0,   economy:-0.3, liquidity:+0.1, geo:-0.1 },
+    "통신":         { rate:+0.3, dollar: 0,   economy:-0.2, liquidity: 0,   geo:-0.1 },
+    "조선·중공업":  { rate:-0.1, dollar:+0.4, economy:+0.5, liquidity:+0.1, geo:+0.5 },
+    "기타":         { rate: 0,   dollar: 0,   economy: 0,   liquidity: 0,   geo: 0   },
+  };
+
+  const MACRO_LABELS = {
+    rate:      { pos: "금리↑", neg: "금리↓" },
+    dollar:    { pos: "달러강세", neg: "달러약세" },
+    economy:   { pos: "경기호조", neg: "경기침체" },
+    liquidity: { pos: "유동성확대", neg: "유동성축소" },
+    geo:       { pos: "지정학긴장", neg: "지정학완화" },
+  };
 
   function debounceRun() {
     clearTimeout(_debounceTimer);
-    _debounceTimer = setTimeout(runScreener, 500); // 슬라이더: 0.5초 후 실행
+    _debounceTimer = setTimeout(runScreener, 500);
   }
 
   function toggleGrade(btn) {
     const g = btn.dataset.grade;
     if (selectedGrades.has(g)) {
-      if (selectedGrades.size === 1) return; // 최소 1개 유지
+      if (selectedGrades.size === 1) return;
       selectedGrades.delete(g);
       btn.classList.remove("active");
     } else {
       selectedGrades.add(g);
       btn.classList.add("active");
     }
-    runScreener(); // 자동 재검색
+    runScreener();
   }
 
   function selectMarket(btn) {
     document.querySelectorAll("#marketGroup .toggle-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     selectedMarket = btn.dataset.market;
-    runScreener(); // 자동 재검색
+    runScreener();
   }
 
   function selectSort(btn) {
     document.querySelectorAll("[data-sort]").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     selectedSort = btn.dataset.sort;
-    runScreener(); // 자동 재검색
+    runScreener();
+  }
+
+  function selectSector(btn) {
+    document.querySelectorAll("#sectorGroup .toggle-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedSector = btn.dataset.sector;
+    applyFiltersAndRender();
+  }
+
+  function updateMacro(key, val) {
+    macroState[key] = parseInt(val);
+    const el = document.getElementById(`mv-${key}`);
+    const v = parseInt(val);
+    if (v > 0) {
+      el.textContent = `+${v} ${MACRO_LABELS[key].pos}`;
+      el.className = "macro-val pos";
+    } else if (v < 0) {
+      el.textContent = `${v} ${MACRO_LABELS[key].neg}`;
+      el.className = "macro-val neg";
+    } else {
+      el.textContent = "중립";
+      el.className = "macro-val neu";
+    }
+    updateMacroBanner();
+    applyFiltersAndRender();
+  }
+
+  function getMacroBoost(sector) {
+    const w = MACRO_SECTOR_W[sector] || MACRO_SECTOR_W["기타"];
+    return (
+      macroState.rate      * w.rate +
+      macroState.dollar    * w.dollar +
+      macroState.economy   * w.economy +
+      macroState.liquidity * w.liquidity +
+      macroState.geo       * w.geo
+    );
+  }
+
+  function isMacroActive() {
+    return Object.values(macroState).some(v => v !== 0);
+  }
+
+  function updateMacroBanner() {
+    const banner = document.getElementById("macroBanner");
+    if (!isMacroActive()) { banner.classList.remove("visible"); return; }
+
+    // 섹터별 부스트 계산해서 상위 3개 추천
+    const sectors = Object.keys(MACRO_SECTOR_W).filter(s => s !== "기타");
+    const scored = sectors.map(s => ({ sector: s, boost: getMacroBoost(s) }))
+      .sort((a, b) => b.boost - a.boost);
+    const top = scored.filter(s => s.boost > 0).slice(0, 3);
+    const bot = scored.filter(s => s.boost < 0).slice(-2).reverse();
+
+    let html = "";
+    if (top.length) html += `<b>유리한 섹터:</b> ${top.map(s => `${s.sector}(+${s.boost.toFixed(1)})`).join(", ")}<br>`;
+    if (bot.length) html += `<b>불리한 섹터:</b> ${bot.map(s => `${s.sector}(${s.boost.toFixed(1)})`).join(", ")}`;
+    banner.innerHTML = html;
+    banner.classList.add("visible");
+  }
+
+  function applyFiltersAndRender() {
+    if (!_lastResults.length) return;
+
+    let filtered = _lastResults;
+
+    // 섹터 필터 (클라이언트 사이드)
+    if (selectedSector === "구조적성장") {
+      filtered = filtered.filter(c => c.growth_tag === "구조적성장");
+    } else if (selectedSector === "사이클주") {
+      filtered = filtered.filter(c => c.growth_tag === "사이클주");
+    } else if (selectedSector !== "전체") {
+      filtered = filtered.filter(c => c.sector === selectedSector);
+    }
+
+    // 매크로 부스트 적용 시 재정렬
+    if (isMacroActive()) {
+      filtered = filtered.map(c => ({
+        ...c,
+        _macroBoost: getMacroBoost(c.sector || "기타"),
+      })).sort((a, b) => (b.total_score + b._macroBoost * 0.3) - (a.total_score + a._macroBoost * 0.3));
+    }
+
+    document.getElementById("resultCount").textContent = filtered.length;
+    renderSectorSummary(filtered);
+    renderTable(filtered);
   }
 
   // 스크리너 실행
@@ -342,7 +562,6 @@
     if (selectedMarket !== "전체") params.append("market", selectedMarket);
 
     try {
-      // 결과 + 요약 병렬 요청
       const [res, sumRes] = await Promise.all([
         fetch(`${API}/api/screener?${params}`),
         fetch(`${API}/api/screener/summary`),
@@ -353,8 +572,8 @@
       const sumData = sumRes.ok ? await sumRes.json() : null;
 
       renderSummary(sumData);
-      renderTable(data.companies);
-      document.getElementById("resultCount").textContent = data.total;
+      _lastResults = data.companies;
+      applyFiltersAndRender();
 
     } catch (e) {
       document.getElementById("tableArea").innerHTML = `
@@ -379,6 +598,46 @@
     });
   }
 
+  function renderSectorSummary(companies) {
+    const el = document.getElementById("sectorSummary");
+    if (!companies.length) { el.style.display = "none"; return; }
+
+    const counts = {};
+    let growthCount = 0, cycleCount = 0;
+    companies.forEach(c => {
+      const s = c.sector || "기타";
+      counts[s] = (counts[s] || 0) + 1;
+      if (c.growth_tag === "구조적성장") growthCount++;
+      if (c.growth_tag === "사이클주") cycleCount++;
+    });
+
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    let html = `<span class="sector-summary-label">섹터 분포</span>`;
+    sorted.forEach(([sector, cnt]) => {
+      const isActive = selectedSector === sector;
+      html += `<div class="sector-pill${isActive ? " active-pill" : ""}" onclick="pillSelectSector('${sector}')">
+        <span>${sector}</span><span class="sp-count">${cnt}</span>
+      </div>`;
+    });
+    if (growthCount > 0) html += `<span class="sector-growth-count">🚀 구조적성장 ${growthCount}개</span>`;
+    if (cycleCount > 0) html += `<span class="sector-cycle-count">🔄 사이클주 ${cycleCount}개</span>`;
+
+    el.innerHTML = html;
+    el.style.display = "flex";
+  }
+
+  function pillSelectSector(sector) {
+    if (selectedSector === sector) {
+      selectedSector = "전체";
+    } else {
+      selectedSector = sector;
+    }
+    document.querySelectorAll("#sectorGroup .toggle-btn").forEach(b => {
+      b.classList.toggle("active", b.dataset.sector === selectedSector);
+    });
+    applyFiltersAndRender();
+  }
+
   function renderTable(companies) {
     if (!companies.length) {
       document.getElementById("tableArea").innerHTML = `
@@ -396,13 +655,22 @@
     };
     const fmtNum = (v, suffix = "") => v != null ? v.toFixed(1) + suffix : "-";
     const fmtPrice = (v) => v ? "₩" + Math.round(v / 1e8).toLocaleString() + "억" : "-";
+    const macroOn = isMacroActive();
 
     const rows = companies.map(c => {
       const color = scoreBarColor(c.total_score);
+      const growthTag = c.growth_tag === "구조적성장"
+        ? `<span class="tag-growth">🚀 구조적성장</span>` : "";
+      const cycleTag = c.growth_tag === "사이클주"
+        ? `<span class="tag-cycle">🔄 사이클주</span>` : "";
+      const boost = macroOn ? (c._macroBoost || getMacroBoost(c.sector || "기타")) : 0;
+      const boostBadge = macroOn && boost > 0.3
+        ? `<span class="macro-boost-badge">📡 +${boost.toFixed(1)}</span>` : "";
+
       return `
-        <tr onclick="location.href='index.html?ticker=${c.ticker}'" title="${c.name} 세부 분석 보기">
+        <tr onclick="location.href='index.html?ticker=${encodeURIComponent(c.ticker)}'" title="${c.name} 세부 분석 보기">
           <td>
-            <div style="font-weight:700;margin-bottom:2px;">${c.name}</div>
+            <div style="font-weight:700;margin-bottom:2px;">${c.name} ${boostBadge}</div>
             <div style="font-size:11px;color:#6b7280">${c.ticker} · ${c.market || ""}</div>
           </td>
           <td>
@@ -412,6 +680,10 @@
             </div>
           </td>
           <td><span class="grade grade-${c.grade}">${c.grade}</span></td>
+          <td style="text-align:left">
+            <div><span class="sector-chip">${c.sector || "기타"}</span></div>
+            <div style="margin-top:3px">${growthTag}${cycleTag}</div>
+          </td>
           <td class="${(c.growth_score||0)>=7?"pos":""}">${fmtNum(c.growth_score)}</td>
           <td>${fmtNum(c.stability_score)}</td>
           <td>${fmtNum(c.cashflow_score)}</td>
@@ -430,6 +702,7 @@
               <th style="text-align:left">종목명</th>
               <th onclick="reSort('total_score')">종합점수 ↕</th>
               <th>등급</th>
+              <th class="left">업종</th>
               <th onclick="reSort('growth_score')">성장 ↕</th>
               <th onclick="reSort('stability_score')">안정성 ↕</th>
               <th onclick="reSort('cashflow_score')">현금흐름 ↕</th>
@@ -451,7 +724,7 @@
   }
 
   window.addEventListener("load", () => {
-    runScreener(); // 페이지 로드 시 자동 실행
+    runScreener();
   });
 </script>
 
