@@ -8,6 +8,38 @@ from app.infra.repositories.company_repo import query_scores
 
 router = APIRouter(prefix="/api/screener", tags=["Screener"])
 
+# 섹터 키워드 매핑 (committee.py와 동일 로직)
+_SECTOR_MAP = {
+    "반도체":      ["반도체", "메모리", "파운드리", "DRAM", "낸드"],
+    "2차전지":     ["배터리", "2차전지", "양극재", "음극재", "전해질", "셀"],
+    "바이오":      ["바이오", "제약", "신약", "헬스케어", "진단", "치료"],
+    "자동차":      ["자동차", "모빌리티", "EV", "완성차", "부품"],
+    "금융":        ["은행", "증권", "보험", "금융", "캐피탈"],
+    "IT·소프트웨어": ["소프트웨어", "IT", "플랫폼", "클라우드", "AI", "게임"],
+    "철강·소재":   ["철강", "포스코", "화학", "소재", "비철"],
+    "에너지":      ["에너지", "발전", "원전", "태양광", "풍력", "가스", "석유"],
+    "유통·소비재": ["유통", "백화점", "마트", "식품", "음료", "화장품"],
+    "통신":        ["통신", "5G", "텔레콤"],
+    "조선·중공업": ["조선", "중공업", "해운", "선박"],
+}
+
+
+def _infer_sector(name: str) -> str:
+    for sector, kws in _SECTOR_MAP.items():
+        if any(kw in name for kw in kws):
+            return sector
+    return "기타"
+
+
+def _growth_tag(r: dict) -> str:
+    rcagr = r.get("revenue_cagr_5y") or 0
+    gscore = r.get("growth_score") or 0
+    if rcagr > 15 and gscore > 7.0:
+        return "구조적성장"
+    if rcagr < 5 and gscore < 6.0:
+        return "사이클주"
+    return ""
+
 
 @router.get("")
 def screen_companies(
@@ -23,6 +55,7 @@ def screen_companies(
     """
     DB에 저장된 스코어 중 조건에 맞는 종목 필터링 반환
     ETL 실행 후 데이터가 쌓여야 의미있는 결과가 나옵니다.
+    각 종목에 sector(업종), growth_tag(구조적성장/사이클주) 필드가 포함됩니다.
     """
     grades = [g.strip() for g in grade.split(",")] if grade else None
 
@@ -37,10 +70,11 @@ def screen_companies(
         limit=limit,
     )
 
-    # datetime 직렬화
     for r in results:
         if r.get("analyzed_at"):
             r["analyzed_at"] = str(r["analyzed_at"])
+        r["sector"] = _infer_sector(r.get("name", ""))
+        r["growth_tag"] = _growth_tag(r)
 
     return {
         "total": len(results),
