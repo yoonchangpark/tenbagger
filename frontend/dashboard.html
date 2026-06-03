@@ -4162,9 +4162,11 @@
     const inp = document.getElementById('mhSimMonthlyAdd');
     if (!inp) return;
     inp.value = monthlyManWon;
-    // Q1 카드 상단으로 스크롤 후 시뮬레이션 실행
     document.getElementById('mhSimSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => mhSimRun(), 500);
+    // 보유 종목 있을 때만 자동 실행, 없으면 값만 세팅
+    if (mhSimGetInputs().length > 0) {
+      setTimeout(() => mhSimRun(), 500);
+    }
     showToast(`월 ${monthlyManWon}만원 적립식 투자 — 질문 1 시뮬레이션에 적용됐습니다`, 'success');
   }
 
