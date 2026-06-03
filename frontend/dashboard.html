@@ -4099,6 +4099,10 @@
                <div style="font-size:10px;color:#9ca3af;margin-bottom:4px;">Monte Carlo 범위 (30%~70%ile)</div>
                <div style="font-size:12px;color:#a78bfa;font-weight:700;">${Math.round(p30/10000)}만원 ~ ${Math.round(p70/10000)}만원<span style="font-size:10px;color:var(--muted);">/월</span></div>
              </div>
+             ${needMonthly > 0 ? `<button onclick="mhGoalApplyToQ1(${Math.round(needMonthly/10000)})"
+               style="margin-top:12px;width:100%;padding:8px;background:rgba(16,185,129,.2);border:1px solid rgba(16,185,129,.5);border-radius:8px;color:#10b981;font-size:12px;font-weight:700;cursor:pointer;">
+               → 질문 1에 적용하기
+             </button>` : ''}
            </div>
          </div>
          <div style="margin-top:12px;font-size:11px;color:#4b5563;">※ ${afterTax?'세후(배당소득세 15.4%) 기준':'세전 기준'} · 포트폴리오 가중평균 주가CAGR ${wtPriceCagr.toFixed(1)}% / 배당CAGR ${wtDivCagr.toFixed(1)}% 적용</div>`;
@@ -4106,10 +4110,21 @@
     resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
+  function mhGoalApplyToQ1(monthlyManWon) {
+    const inp = document.getElementById('mhSimMonthlyAdd');
+    if (!inp) return;
+    inp.value = monthlyManWon;
+    // Q1 카드 상단으로 스크롤 후 시뮬레이션 실행
+    document.getElementById('mhSimSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => mhSimRun(), 500);
+    showToast(`월 ${monthlyManWon}만원 적립식 투자 — 질문 1 시뮬레이션에 적용됐습니다`, 'success');
+  }
+
   // ── 가상 종목 추가 시뮬레이션 (질문 2) ──────────────────────────────────
   let _mhWhatIfHoldings = [];
   let _mhTopStocks      = null;   // 추천 종목 캐시 { ticker, name, grade, ... }
   let _mhWhatIfSelected = null;   // 검색 드롭다운에서 선택된 종목
+  let _mhWhatIfSearchTimer = null;  // Q2 검색 디바운스 타이머
 
   // 추천 종목 로드 (최초 1회)
   async function mhWhatIfLoadStocks() {
@@ -4153,25 +4168,44 @@
     const dd = document.getElementById('mhWhatIfDropdown');
     if (!dd) return;
     _mhWhatIfSelected = null;
-    if (!q.trim()) { dd.style.display = 'none'; return; }
-    const stocks = _mhTopStocks || [];
-    const filtered = stocks.filter(s =>
-      s.name?.includes(q) || s.ticker?.includes(q)
-    ).slice(0, 8);
-    if (filtered.length === 0) { dd.style.display = 'none'; return; }
-    dd.innerHTML = filtered.map(s => {
-      const col = s.grade === 'TENBAGGER' ? '#10b981' : s.grade === 'COMPOUNDER' ? '#60a5fa' : '#9ca3af';
-      return `<div onclick="mhWhatIfSelectChip('${s.ticker}','${escHtml(s.name)}','${s.grade||''}')"
-        style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"
-        onmouseenter="this.style.background='rgba(255,255,255,.05)'" onmouseleave="this.style.background=''">
-        <div>
-          <span style="font-size:13px;font-weight:600;">${escHtml(s.name)}</span>
-          <span style="font-size:11px;color:var(--muted);margin-left:6px;">${s.ticker}</span>
-        </div>
-        <span style="font-size:10px;font-weight:700;color:${col};">${s.grade||''}</span>
-      </div>`;
-    }).join('');
+    if (!q.trim()) { dd.style.display = 'none'; clearTimeout(_mhWhatIfSearchTimer); return; }
+
+    // 300ms 디바운스 후 /api/v2/search 호출
+    dd.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px;">검색 중…</div>';
     dd.style.display = 'block';
+    clearTimeout(_mhWhatIfSearchTimer);
+    _mhWhatIfSearchTimer = setTimeout(async () => {
+      try {
+        const res  = await fetch(`${API}/api/v2/search?q=${encodeURIComponent(q.trim())}`);
+        if (!res.ok) throw new Error(res.status);
+        const list = await res.json();
+        if (!Array.isArray(list) || list.length === 0) {
+          dd.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px;">검색 결과 없음</div>';
+          return;
+        }
+
+        // 스크리너 캐시에서 grade 보강
+        const gradeMap = {};
+        (_mhTopStocks || []).forEach(s => { gradeMap[s.ticker] = s.grade; });
+
+        dd.innerHTML = list.map(s => {
+          const grade = gradeMap[s.ticker] || '';
+          const col   = grade === 'TENBAGGER' ? '#10b981' : grade === 'COMPOUNDER' ? '#60a5fa' : '#9ca3af';
+          return `<div onclick="mhWhatIfSelectChip('${s.ticker}','${escHtml(s.name)}','${grade}')"
+            style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"
+            onmouseenter="this.style.background='rgba(255,255,255,.05)'" onmouseleave="this.style.background=''">
+            <div>
+              <span style="font-size:13px;font-weight:600;">${escHtml(s.name)}</span>
+              <span style="font-size:11px;color:var(--muted);margin-left:6px;">${s.ticker}</span>
+            </div>
+            ${grade ? `<span style="font-size:10px;font-weight:700;color:${col};">${grade}</span>` : ''}
+          </div>`;
+        }).join('');
+        dd.style.display = 'block';
+      } catch (e) {
+        dd.innerHTML = '<div style="padding:10px 14px;color:#f87171;font-size:12px;">검색 오류 — 잠시 후 재시도해 주세요</div>';
+      }
+    }, 300);
   }
 
   // 외부 클릭 시 드롭다운 닫기
@@ -4188,10 +4222,7 @@
     if (!searchVal) { showToast('종목명을 입력하거나 추천 종목을 선택하세요.', 'warn'); return; }
     if (qty <= 0)   { showToast('수량을 입력하세요.', 'warn'); return; }
 
-    // 드롭다운에서 선택한 종목이 없으면 이름으로 검색
-    const selected = _mhWhatIfSelected ||
-      (_mhTopStocks || []).find(s => s.name === searchVal || s.ticker === searchVal);
-
+    const selected = _mhWhatIfSelected;
     if (!selected) { showToast('목록에서 종목을 선택해주세요.', 'warn'); return; }
 
     const btn = document.getElementById('mhWhatIfAddBtn');
