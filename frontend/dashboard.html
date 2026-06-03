@@ -3736,6 +3736,8 @@
     WATCHLIST:  { priceCagr: 7,  divCagr: 5  },
     AVOID:      { priceCagr: 5,  divCagr: 3  },
   };
+  // 배당수익률 DB 미수집 시 등급별 기본값 (KRX IP 차단 대비)
+  const _GRADE_DIV_YIELD = { TENBAGGER: 1.0, COMPOUNDER: 1.5, WATCHLIST: 1.0, AVOID: 0.5 };
 
   // ETF 배당수익률 기준값 (글로벌, Q1·Q2 공통)
   const _ETF_DIV = {
@@ -4365,13 +4367,18 @@
         const close    = data.close || price || 0;
         const avgPrice = price > 0 ? price : close;
         if (close === 0) { showToast('현재가를 가져오지 못했습니다. 매입가를 직접 입력하세요.', 'warn'); return; }
+        const grade = data.grade || selected.grade || null;
+        const rawDivYield = data.dividend_yield > 0 ? data.dividend_yield : (_ETF_DIV[selected.ticker] ?? 0);
+        const divYieldEst = rawDivYield === 0;
+        const divYield = rawDivYield > 0 ? rawDivYield : (_GRADE_DIV_YIELD[grade] ?? 0.5);
         _mhWhatIfHoldings.push({
           ticker: selected.ticker, qty, avgPrice, close,
           name:           data.name || selected.name,
-          grade:          data.grade || selected.grade || null,
-          dividend_yield: data.dividend_yield > 0 ? data.dividend_yield : (_ETF_DIV[selected.ticker] ?? 0),
-          divYield:       data.dividend_yield > 0 ? data.dividend_yield : (_ETF_DIV[selected.ticker] ?? 0),
-          divCagr:        _GRADE_CAGR[data.grade]?.divCagr ?? 5,
+          grade,
+          dividend_yield: divYield,
+          divYield,
+          _divYieldEstimated: divYieldEst,
+          divCagr:        _GRADE_CAGR[grade]?.divCagr ?? 5,
           priceCagr:      mhEstimateCagr(data).value,
           eps_cagr_5y:    data.eps_cagr_5y,
           revenue_cagr_5y: data.revenue_cagr_5y,
@@ -4463,7 +4470,7 @@
         </tr>`;
       }).join('') +
       `</tbody></table></div>
-        <div style="margin-top:10px;font-size:11px;color:#4b5563;">※ 추가 투자금 ${simFmtWon(addedVal)} 기준 · 시뮬레이션 기간 ${years}년</div>
+        <div style="margin-top:10px;font-size:11px;color:#4b5563;">※ 추가 투자금 ${simFmtWon(addedVal)} 기준 · 시뮬레이션 기간 ${years}년${_mhWhatIfHoldings.some(h=>h._divYieldEstimated) ? ' · <span style="color:#f59e0b;">⚠ 배당수익률 DB 미수집 종목 — 등급 기반 추정치 적용</span>' : ''}</div>
       </div>`;
     resultEl.style.display = 'block';
     resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
