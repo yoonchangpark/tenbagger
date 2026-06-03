@@ -4204,7 +4204,7 @@
     const el = document.getElementById('mhGoalDivChips');
     if (!el) return;
     try {
-      const res  = await fetch(`${API}/api/screener?sort=dividend_yield&min_dividend_yield=2&limit=12`);
+      const res  = await fetch(`${API}/api/screener?sort=dividend_yield&limit=30`);
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
       _mhGoalDivStocks = (data.companies || data.results || []).filter(s => s.dividend_yield > 0);
