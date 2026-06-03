@@ -665,47 +665,14 @@
       </div>
       <!-- 고배당 추천 종목 칩 -->
       <div id="mhGoalDivChipsWrap" style="margin-bottom:16px;">
-        <div style="font-size:11px;color:#f59e0b;font-weight:700;margin-bottom:6px;">💰 고배당 추천 종목</div>
+        <div style="font-size:11px;color:#f59e0b;font-weight:700;margin-bottom:6px;">💰 고배당 추천 — 클릭하면 해당 배당률로 역산합니다</div>
         <div id="mhGoalDivChips" style="display:flex;flex-wrap:wrap;gap:6px;">
           <span style="font-size:11px;color:var(--muted);">로딩 중…</span>
         </div>
-      </div>
-      <!-- 종목별 퀵 배당 계산 (칩 클릭 시 표시) -->
-      <div id="mhGoalQuickWrap" style="display:none;padding:14px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.3);border-radius:12px;margin-bottom:16px;">
-        <div style="font-size:12px;font-weight:700;color:#f59e0b;margin-bottom:10px;" id="mhGoalQuickTitle">종목 배당 계산</div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
-          <div>
-            <label style="font-size:10px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px;">투자금 (만원)</label>
-            <input type="number" id="mhGoalQuickAmt" value="1000" min="1" step="100" class="mh-input"
-              onkeydown="if(event.key==='Enter'){mhGoalQuickCalc();}"
-              style="width:100px;text-align:center;padding:7px 8px;font-size:13px;" />
-          </div>
-          <div>
-            <label style="font-size:10px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px;">투자 기간</label>
-            <div style="display:flex;align-items:center;gap:4px;">
-              <input type="number" id="mhGoalQuickYears" value="10" min="1" max="30" class="mh-input"
-                onkeydown="if(event.key==='Enter'){mhGoalQuickCalc();}"
-                style="width:60px;text-align:center;padding:7px 8px;font-size:13px;" />
-              <span style="font-size:12px;color:var(--muted);">년</span>
-            </div>
-          </div>
-          <div>
-            <label style="font-size:10px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px;">방식</label>
-            <div style="display:flex;gap:10px;padding-top:2px;">
-              <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;">
-                <input type="radio" name="mhGoalQuickMode" value="lump" checked style="accent-color:#f59e0b;"> 일시납
-              </label>
-              <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;">
-                <input type="radio" name="mhGoalQuickMode" value="monthly" style="accent-color:#f59e0b;"> 적립식
-              </label>
-            </div>
-          </div>
-          <button onclick="mhGoalQuickCalc()"
-            style="padding:7px 16px;background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.5);border-radius:8px;color:#f59e0b;font-size:12px;font-weight:700;cursor:pointer;">
-            계산
-          </button>
+        <div id="mhGoalSelectedBadge" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);border-radius:10px;align-items:center;gap:8px;">
+          <span id="mhGoalSelectedText" style="font-size:12px;color:#f59e0b;font-weight:700;flex:1;"></span>
+          <button onclick="mhGoalClearDivStock()" style="padding:2px 8px;background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.4);border-radius:6px;color:#f59e0b;font-size:10px;cursor:pointer;">✕ 해제</button>
         </div>
-        <div id="mhGoalQuickResult" style="display:none;margin-top:10px;"></div>
       </div>
       <!-- 역산 입력 -->
       <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:20px;">
@@ -4097,14 +4064,19 @@
     const wtDivCagr    = totalVal > 0 ? holdings.reduce((s, h) => s + (h.qty*h.close/totalVal) * h.divCagr,    0) : 5;
     const r     = wtPriceCagr / 100;
     const T     = goalYears;
-    const annuityFactor = r > 0 ? ((Math.pow(1+r, T) - 1) / r) : T;
-    const divAtT = (wtDivYield / 100) * Math.pow(1 + wtDivCagr/100, T) * taxFactor;
+    // 선택 ETF 있으면 해당 배당률 사용, 없으면 포트폴리오 가중평균
+    const selETF       = _mhGoalSelectedDivStock;
+    const investDivYield = selETF ? selETF.divYield : wtDivYield;
+    const investDivCagr  = selETF ? 5 : wtDivCagr;
+    const investR        = selETF ? 0.07 : r;
+    const annuityFactor = investR > 0 ? ((Math.pow(1+investR, T) - 1) / investR) : T;
+    const divAtT = (investDivYield / 100) * Math.pow(1 + investDivCagr/100, T) * taxFactor;
     // 적립식 필요 월 적립금
     const needMonthly = mode === 'monthly' && gapMonDiv > 0 && annuityFactor > 0 && divAtT > 0
       ? Math.ceil((gapMonDiv * 12) / (12 * annuityFactor * divAtT) / 10000) * 10000
       : 0;
     // 거치식 필요 일시투자금: X × (1+r)^T × divYield × (1+divCagr)^T × taxFactor ≥ gapMonDiv * 12
-    const lumpFactor = Math.pow(1+r, T) * divAtT;
+    const lumpFactor = Math.pow(1+investR, T) * divAtT;
     const needLump = mode === 'lump' && gapMonDiv > 0 && lumpFactor > 0
       ? Math.ceil((gapMonDiv * 12) / lumpFactor / 10000) * 10000
       : 0;
@@ -4182,7 +4154,7 @@
              </button>` : ''}
            </div>
          </div>
-         <div style="margin-top:12px;font-size:11px;color:#4b5563;">※ ${afterTax?'세후(배당소득세 15.4%) 기준':'세전 기준'} · 포트폴리오 가중평균 주가CAGR ${wtPriceCagr.toFixed(1)}% / 배당CAGR ${wtDivCagr.toFixed(1)}% 적용</div>`;
+         <div style="margin-top:12px;font-size:11px;color:#4b5563;">※ ${afterTax?'세후(배당소득세 15.4%) 기준':'세전 기준'} · ${selETF ? `<b style="color:#f59e0b">${selETF.name}(${selETF.divYield.toFixed(1)}%)</b> 배당률 기준 · 배당CAGR 5% / 주가CAGR 7% 가정` : `포트폴리오 가중평균 주가CAGR ${wtPriceCagr.toFixed(1)}% / 배당CAGR ${wtDivCagr.toFixed(1)}% 적용`}</div>`;
     resultEl.style.display = 'block';
     resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -4199,6 +4171,7 @@
 
   // ── Q3 고배당 추천 종목 칩 ────────────────────────────────────────────────
   let _mhGoalDivStocks = null;
+  let _mhGoalSelectedDivStock = null;  // 칩 선택된 ETF { ticker, name, divYield }
 
   // ETF 하드코딩 폴백 (KRX IP 차단으로 DB 배당수익률 미수집 시 사용)
   const _ETF_FALLBACK = [
@@ -4214,6 +4187,11 @@
   async function mhGoalLoadDivChips() {
     const el = document.getElementById('mhGoalDivChips');
     if (!el) return;
+    // 이미 로드된 경우 칩 하이라이트만 복원 (재fetch 금지)
+    if (_mhGoalDivStocks !== null) {
+      _mhGoalRestoreChipHighlight();
+      return;
+    }
     try {
       const res  = await fetch(`${API}/api/screener?sort=dividend_yield&limit=30`);
       if (!res.ok) throw new Error(res.status);
@@ -4227,52 +4205,48 @@
     el.innerHTML = _mhGoalDivStocks.slice(0, 10).map(s => {
       const dy  = parseFloat(s.dividend_yield).toFixed(1);
       const col = s.grade === 'TENBAGGER' ? '#10b981' : s.grade === 'COMPOUNDER' ? '#60a5fa' : '#f59e0b';
-      return `<button onclick="mhGoalSelectDivStock('${s.ticker}','${escHtml(s.name)}',${s.dividend_yield})"
-        style="padding:5px 11px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:20px;font-size:11px;font-weight:700;color:${col};cursor:pointer;">
+      return `<button data-ticker="${s.ticker}" onclick="mhGoalSelectDivStock('${s.ticker}',${JSON.stringify(s.name)},${s.dividend_yield})"
+        style="padding:5px 11px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:20px;font-size:11px;font-weight:700;color:${col};cursor:pointer;transition:.2s;">
         ${escHtml(s.name)} <span style="color:#f59e0b">${dy}%</span>
       </button>`;
     }).join('');
+    _mhGoalRestoreChipHighlight();
+  }
+
+  function _mhGoalRestoreChipHighlight() {
+    if (!_mhGoalSelectedDivStock) return;
+    const ticker = _mhGoalSelectedDivStock.ticker;
+    document.querySelectorAll('#mhGoalDivChips button[data-ticker]').forEach(b => {
+      const sel = b.dataset.ticker === ticker;
+      b.style.background  = sel ? 'rgba(245,158,11,.35)' : 'rgba(245,158,11,.1)';
+      b.style.borderColor = sel ? 'rgba(245,158,11,.8)'  : 'rgba(245,158,11,.4)';
+    });
   }
 
   function mhGoalSelectDivStock(ticker, name, divYield) {
-    document.getElementById('mhGoalQuickTitle').textContent = `💰 ${name} (배당수익률 ${parseFloat(divYield).toFixed(1)}%) 투자 시 배당 계산`;
-    document.getElementById('mhGoalQuickWrap').style.display = 'block';
-    document.getElementById('mhGoalQuickWrap')._ticker   = ticker;
-    document.getElementById('mhGoalQuickWrap')._divYield = divYield;
-    document.getElementById('mhGoalQuickWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    _mhGoalSelectedDivStock = { ticker, name, divYield: parseFloat(divYield) };
+    // 선택 칩 하이라이트
+    document.querySelectorAll('#mhGoalDivChips button[data-ticker]').forEach(b => {
+      const sel = b.dataset.ticker === ticker;
+      b.style.background   = sel ? 'rgba(245,158,11,.35)' : 'rgba(245,158,11,.1)';
+      b.style.borderColor  = sel ? 'rgba(245,158,11,.8)'  : 'rgba(245,158,11,.4)';
+    });
+    // 선택 배지 표시
+    const badge = document.getElementById('mhGoalSelectedBadge');
+    const badgeText = document.getElementById('mhGoalSelectedText');
+    if (badgeText) badgeText.textContent =
+      `✅ ${name} (배당수익률 ${parseFloat(divYield).toFixed(1)}%) — 역산 계산에 적용됩니다`;
+    if (badge) badge.style.display = 'flex';
   }
 
-  function mhGoalQuickCalc() {
-    const wrap     = document.getElementById('mhGoalQuickWrap');
-    const divYield = parseFloat(wrap?._divYield) || 3;
-    const amt      = parseFloat(document.getElementById('mhGoalQuickAmt')?.value) || 1000;  // 만원
-    const years    = parseInt(document.getElementById('mhGoalQuickYears')?.value)  || 10;
-    const qMode    = document.querySelector('input[name="mhGoalQuickMode"]:checked')?.value ?? 'lump';
-    const resultEl = document.getElementById('mhGoalQuickResult');
-    if (!resultEl) return;
-
-    const divCagr  = 5;   // 배당 CAGR 기본 5%
-    const priceCagr = 7;  // 주가 CAGR 기본 7%
-
-    let annualDiv = 0;
-    if (qMode === 'lump') {
-      // 일시투자: amt만원 → years년 후 가치 × divYield × (1+divCagr)^years
-      const futureVal = amt * 10000 * Math.pow(1 + priceCagr/100, years);
-      annualDiv = futureVal * (divYield/100) * Math.pow(1 + divCagr/100, years);
-    } else {
-      // 적립식: 매달 amt만원 → 연 투자 × annuityFactor
-      const r = priceCagr / 100;
-      const annuityFactor = r > 0 ? (Math.pow(1+r, years) - 1) / r : years;
-      const futureVal = amt * 10000 * 12 * annuityFactor;
-      annualDiv = futureVal * (divYield/100) * Math.pow(1 + divCagr/100, years);
-    }
-    const monDiv = Math.round(annualDiv / 12 / 10000);
-
-    resultEl.innerHTML = `<div style="padding:10px;background:rgba(16,185,129,.1);border-radius:8px;">
-      <span style="font-size:13px;font-weight:700;color:#10b981;">${years}년 후 예상 월 배당: ${monDiv}만원/월</span>
-      <span style="font-size:10px;color:#6b7280;margin-left:8px;">(연 ${Math.round(annualDiv/10000)}만원 · 배당CAGR ${divCagr}% 가정)</span>
-    </div>`;
-    resultEl.style.display = 'block';
+  function mhGoalClearDivStock() {
+    _mhGoalSelectedDivStock = null;
+    const badge = document.getElementById('mhGoalSelectedBadge');
+    if (badge) badge.style.display = 'none';
+    document.querySelectorAll('#mhGoalDivChips button[data-ticker]').forEach(b => {
+      b.style.background  = 'rgba(245,158,11,.1)';
+      b.style.borderColor = 'rgba(245,158,11,.4)';
+    });
   }
 
   // ── 가상 종목 추가 시뮬레이션 (질문 2) ──────────────────────────────────
