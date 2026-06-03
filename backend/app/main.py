@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.api.company import router as company_router
 from app.api.search import router as search_router
-from app.api.screener import router as screener_router
+from app.api.screener import router as screener_router, router_v2 as screener_v2_router
 from app.api.backtest import router as backtest_router
 from app.api.qualitative import router as qualitative_router
 from app.api.kakao import router as kakao_router
@@ -294,6 +294,7 @@ app.add_middleware(
 app.include_router(company_router)
 app.include_router(search_router)
 app.include_router(screener_router)
+app.include_router(screener_v2_router)
 app.include_router(backtest_router)
 app.include_router(qualitative_router)
 app.include_router(kakao_router, prefix="/api/kakao", tags=["kakao"])

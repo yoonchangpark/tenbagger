@@ -164,6 +164,10 @@
     /* NEW 배지 */
     .new-badge { display: inline-block; padding: 1px 5px; background: rgba(16,185,129,.2); color: #10b981; border-radius: 4px; font-size: 9px; font-weight: 800; margin-left: 4px; vertical-align: middle; }
 
+    /* 공시 이벤트 아이콘 */
+    .event-icons { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+    .event-icon { font-size: 12px; cursor: default; }
+
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
       .filter-panel { position: static; }
@@ -536,6 +540,9 @@
     document.getElementById("resultCount").textContent = filtered.length;
     renderSectorSummary(filtered);
     renderTable(filtered);
+
+    // 공시 이벤트 아이콘 비동기 로드 (결과 표시 막지 않음)
+    if (filtered.length) loadEvents(filtered.map(c => c.ticker));
   }
 
   // 스크리너 실행
@@ -638,6 +645,35 @@
     applyFiltersAndRender();
   }
 
+  const _EVENT_ICONS = {
+    buyback:  { icon: "💰", title: "자기주식취득 (자사주매입)" },
+    rights:   { icon: "⚠️", title: "유상증자" },
+    earnings: { icon: "📊", title: "실적공시 (분기/사업보고서)" },
+    dividend: { icon: "💸", title: "배당결정" },
+    bond:     { icon: "🔗", title: "전환사채/신주인수권부사채 발행" },
+  };
+
+  async function loadEvents(tickers) {
+    if (!tickers.length) return;
+    // 20개씩 배치 처리
+    for (let i = 0; i < tickers.length; i += 20) {
+      const batch = tickers.slice(i, i + 20);
+      try {
+        const res = await fetch(`${API}/api/v2/screener/events?tickers=${batch.map(encodeURIComponent).join(",")}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        for (const [ticker, events] of Object.entries(data)) {
+          const el = document.getElementById(`ev-${ticker}`);
+          if (!el || !events.length) continue;
+          el.innerHTML = events
+            .filter(e => _EVENT_ICONS[e])
+            .map(e => `<span class="event-icon" title="${_EVENT_ICONS[e].title}">${_EVENT_ICONS[e].icon}</span>`)
+            .join("");
+        }
+      } catch (_) { /* 이벤트 로드 실패는 조용히 무시 */ }
+    }
+  }
+
   function renderTable(companies) {
     if (!companies.length) {
       document.getElementById("tableArea").innerHTML = `
@@ -668,9 +704,9 @@
         ? `<span class="macro-boost-badge">📡 +${boost.toFixed(1)}</span>` : "";
 
       return `
-        <tr onclick="location.href='index.html?ticker=${encodeURIComponent(c.ticker)}'" title="${c.name} 세부 분석 보기">
+        <tr data-ticker="${c.ticker}" onclick="location.href='index.html?ticker=${encodeURIComponent(c.ticker)}'" title="${c.name} 세부 분석 보기">
           <td>
-            <div style="font-weight:700;margin-bottom:2px;">${c.name} ${boostBadge}</div>
+            <div style="font-weight:700;margin-bottom:2px;">${c.name} ${boostBadge}<span class="event-icons" id="ev-${c.ticker}"></span></div>
             <div style="font-size:11px;color:#6b7280">${c.ticker} · ${c.market || ""}</div>
           </td>
           <td>
