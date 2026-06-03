@@ -4200,6 +4200,17 @@
   // ── Q3 고배당 추천 종목 칩 ────────────────────────────────────────────────
   let _mhGoalDivStocks = null;
 
+  // ETF 하드코딩 폴백 (KRX IP 차단으로 DB 배당수익률 미수집 시 사용)
+  const _ETF_FALLBACK = [
+    { ticker: '441640', name: 'KODEX 미국배당커버드콜', dividend_yield: 9.5, grade: '' },
+    { ticker: '458730', name: 'TIGER 미국배당+3%프리미엄', dividend_yield: 8.5, grade: '' },
+    { ticker: '280930', name: 'KODEX 한국배당가치', dividend_yield: 5.5, grade: '' },
+    { ticker: '448290', name: 'KODEX 미국배당다우존스', dividend_yield: 4.0, grade: '' },
+    { ticker: '402970', name: 'ACE 미국배당다우존스', dividend_yield: 3.5, grade: '' },
+    { ticker: '395160', name: 'TIGER 배당성장', dividend_yield: 3.2, grade: '' },
+    { ticker: '487950', name: 'KODEX 대만테크고배당', dividend_yield: 3.8, grade: '' },
+  ];
+
   async function mhGoalLoadDivChips() {
     const el = document.getElementById('mhGoalDivChips');
     if (!el) return;
@@ -4208,18 +4219,19 @@
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
       _mhGoalDivStocks = (data.companies || data.results || []).filter(s => s.dividend_yield > 0);
-      if (_mhGoalDivStocks.length === 0) { el.innerHTML = '<span style="font-size:11px;color:var(--muted);">데이터 없음</span>'; return; }
-      el.innerHTML = _mhGoalDivStocks.slice(0, 10).map(s => {
-        const dy = parseFloat(s.dividend_yield).toFixed(1);
-        const col = s.grade === 'TENBAGGER' ? '#10b981' : s.grade === 'COMPOUNDER' ? '#60a5fa' : '#f59e0b';
-        return `<button onclick="mhGoalSelectDivStock('${s.ticker}','${escHtml(s.name)}',${s.dividend_yield || 0})"
-          style="padding:5px 11px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:20px;font-size:11px;font-weight:700;color:${col};cursor:pointer;">
-          ${escHtml(s.name)} <span style="color:#f59e0b">${dy}%</span>
-        </button>`;
-      }).join('');
     } catch (e) {
-      el.innerHTML = '<span style="font-size:11px;color:var(--muted);">로드 실패</span>';
+      _mhGoalDivStocks = [];
     }
+    // DB 결과 없으면 ETF 하드코딩 폴백 사용
+    if (_mhGoalDivStocks.length === 0) _mhGoalDivStocks = _ETF_FALLBACK;
+    el.innerHTML = _mhGoalDivStocks.slice(0, 10).map(s => {
+      const dy  = parseFloat(s.dividend_yield).toFixed(1);
+      const col = s.grade === 'TENBAGGER' ? '#10b981' : s.grade === 'COMPOUNDER' ? '#60a5fa' : '#f59e0b';
+      return `<button onclick="mhGoalSelectDivStock('${s.ticker}','${escHtml(s.name)}',${s.dividend_yield})"
+        style="padding:5px 11px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:20px;font-size:11px;font-weight:700;color:${col};cursor:pointer;">
+        ${escHtml(s.name)} <span style="color:#f59e0b">${dy}%</span>
+      </button>`;
+    }).join('');
   }
 
   function mhGoalSelectDivStock(ticker, name, divYield) {
