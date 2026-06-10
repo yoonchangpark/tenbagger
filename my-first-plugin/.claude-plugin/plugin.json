@@ -1,11 +1,12 @@
 {
   "name": "tenbagger",
   "displayName": "텐배거 헌터",
-  "version": "1.1.0",
-  "description": "텐배거 프로젝트 자동화 플러그인 — 코드 검증, ETL, 종목 분석, 어드바이저",
+  "version": "1.2.0",
+  "description": "텐배거 프로젝트 자동화 플러그인 — 코드 검증, ETL, 종목 분석, 어드바이저, 디버깅/UX 에이전트",
   "author": {
     "name": "yoonchang.park@gmail.com"
   },
   "skills": "../skills/",
-  "hooks": "../hooks/hooks.json"
+  "hooks": "../hooks/hooks.json",
+  "agents": ["../agents/debugger.md", "../agents/ux-designer.md"]
 }
