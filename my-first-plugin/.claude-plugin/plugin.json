@@ -1,9 +1,11 @@
 {
   "name": "tenbagger",
   "displayName": "텐배거 헌터",
-  "version": "1.0.0",
-  "description": "텐배거 프로젝트 자동화 플러그인 — 코드 검증, 미커밋 경고",
+  "version": "1.1.0",
+  "description": "텐배거 프로젝트 자동화 플러그인 — 코드 검증, ETL, 종목 분석, 어드바이저",
   "author": {
     "name": "yoonchang.park@gmail.com"
-  }
+  },
+  "skills": "../skills/",
+  "hooks": "../hooks/hooks.json"
 }
