@@ -19,6 +19,8 @@ from evaluator.alignment import evaluate_script
 from evolution.prompt_engine import load_prompt_rules, evolve_prompt
 from evolution.broll_optimizer import save_broll_evaluation, load_broll_rules
 from analytics.youtube_metrics import get_video_metrics, save_metrics
+from tenbagger_topic import pick_tenbagger_topic
+import kling_broll
 
 load_dotenv()
 
@@ -45,10 +47,9 @@ app.add_middleware(
 # --- 설정 및 API 키 ---
 # dotenv를 통해 환경 변수에서 가져오거나, 기존 키를 기본값으로 사용
 # dotenv를 통해 환경 변수에서 가져오거나, 기존 키를 기본값으로 사용
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyCDUZZIi7N0zKjG2l1j2GtNGfT5EtzLVxk")
-import os
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY") or "sk_4c94bb3d7b674e47a9fc1b035908e5521bbb64fe695471dc"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
@@ -116,7 +117,7 @@ async def call_openai_script(topic: str, context: str):
     2. 절대로 추상적 개념(Business, Economy, Investment, Future, Success 등)을 쓰지 마라. 이런 단어를 쓰면 엉뚱한 영상이 매칭된다.
     3. 무조건 눈에 보이는 구체적인 피사체를 묘사하는 영어 명사구(예: 'Stressed man holding head at office desk', 'Falling red stock market graph animation')로만 구성해라.
     4. source_type: 'pexels'는 [형용사 + 구체적 피사체 + 상황] 형태의 구체적 영어 키워드로만 작성할 것.
-    5. source_type: 'youtube'는 실존 인물/기업이 필요할 때만 쓰되, 사람이 입을 벙긋거리는 장면을 피하기 위해 검색어 끝에 반드시 'official b-roll without interview'를 붙여라.
+    5. source_type: 'youtube'는 AI 영상 생성(Kling)으로 처리된다. 실존 기업/제품의 구체적 장면이 필요할 때 쓰되, search 필드가 곧 영상 생성 프롬프트가 되므로 카메라 워크와 분위기를 암시하는 구체적 영어 묘사로 작성해라.
     6. [톤앤매너(Tone & Manner) 절대 규칙] 전체 영상을 관통하는 톤앤매너 테마를 `global_aesthetic`에 1개 기재해라. 단, 검색 결과를 0개로 치명적으로 없애버리는 '긴 문장 복붙 꼬리표' 부착은 절대 금지한다. 대신, `search` 필드는 영상 검색 엔진이 100% 매칭할 수 있도록 **총 3~4개의 핵심 명사 단어**로만 아주 짧게 압축해서 구성하되, 테마를 암시하는 형용사 단어 딱 1개만 피사체 앞에 자연스럽게 섞어라 (예: `dark cinematic wegovy pill`).
 
     [✅ 완벽한 JSON 반환 예시]
@@ -246,57 +247,6 @@ async def step_2_download_background_video(script_data: list, output_dir: str = 
                 logger.warning(f"Pexels 후보 추출 실패: {e}")
         return candidates
 
-    async def _fetch_youtube_candidates(query: str):
-        candidates = []
-        import yt_dlp
-        
-        # 텍스트가 많은 썸네일을 피하기 위해 검색어 강화 및 인터뷰 위주 결과 배제
-        search_query = f'ytsearch5:{query} -"TED" -"interview" -"podcast" -"vlog" -"480p" -"fancam" -"amateur" -"anchor" -"shorts" -"news"'
-        
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': True,
-            'dumpjson': True,
-        }
-        
-        def run_yt_search():
-            results = []
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(search_query, download=False)
-                    if info and 'entries' in info:
-                        for entry in info['entries']:
-                            results.append(entry)
-            except Exception as e:
-                logger.warning(f"yt-dlp 메타데이터 추출 오류: {e}")
-            return results
-
-        entries = await asyncio.to_thread(run_yt_search)
-        for idx, entry in enumerate(entries):
-            title = entry.get('title', '')
-            url = entry.get('url', '')
-            if not url: url = entry.get('webpage_url', f"https://www.youtube.com/watch?v={entry.get('id')}")
-            if not url: continue
-            
-            # 최고의 해상도 썸네일 고르기
-            thumbnails = entry.get('thumbnails', [])
-            thumb_url = ''
-            if thumbnails:
-                # height 기준으로 정렬해서 제일 큰 거
-                thumbnails.sort(key=lambda x: x.get('height', 0) if x.get('height') else 0, reverse=True)
-                thumb_url = thumbnails[0].get('url', '')
-            
-            if thumb_url and url:
-                candidates.append({
-                    "id": f"yt_{idx}",
-                    "thumb_url": thumb_url,
-                    "video_url": url,
-                    "title": title,
-                    "source_type": "youtube"
-                })
-        return candidates
-
     async def _download_image(client: httpx.AsyncClient, url: str):
         try:
             resp = await client.get(url, timeout=10.0)
@@ -371,36 +321,18 @@ async def step_2_download_background_video(script_data: list, output_dir: str = 
             return valid_candidates[0]
 
     async def _download_final_video(candidate: dict, path: str):
-        if candidate['source_type'] == 'pexels':
-            import httpx
-            async with httpx.AsyncClient() as client:
-                try:
-                    resp = await client.get(candidate['video_url'], timeout=60.0)
-                    resp.raise_for_status()
-                    import aiofiles
-                    async with aiofiles.open(path, "wb") as f:
-                        await f.write(resp.content)
-                    return True
-                except Exception as e:
-                    logger.warning(f"Pexels 비디오 직접 다운로드 오류: {e}")
-                    return False
-        else: # youtube
-            def run_ytdlp():
-                import yt_dlp
-                ydl_opts = {
-                    'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                    'outtmpl': path,
-                    'quiet': True,
-                    'no_warnings': True
-                }
-                try:
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        ydl.download([candidate['video_url']])
-                    return os.path.exists(path)
-                except Exception as e:
-                    logger.warning(f"yt-dlp 다운로드 실패: {e}")
-                    return False
-            return await asyncio.to_thread(run_ytdlp)
+        import httpx
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get(candidate['video_url'], timeout=60.0)
+                resp.raise_for_status()
+                import aiofiles
+                async with aiofiles.open(path, "wb") as f:
+                    await f.write(resp.content)
+                return True
+            except Exception as e:
+                logger.warning(f"Pexels 비디오 직접 다운로드 오류: {e}")
+                return False
 
     downloaded_paths = []
     
@@ -413,38 +345,44 @@ async def step_2_download_background_video(script_data: list, output_dir: str = 
         query = scene.get("search", "finance background")
         narration = scene.get("narration", "")
         
-        logger.info(f"[{idx+1} 씬] [Thumbnail Picker 검색 시작] {source_type} | 검색어: {query}")
-        
-        candidates = []
-        if source_type == "pexels":
-            candidates = await _fetch_pexels_candidates(query)
-            if not candidates: # fallback to youtube
-                candidates = await _fetch_youtube_candidates(query)
-        else:
-            candidates = await _fetch_youtube_candidates(query)
-            
+        logger.info(f"[{idx+1} 씬] [B-roll 소싱 시작] {source_type} | 검색어: {query}")
+
+        # youtube(yt-dlp) 소싱 제거 → Kling AI 생성 우선, 실패 시 Pexels 검색 폴백
+        if source_type != "pexels" and kling_broll.is_configured():
+            logger.info(f" - Kling AI 영상 생성 시도: {query[:50]}")
+            if await kling_broll.generate_broll(query, final_video_path):
+                logger.info(" ✅ [Kling 생성 완료]")
+                downloaded_paths.append(final_video_path)
+                continue
+            logger.warning(" - Kling 생성 실패 → Pexels 폴백")
+
+        # 'official b-roll without interview' 등 유튜브용 꼬리표 제거 후 Pexels 검색
+        pexels_query = query.replace("official b-roll without interview", "").strip()
+        candidates = await _fetch_pexels_candidates(pexels_query)
+
         logger.info(f" - {len(candidates)}개의 후보 영상 썸네일 추출 완료. Vision AI 심사 시작... (나레이션: {narration[:15]}...)")
-        
+
         best_candidate = await _select_best_candidate(candidates, narration, query)
-        
+
         if best_candidate:
             logger.info(f" ✅ [Vision Picker 선택 완료] 소스: {best_candidate.get('source_type')} URL: {best_candidate.get('video_url')}")
             logger.info(" - 원본 영상 매칭 완료. 최종 단일 다운로드 수행 중...")
             success = await _download_final_video(best_candidate, final_video_path)
-            
+
             if success and os.path.exists(final_video_path):
                 downloaded_paths.append(final_video_path)
             else:
                 logger.error(" - 원본 영상 다운로드 실패. Fallback 적용.")
-                await _download_final_video({"source_type": "youtube", "video_url": "ytsearch1:falling red stock market graph animation"}, final_video_path)
-                if os.path.exists(final_video_path): downloaded_paths.append(final_video_path)
+                fb = await _fetch_pexels_candidates("falling red stock market graph animation")
+                if fb and await _download_final_video(fb[0], final_video_path):
+                    downloaded_paths.append(final_video_path)
         else:
-            logger.error(f"[{idx+1} 씬] 후보군 수집 실패. 무작위 B-roll 강제 삽입.")
+            logger.error(f"[{idx+1} 씬] 후보군 수집 실패. 범용 B-roll 강제 삽입.")
             fallback_path = os.path.join(save_dir, f"fallback_{timestamp}_{idx}.mp4")
-            await _download_final_video({"source_type": "youtube", "video_url": "ytsearch1:finance chart stock matrix animation"}, fallback_path)
-            if os.path.exists(fallback_path):
+            fb = await _fetch_pexels_candidates("finance chart stock animation")
+            if fb and await _download_final_video(fb[0], fallback_path):
                 downloaded_paths.append(fallback_path)
-                
+
     return downloaded_paths
 
 async def query_notebooklm(topic: str) -> str:
@@ -995,21 +933,29 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
         _start_step(1, "주제 선정 및 리서치")
         import data_pipeline
         prompt_topic = topic
-        if topic.lower() == "auto":
-            _log("트렌드 티커 자동 수집 중...")
-            jobs[job_id].update({"status": "Step 1: 트렌드 수집 중...", "progress": 5})
-            trends = data_pipeline.get_trending_topics()
-            prompt_topic = trends[0] if trends else "미국 주식 시장 트렌드"
-        
-        _log(f"주제 확정: {prompt_topic}")
-        jobs[job_id].update({"status": f"Step 1: {prompt_topic} 팩트 검색 중...", "progress": 10})
-        facts = data_pipeline.fetch_facts_for_topic(prompt_topic)
-        
-        _log("NotebookLM 딥 리서치 인사이트 추출 중...")
-        jobs[job_id].update({"status": "Step 1: NotebookLM 딥 리서치 중...", "progress": 15})
-        notebooklm_insights = await query_notebooklm(prompt_topic)
-        
-        context_data = f"[트렌드 주제]: {prompt_topic}\n[단순 팩트/뉴스]: {facts}\n[🔥 NotebookLM 심층 분석 인사이트]: {notebooklm_insights}"
+        if topic.lower() == "tenbagger":
+            # 텐배거 헌터 연동: 추천 종목 + 재무 근거를 주제/문맥으로 사용
+            _log("텐배거 추천 종목 조회 중...")
+            jobs[job_id].update({"status": "Step 1: 텐배거 종목 선정 중...", "progress": 5})
+            history_topics = [item['topic'] for item in load_history()]
+            prompt_topic, context_data = await pick_tenbagger_topic(exclude_topics=history_topics)
+            _log(f"주제 확정: {prompt_topic}")
+        else:
+            if topic.lower() == "auto":
+                _log("트렌드 티커 자동 수집 중...")
+                jobs[job_id].update({"status": "Step 1: 트렌드 수집 중...", "progress": 5})
+                trends = data_pipeline.get_trending_topics()
+                prompt_topic = trends[0] if trends else "미국 주식 시장 트렌드"
+
+            _log(f"주제 확정: {prompt_topic}")
+            jobs[job_id].update({"status": f"Step 1: {prompt_topic} 팩트 검색 중...", "progress": 10})
+            facts = data_pipeline.fetch_facts_for_topic(prompt_topic)
+
+            _log("NotebookLM 딥 리서치 인사이트 추출 중...")
+            jobs[job_id].update({"status": "Step 1: NotebookLM 딥 리서치 중...", "progress": 15})
+            notebooklm_insights = await query_notebooklm(prompt_topic)
+
+            context_data = f"[트렌드 주제]: {prompt_topic}\n[단순 팩트/뉴스]: {facts}\n[🔥 NotebookLM 심층 분석 인사이트]: {notebooklm_insights}"
         _end_step(1)
         
         # ===== STEP 2: AI 대본 생성 =====
