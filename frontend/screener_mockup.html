@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[목업] 스크리너 · 텐배거헌터</title>
+  <style>
+    :root {
+      --bg: #0a0f1e; --surface: #111827; --surface2: #1f2937;
+      --border: #374151; --text: #f9fafb; --muted: #9ca3af;
+      --green: #10b981; --blue: #3b82f6; --yellow: #f59e0b;
+      --red: #ef4444; --purple: #8b5cf6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Noto Sans KR', sans-serif; }
+    header { padding: 16px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: rgba(17,24,39,.9); }
+    .logo { font-size: 20px; font-weight: 800; background: linear-gradient(135deg,#10b981,#3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .mockup-badge { background: rgba(245,158,11,.15); border: 1px solid rgba(245,158,11,.4); color: #fbbf24; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; gap: 24px; max-width: 1280px; margin: 24px auto; padding: 0 24px; }
+    .filter-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+    .filter-panel h2 { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 20px; }
+    .filter-group { margin-bottom: 20px; }
+    .filter-group label { font-size: 11px; color: var(--muted); font-weight: 600; display: block; margin-bottom: 8px; letter-spacing: .03em; }
+    .btn-group { display: flex; flex-wrap: wrap; gap: 5px; }
+    .toggle-btn { padding: 5px 11px; border-radius: 20px; font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
+    .toggle-btn.active { border-color: var(--blue); color: #93c5fd; background: rgba(59,130,246,.1); }
+    .toggle-btn.grade-TENBAGGER.active { border-color: var(--green); color: #34d399; background: rgba(16,185,129,.1); }
+    .toggle-btn.grade-COMPOUNDER.active { border-color: var(--blue); color: #93c5fd; background: rgba(59,130,246,.1); }
+    .toggle-btn.grade-WATCHLIST.active { border-color: var(--yellow); color: #fbbf24; background: rgba(245,158,11,.1); }
+
+    /* ── NEW: 섹터 버튼 ── */
+    .sector-active-growth { border-color: rgba(16,185,129,.6) !important; color: #10b981 !important; background: rgba(16,185,129,.15) !important; }
+    .sector-active-cycle  { border-color: rgba(245,158,11,.6) !important; color: #f59e0b !important; background: rgba(245,158,11,.12) !important; }
+    .sector-active-normal { border-color: rgba(139,92,246,.6) !important; color: #a78bfa !important; background: rgba(139,92,246,.1) !important; }
+    .sector-btn-growth { border-color: rgba(16,185,129,.35); color: #10b981; }
+    .sector-btn-cycle  { border-color: rgba(245,158,11,.35); color: #f59e0b; }
+
+    .run-btn { width: 100%; padding: 12px; margin-top: 8px; background: linear-gradient(135deg,#2563eb,#7c3aed); border: none; border-radius: 10px; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
+
+    /* 테이블 */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow-x: auto; }
+    .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+    .results-count { font-size: 13px; color: var(--muted); }
+    .results-count strong { color: var(--text); font-size: 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { padding: 11px 14px; text-align: right; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .03em; background: var(--surface2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th:first-child, th.left { text-align: left; }
+    td { padding: 11px 14px; text-align: right; border-bottom: 1px solid rgba(55,65,81,.4); }
+    td:first-child { text-align: left; }
+    tr:hover td { background: rgba(255,255,255,.02); cursor: pointer; }
+    .pos { color: var(--green); } .neg { color: var(--red); }
+    .grade { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 10px; font-weight: 700; }
+    .grade-TENBAGGER { background: rgba(16,185,129,.15); color: #10b981; }
+    .grade-COMPOUNDER { background: rgba(59,130,246,.15); color: #60a5fa; }
+    .grade-WATCHLIST { background: rgba(245,158,11,.15); color: #fbbf24; }
+
+    /* ── NEW: 섹터 배지 ── */
+    .sector-chip { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 10px; font-weight: 700; background: rgba(139,92,246,.1); color: #a78bfa; margin-bottom: 2px; }
+
+    /* ── NEW: 성장태그 배지 ── */
+    .tag-growth { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(16,185,129,.15); color: #10b981; border: 1px solid rgba(16,185,129,.3); letter-spacing: .02em; }
+    .tag-cycle  { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); letter-spacing: .02em; }
+
+    .score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .score-bar-bg { flex: 1; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; min-width: 50px; }
+    .score-bar-fill { height: 100%; border-radius: 2px; }
+
+    /* 섹터 분포 요약 */
+    .sector-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+    .sector-pill { display: flex; align-items: center; gap: 5px; padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 11px; font-weight: 600; cursor: pointer; }
+    .sector-pill .s-count { color: #a78bfa; font-weight: 800; }
+    .new-label { display: inline-block; padding: 1px 5px; background: rgba(16,185,129,.2); color: #10b981; border-radius: 4px; font-size: 9px; font-weight: 800; margin-left: 4px; vertical-align: middle; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🚀 텐배거 헌터</span>
+  <span class="mockup-badge">👁 UI 목업 — 실제 데이터 아님</span>
+</header>
+
+<div class="layout">
+
+  <!-- 필터 패널 -->
+  <aside class="filter-panel">
+    <h2>⚙️ 필터 설정</h2>
+
+    <div class="filter-group">
+      <label>등급</label>
+      <div class="btn-group">
+        <button class="toggle-btn grade-TENBAGGER active">✨ 텐배거</button>
+        <button class="toggle-btn grade-COMPOUNDER active">💙 컴파운더</button>
+        <button class="toggle-btn grade-WATCHLIST active">🌟 관심종목</button>
+        <button class="toggle-btn">🚫 회피</button>
+      </div>
+    </div>
+
+    <!-- ── NEW: 업종 필터 ── -->
+    <div class="filter-group">
+      <label>업종 (섹터) <span class="new-label">NEW</span></label>
+      <div class="btn-group">
+        <button class="toggle-btn active">전체</button>
+        <button class="toggle-btn sector-btn-growth">🚀 구조적성장</button>
+        <button class="toggle-btn sector-btn-cycle">🔄 사이클주</button>
+        <button class="toggle-btn">반도체</button>
+        <button class="toggle-btn">2차전지</button>
+        <button class="toggle-btn">바이오</button>
+        <button class="toggle-btn">자동차</button>
+        <button class="toggle-btn">금융</button>
+        <button class="toggle-btn">IT·SW</button>
+        <button class="toggle-btn">철강·소재</button>
+        <button class="toggle-btn">에너지</button>
+        <button class="toggle-btn">유통·소비재</button>
+        <button class="toggle-btn">통신</button>
+        <button class="toggle-btn">조선</button>
+        <button class="toggle-btn">기타</button>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label>최소 종합점수 <span style="color:var(--purple)">0점</span></label>
+      <input type="range" min="0" max="9" value="0" step="0.5" style="width:100%;accent-color:var(--purple)">
+    </div>
+    <div class="filter-group">
+      <label>최소 성장점수 <span style="color:var(--green)">0점</span></label>
+      <input type="range" min="0" max="10" value="0" step="0.5" style="width:100%;accent-color:var(--green)">
+    </div>
+    <div class="filter-group">
+      <label>시장</label>
+      <div class="btn-group">
+        <button class="toggle-btn active">전체</button>
+        <button class="toggle-btn">KOSPI</button>
+        <button class="toggle-btn">KOSDAQ</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>정렬 기준</label>
+      <div class="btn-group">
+        <button class="toggle-btn active">종합점수</button>
+        <button class="toggle-btn">성장점수</button>
+        <button class="toggle-btn">배당</button>
+        <button class="toggle-btn">안정성</button>
+      </div>
+    </div>
+    <button class="run-btn">🚀 스크리닝 실행</button>
+  </aside>
+
+  <!-- 결과 패널 -->
+  <div>
+    <div class="results-header">
+      <div class="results-count">총 <strong>8</strong>개 종목</div>
+    </div>
+
+    <!-- ── NEW: 섹터 분포 요약 바 ── -->
+    <div class="sector-summary">
+      <span style="font-size:11px;color:var(--muted);font-weight:700;align-self:center;">섹터 분포</span>
+      <div class="sector-pill"><span>반도체</span><span class="s-count">2</span></div>
+      <div class="sector-pill"><span>바이오</span><span class="s-count">2</span></div>
+      <div class="sector-pill"><span>IT·SW</span><span class="s-count">1</span></div>
+      <div class="sector-pill"><span>2차전지</span><span class="s-count">1</span></div>
+      <div class="sector-pill"><span>자동차</span><span class="s-count">1</span></div>
+      <div class="sector-pill"><span>기타</span><span class="s-count">1</span></div>
+      <span style="font-size:11px;color:#10b981;font-weight:700;align-self:center;margin-left:6px;">🚀 구조적성장 4개</span>
+      <span style="font-size:11px;color:#f59e0b;font-weight:700;align-self:center;">🔄 사이클주 1개</span>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="left">종목명</th>
+            <th>종합점수 ↕</th>
+            <th>등급</th>
+            <th class="left">업종 <span class="new-label">NEW</span></th>
+            <th>성장 ↕</th>
+            <th>안정성 ↕</th>
+            <th>현금흐름 ↕</th>
+            <th>배당% ↕</th>
+            <th>매출CAGR</th>
+            <th>ROE</th>
+            <th>시가총액</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <!-- 구조적성장 예시 -->
+          <tr>
+            <td>
+              <div style="font-weight:700;margin-bottom:2px;">HD현대일렉트릭</div>
+              <div style="font-size:11px;color:#6b7280">267260 · KOSPI</div>
+            </td>
+            <td>
+              <div class="score-bar-wrap">
+                <span style="font-weight:800;color:#10b981;font-size:15px;min-width:28px">8.4</span>
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:84%;background:#10b981"></div></div>
+              </div>
+            </td>
+            <td><span class="grade grade-TENBAGGER">TENBAGGER</span></td>
+            <td style="text-align:left">
+              <div><span class="sector-chip">철강·소재</span></div>
+              <span class="tag-growth">🚀 구조적성장</span>
+            </td>
+            <td class="pos">8.7</td><td>7.2</td><td>8.1</td>
+            <td>1.2%</td><td class="pos">23.4%</td><td class="pos">18.6%</td><td style="font-size:12px;color:#6b7280">4조</td>
+          </tr>
+
+          <!-- 구조적성장 예시 2 -->
+          <tr>
+            <td>
+              <div style="font-weight:700;margin-bottom:2px;">이수페타시스</div>
+              <div style="font-size:11px;color:#6b7280">007660 · KOSPI</div>
+            </td>
+            <td>
+              <div class="score-bar-wrap">
+                <span style="font-weight:800;color:#10b981;font-size:15px;min-width:28px">8.1</span>
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:81%;background:#10b981"></div></div>
+              </div>
+            </td>
+            <td><span class="grade grade-TENBAGGER">TENBAGGER</span></td>
+            <td style="text-align:left">
+              <div><span class="sector-chip">반도체</span></div>
+              <span class="tag-growth">🚀 구조적성장</span>
+            </td>
+            <td class="pos">8.3</td><td>6.8</td><td>7.5</td>
+            <td>0.8%</td><td class="pos">19.2%</td><td class="pos">22.1%</td><td style="font-size:12px;color:#6b7280">1조</td>
+          </tr>
+
+          <!-- 태그 없음 예시 -->
+          <tr>
+            <td>
+              <div style="font-weight:700;margin-bottom:2px;">삼성바이오로직스</div>
+              <div style="font-size:11px;color:#6b7280">207940 · KOSPI</div>
+            </td>
+            <td>
+              <div class="score-bar-wrap">
+                <span style="font-weight:800;color:#10b981;font-size:15px;min-width:28px">7.9</span>
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:79%;background:#10b981"></div></div>
+              </div>
+            </td>
+            <td><span class="grade grade-TENBAGGER">TENBAGGER</span></td>
+            <td style="text-align:left">
+              <div><span class="sector-chip">바이오</span></div>
+              <!-- 태그 없음: growth_score 8.0이지만 매출CAGR 12% (15% 미달) -->
+            </td>
+            <td class="pos">8.0</td><td>7.1</td><td>7.8</td>
+            <td>0.3%</td><td class="pos">12.1%</td><td class="pos">15.4%</td><td style="font-size:12px;color:#6b7280">60조</td>
+          </tr>
+
+          <!-- COMPOUNDER + 구조적성장 -->
+          <tr>
+            <td>
+              <div style="font-weight:700;margin-bottom:2px;">카카오페이</div>
+              <div style="font-size:11px;color:#6b7280">377300 · KOSPI</div>
+            </td>
+            <td>
+              <div class="score-bar-wrap">
+                <span style="font-weight:800;color:#f59e0b;font-size:15px;min-width:28px">7.3</span>
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:73%;background:#f59e0b"></div></div>
+              </div>
+            </td>
+            <td><span class="grade grade-COMPOUNDER">COMPOUNDER</span></td>
+            <td style="text-align:left">
+              <div><span class="sector-chip">IT·소프트웨어</span></div>
+              <span class="tag-growth">🚀 구조적성장</span>
+            </td>
+            <td class="pos">7.5</td><td>6.1</td><td>6.8</td>
+            <td>0.0%</td><td class="pos">18.7%</td><td>11.2%</td><td style="font-size:12px;color:#6b7280">4조</td>
+          </tr>
+
+          <!-- 사이클주 예시 -->
+          <tr>
+            <td>
+              <div style="font-weight:700;margin-bottom:2px;">POSCO홀딩스</div>
+              <div style="font-size:11px;color:#6b7280">005490 · KOSPI</div>
+            </td>
+            <td>
+              <div class="score-bar-wrap">
+                <span style="font-weight:800;color:#f59e0b;font-size:15px;min-width:28px">6.8</span>
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:68%;background:#f59e0b"></div></div>
+              </div>
+            </td>
+            <td><span class="grade grade-COMPOUNDER">COMPOUNDER</span></td>
+            <td style="text-align:left">
+              <div><span class="sector-chip">철강·소재</span></div>
+              <span class="tag-cycle">🔄 사이클주</span>
+            </td>
+            <td>5.2</td><td>7.4</td><td>6.5</td>
+            <td class="pos">3.8%</td><td class="neg">2.3%</td><td class="pos">12.1%</td><td style="font-size:12px;color:#6b7280">18조</td>
+          </tr>
+
+          <!-- 구조적성장 + 바이오 -->
+          <tr>
+            <td>
+              <div style="font-weight:700;margin-bottom:2px;">알테오젠</div>
+              <div style="font-size:11px;color:#6b7280">196170 · KOSDAQ</div>
+            </td>
+            <td>
+              <div class="score-bar-wrap">
+                <span style="font-weight:800;color:#10b981;font-size:15px;min-width:28px">8.2</span>
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:82%;background:#10b981"></div></div>
+              </div>
+            </td>
+            <td><span class="grade grade-TENBAGGER">TENBAGGER</span></td>
+            <td style="text-align:left">
+              <div><span class="sector-chip">바이오</span></div>
+              <span class="tag-growth">🚀 구조적성장</span>
+            </td>
+            <td class="pos">8.9</td><td>6.2</td><td>7.3</td>
+            <td>0.0%</td><td class="pos">38.4%</td><td class="pos">24.8%</td><td style="font-size:12px;color:#6b7280">5조</td>
+          </tr>
+
+          <!-- 2차전지 -->
+          <tr>
+            <td>
+              <div style="font-weight:700;margin-bottom:2px;">에코프로비엠</div>
+              <div style="font-size:11px;color:#6b7280">247540 · KOSDAQ</div>
+            </td>
+            <td>
+              <div class="score-bar-wrap">
+                <span style="font-weight:800;color:#f59e0b;font-size:15px;min-width:28px">7.1</span>
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:71%;background:#f59e0b"></div></div>
+              </div>
+            </td>
+            <td><span class="grade grade-COMPOUNDER">COMPOUNDER</span></td>
+            <td style="text-align:left">
+              <div><span class="sector-chip">2차전지</span></div>
+              <!-- 태그 없음 -->
+            </td>
+            <td class="pos">7.3</td><td>5.9</td><td>6.1</td>
+            <td>0.2%</td><td>4.8%</td><td class="pos">18.3%</td><td style="font-size:12px;color:#6b7280">8조</td>
+          </tr>
+
+          <!-- WATCHLIST -->
+          <tr>
+            <td>
+              <div style="font-weight:700;margin-bottom:2px;">현대차</div>
+              <div style="font-size:11px;color:#6b7280">005380 · KOSPI</div>
+            </td>
+            <td>
+              <div class="score-bar-wrap">
+                <span style="font-weight:800;color:#f59e0b;font-size:15px;min-width:28px">6.2</span>
+                <div class="score-bar-bg"><div class="score-bar-fill" style="width:62%;background:#f59e0b"></div></div>
+              </div>
+            </td>
+            <td><span class="grade grade-WATCHLIST">WATCHLIST</span></td>
+            <td style="text-align:left">
+              <div><span class="sector-chip">자동차</span></div>
+            </td>
+            <td>5.8</td><td>6.6</td><td>5.9</td>
+            <td class="pos">3.1%</td><td>4.2%</td><td class="pos">14.7%</td><td style="font-size:12px;color:#6b7280">50조</td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:24px;padding:16px 20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--muted);line-height:1.8;">
+      <b style="color:var(--text);">변경 요약 (목업 기준)</b><br>
+      ① <b style="color:#a78bfa">업종 컬럼</b>: 종목명 키워드 기반 자동 분류 (반도체·바이오·IT·SW 등 11개 + 기타)<br>
+      ② <span class="tag-growth">🚀 구조적성장</span> 태그: 매출CAGR 5y &gt; 15% AND 성장점수 &gt; 7.0<br>
+      ③ <span class="tag-cycle">🔄 사이클주</span> 태그: 매출CAGR 5y &lt; 5% AND 성장점수 &lt; 6.0<br>
+      ④ 좌측 패널에 <b>섹터 필터 버튼</b> + <b>결과 상단 섹터 분포 요약</b> 추가
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

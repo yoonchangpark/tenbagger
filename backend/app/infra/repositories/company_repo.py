@@ -246,6 +246,16 @@ def get_financials_cached(ticker: str) -> list[dict]:
 
 # ── 스크리너용 조회 ────────────────────────────────────────────────────────────
 
+def get_dart_codes_for_tickers(tickers: list[str]) -> dict:
+    """종목코드 리스트 → {ticker: dart_code} 딕셔너리"""
+    if not tickers:
+        return {}
+    sql = text("SELECT ticker, dart_code FROM companies WHERE ticker = ANY(:tickers)")
+    with SessionLocal() as session:
+        rows = session.execute(sql, {"tickers": tickers}).fetchall()
+        return {r[0]: r[1] for r in rows if r[1]}
+
+
 def query_scores(
     grades: list[str] = None,
     min_score: float = None,

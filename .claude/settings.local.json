@@ -51,7 +51,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -File scripts/debug_check.ps1"
+            "command": "bash my-first-plugin/scripts/post-edit-check.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash my-first-plugin/scripts/stop-check.sh"
           }
         ]
       }

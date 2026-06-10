@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[목업] 매크로 자동조회 AS-IS / TO-BE</title>
+  <style>
+    :root {
+      --bg: #0a0f1e; --surface: #111827; --surface2: #1f2937;
+      --border: #374151; --text: #f9fafb; --muted: #9ca3af;
+      --green: #10b981; --blue: #3b82f6; --yellow: #f59e0b;
+      --red: #ef4444; --purple: #8b5cf6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Noto Sans KR', sans-serif; padding-bottom: 60px; }
+    header { padding: 16px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: rgba(17,24,39,.9); }
+    .logo { font-size: 20px; font-weight: 800; background: linear-gradient(135deg,#10b981,#3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .mockup-badge { background: rgba(245,158,11,.15); border: 1px solid rgba(245,158,11,.4); color: #fbbf24; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1100px; margin: 32px auto; padding: 0 24px; }
+    @media (max-width: 800px) { .compare-grid { grid-template-columns: 1fr; } }
+
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+    .panel-title { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+    .panel-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; line-height: 1.6; }
+    .asis-title { color: #9ca3af; }
+    .tobe-title { color: #10b981; }
+
+    .filter-group label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 8px; font-weight: 600; letter-spacing: .03em; }
+    .new-badge { display: inline-block; padding: 1px 5px; background: rgba(16,185,129,.2); color: #10b981; border-radius: 4px; font-size: 9px; font-weight: 800; margin-left: 4px; vertical-align: middle; }
+
+    .macro-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .macro-label { font-size: 11px; color: var(--muted); min-width: 56px; font-weight: 600; }
+    .macro-row input[type=range] { flex: 1; height: 4px; }
+    .macro-val { font-size: 11px; font-weight: 700; min-width: 76px; text-align: right; }
+    .macro-val.pos { color: var(--green); }
+    .macro-val.neg { color: var(--red); }
+    .macro-val.neu { color: var(--muted); }
+    .macro-hint { font-size: 10px; color: #4b5563; line-height: 1.5; margin-top: 6px; }
+
+    /* TO-BE 전용 */
+    .auto-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .auto-status { font-size: 10px; color: #6ee7b7; display: flex; align-items: center; gap: 5px; }
+    .auto-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+    .refresh-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; color: var(--muted); font-size: 10px; font-weight: 600; cursor: pointer; }
+    .refresh-btn:hover { border-color: var(--blue); color: #93c5fd; }
+
+    .macro-evidence { font-size: 9px; color: #6b7280; text-align: right; min-width: 110px; line-height: 1.3; }
+    .src-badge { display: inline-block; padding: 0 4px; border-radius: 3px; font-size: 8px; font-weight: 800; vertical-align: middle; margin-left: 3px; }
+    .src-auto { background: rgba(16,185,129,.15); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
+    .src-manual { background: rgba(245,158,11,.15); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
+    .src-fallback { background: rgba(107,114,128,.2); color: #9ca3af; border: 1px solid rgba(107,114,128,.4); }
+
+    .macro-boost-banner { margin-top: 10px; padding: 8px 12px; background: rgba(16,185,129,.08); border: 1px solid rgba(16,185,129,.2); border-radius: 8px; font-size: 11px; color: #6ee7b7; line-height: 1.6; }
+
+    .note-box { max-width: 1100px; margin: 0 auto; padding: 16px 24px; }
+    .note-inner { padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; font-size: 12px; color: var(--muted); line-height: 1.9; }
+    .note-inner b { color: var(--text); }
+
+    .flow-diagram { font-size: 11px; color: #9ca3af; background: var(--surface2); border-radius: 8px; padding: 12px 16px; margin-top: 12px; line-height: 2; font-family: monospace; }
+    .arrow { color: #8b5cf6; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🚀 텐배거 헌터</span>
+  <span class="mockup-badge">👁 UI 목업 — 매크로 자동조회 AS-IS / TO-BE 비교</span>
+</header>
+
+<div class="compare-grid">
+
+  <!-- ════════ AS-IS ════════ -->
+  <div class="panel">
+    <div class="panel-title asis-title">📍 AS-IS (현재)</div>
+    <div class="panel-sub">모든 슬라이더가 <b style="color:#f9fafb">중립(0)에서 시작</b>.<br>사용자가 시장 상황을 직접 판단해서 조정해야 함.</div>
+
+    <div class="filter-group">
+      <label>📡 매크로 환경 <span class="new-badge">NEW</span></label>
+      <div class="macro-row">
+        <span class="macro-label">금리</span>
+        <input type="range" min="-2" max="2" value="0" step="1" style="accent-color:#ef4444">
+        <span class="macro-val neu">중립</span>
+      </div>
+      <div class="macro-row">
+        <span class="macro-label">달러</span>
+        <input type="range" min="-2" max="2" value="0" step="1" style="accent-color:#f59e0b">
+        <span class="macro-val neu">중립</span>
+      </div>
+      <div class="macro-row">
+        <span class="macro-label">경기사이클</span>
+        <input type="range" min="-2" max="2" value="0" step="1" style="accent-color:#10b981">
+        <span class="macro-val neu">중립</span>
+      </div>
+      <div class="macro-row">
+        <span class="macro-label">유동성</span>
+        <input type="range" min="-2" max="2" value="0" step="1" style="accent-color:#3b82f6">
+        <span class="macro-val neu">중립</span>
+      </div>
+      <div class="macro-row">
+        <span class="macro-label">지정학</span>
+        <input type="range" min="-2" max="2" value="0" step="1" style="accent-color:#8b5cf6">
+        <span class="macro-val neu">중립</span>
+      </div>
+      <div class="macro-hint">-2 악화 / 0 중립 / +2 호조<br>매크로 환경에 유리한 섹터가 강조됩니다.</div>
+    </div>
+  </div>
+
+  <!-- ════════ TO-BE ════════ -->
+  <div class="panel" style="border-color:rgba(16,185,129,.35)">
+    <div class="panel-title tobe-title">✨ TO-BE (자동조회)</div>
+    <div class="panel-sub">페이지 로드 시 <b style="color:#f9fafb">실제 시장 데이터로 자동 세팅</b>.<br>근거 데이터 표시 + 수동 조정 가능 + 실패 시 중립 fallback.</div>
+
+    <div class="filter-group">
+      <div class="auto-header">
+        <label style="margin-bottom:0">📡 매크로 환경 <span class="new-badge">AUTO</span></label>
+        <button class="refresh-btn">🔄 갱신</button>
+      </div>
+      <div class="auto-status" style="margin-bottom:10px"><span class="auto-dot"></span>자동 조회됨 · 06-10 09:32 기준</div>
+
+      <!-- 금리: 자동 -->
+      <div class="macro-row">
+        <span class="macro-label">금리</span>
+        <input type="range" min="-2" max="2" value="-1" step="1" style="accent-color:#ef4444">
+        <span class="macro-val neg">-1 금리↓<span class="src-badge src-auto">자동</span></span>
+      </div>
+      <div class="macro-evidence" style="text-align:left;margin:-4px 0 8px 64px">기준금리 2.50% · 최근 6개월 내 1회 인하</div>
+
+      <!-- 달러: 자동 -->
+      <div class="macro-row">
+        <span class="macro-label">달러</span>
+        <input type="range" min="-2" max="2" value="2" step="1" style="accent-color:#f59e0b">
+        <span class="macro-val pos">+2 달러강세<span class="src-badge src-auto">자동</span></span>
+      </div>
+      <div class="macro-evidence" style="text-align:left;margin:-4px 0 8px 64px">USD/KRW 1,438원 · 3개월 +5.8%</div>
+
+      <!-- 경기: 자동 -->
+      <div class="macro-row">
+        <span class="macro-label">경기사이클</span>
+        <input type="range" min="-2" max="2" value="1" step="1" style="accent-color:#10b981">
+        <span class="macro-val pos">+1 경기호조<span class="src-badge src-auto">자동</span></span>
+      </div>
+      <div class="macro-evidence" style="text-align:left;margin:-4px 0 8px 64px">KOSPI 3개월 +6.2%</div>
+
+      <!-- 유동성: 사용자가 수동 변경한 상태 -->
+      <div class="macro-row">
+        <span class="macro-label">유동성</span>
+        <input type="range" min="-2" max="2" value="2" step="1" style="accent-color:#3b82f6">
+        <span class="macro-val pos">+2 유동성확대<span class="src-badge src-manual">수동</span></span>
+      </div>
+      <div class="macro-evidence" style="text-align:left;margin:-4px 0 8px 64px">자동값 +1에서 사용자가 +2로 변경</div>
+
+      <!-- 지정학: 항상 수동 (정량화 불가) -->
+      <div class="macro-row">
+        <span class="macro-label">지정학</span>
+        <input type="range" min="-2" max="2" value="0" step="1" style="accent-color:#8b5cf6">
+        <span class="macro-val neu">중립<span class="src-badge src-fallback">수동전용</span></span>
+      </div>
+      <div class="macro-evidence" style="text-align:left;margin:-4px 0 8px 64px">정량화 불가 — 직접 판단 후 조정</div>
+
+      <div class="macro-boost-banner">
+        <b>유리한 섹터:</b> 금융(+1.9), 에너지(+1.4), 자동차(+1.2)<br>
+        <b>불리한 섹터:</b> 바이오(-0.8), IT·소프트웨어(-0.4)
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KRX 차단 fallback 상태 -->
+<div class="note-box">
+  <div class="panel" style="border-color:rgba(239,68,68,.3)">
+    <div class="panel-title" style="color:#f87171">⚠️ 조회 실패 시 (KRX 차단 등)</div>
+    <div class="panel-sub" style="margin-bottom:12px">Railway에서 KRX 접근 차단될 경우의 fallback 화면</div>
+    <div class="auto-status" style="color:#fbbf24;margin-bottom:10px">⚠️ 자동 조회 실패 — 중립값으로 시작합니다. 직접 조정해주세요.</div>
+    <div class="macro-row">
+      <span class="macro-label">금리</span>
+      <input type="range" min="-2" max="2" value="0" step="1" style="accent-color:#ef4444">
+      <span class="macro-val neu">중립<span class="src-badge src-fallback">수동</span></span>
+    </div>
+    <div style="font-size:10px;color:#6b7280;margin-top:4px">… 5개 슬라이더 모두 중립(0) + 수동 조정 (기존 AS-IS와 동일하게 동작)</div>
+  </div>
+</div>
+
+<!-- 변경 요약 -->
+<div class="note-box">
+  <div class="note-inner">
+    <b>변경 요약 (목업 기준)</b><br>
+    ① <b>백엔드 신규</b>: <code style="color:#a78bfa">/api/v2/macro/snapshot</code> — pykrx·한국은행 데이터로 4개 지표 자동 산출 (지정학 제외)<br>
+    ② <b>자동 세팅</b>: 페이지 로드 시 슬라이더가 실데이터 기반으로 초기화, 기준 시각 표시<br>
+    ③ <b>근거 표시</b>: 각 슬라이더 아래 산출 근거 (환율 수치, KOSPI 수익률 등)<br>
+    ④ <b>자동/수동 배지</b>: 자동값 그대로면 <span class="src-badge src-auto">자동</span>, 사용자가 바꾸면 <span class="src-badge src-manual">수동</span>으로 전환<br>
+    ⑤ <b>🔄 갱신 버튼</b>: 수동 변경 후 자동값으로 리셋 가능<br>
+    ⑥ <b>Fallback</b>: KRX 차단 시 전부 중립 + 안내 문구 (기존과 동일 동작 보장)
+
+    <div class="flow-diagram">
+      [페이지 로드] <span class="arrow">→</span> GET /api/v2/macro/snapshot<br>
+      &nbsp;&nbsp;├─ 성공 <span class="arrow">→</span> 슬라이더 자동 세팅 + 근거 표시 + 섹터 재정렬<br>
+      &nbsp;&nbsp;└─ 실패 <span class="arrow">→</span> 전부 중립(0) + "직접 조정" 안내 (AS-IS 동작)<br>
+      [지표 산출 로직]<br>
+      &nbsp;&nbsp;금리: 한국은행 기준금리 6개월 변동 (인하2회=-2, 인하1회=-1, 동결=0 …)<br>
+      &nbsp;&nbsp;달러: USD/KRW 3개월 변화율 (±2%/±5% 구간)<br>
+      &nbsp;&nbsp;경기: KOSPI 3개월 수익률 (±3%/±8% 구간)<br>
+      &nbsp;&nbsp;유동성: KOSPI 일평균 거래대금 3개월 추세<br>
+      &nbsp;&nbsp;지정학: 자동화 제외 — 항상 수동
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
