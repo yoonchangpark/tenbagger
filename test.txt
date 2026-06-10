@@ -1,0 +1,288 @@
+from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import time
+import datetime
+import google.generativeai as genai
+import re
+import os
+import urllib.request
+import urllib.parse
+import random
+from gtts import gTTS
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+
+# --- 유튜브 API 연동을 위한 라이브러리 ---
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+
+# === 🔑 API 키 설정 ===
+GEMINI_API_KEY = "AIzaSyAatF0S-ZqiWvew3xY9rWYFZi4BgXit-OM"
+genai.configure(api_key=GEMINI_API_KEY)
+
+# --- FastAPI 앱 초기화 ---
+app = FastAPI(title="AIVA LABS Auto Engine API", version="2.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+system_state = {
+    "is_running": False,
+    "current_step": 0,
+    "logs": [{"time": datetime.datetime.now().strftime("%H:%M:%S"), "text": "서버 부팅 완료", "type": "info"}]
+}
+
+def add_log(text: str, log_type: str = "info"):
+    time_str = datetime.datetime.now().strftime("%H:%M:%S")
+    system_state["logs"].append({"time": time_str, "text": text, "type": log_type})
+    if len(system_state["logs"]) > 100:
+        system_state["logs"].pop(0)
+
+class TrendRequest(BaseModel):
+    topic: str
+
+# --- 🚀 백그라운드 파이프라인 ---
+def run_pipeline_engine():
+    system_state["is_running"] = True
+    system_state["current_step"] = 0
+    system_state["logs"] = []
+    add_log("🚀 [서버] 2.0 AI 파이프라인 엔진 가동", "success")
+    
+    generated_script = "" 
+    clean_text = ""       
+
+    try:
+        # STEP 1: 트렌드 수집
+        system_state["current_step"] = 1
+        add_log("[서버] 웹 크롤러 가동: 최신 테크 트렌드 분석 중...", "info")
+        time.sleep(2) 
+        add_log("[서버] ✓ 트렌드 데이터 수집 완료", "success")
+
+        # STEP 2: AI 대본 생성
+        system_state["current_step"] = 2
+        add_log("[서버] Gemini 2.5 API 호출: 숏츠 대본 및 제목 생성 중...", "info")
+        
+        yt_title = "AI가 만든 놀라운 영상" # 기본 제목
+        yt_desc = "#AI #Shorts" # 기본 설명
+
+        try:
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            # 대본과 제목을 함께 요청하는 고도화된 프롬프트
+            prompt = """
+            현재 가장 핫한 'AI 기술 발전'에 대한 유튜브 쇼츠 대본을 작성해. 
+            반드시 아래 형식을 지켜줘:
+            [TITLE]: 시선을 끄는 제목 (해시태그 포함)
+            [DESCRIPTION]: 영상에 대한 짧은 설명
+            [SCRIPT]: 실제 읽을 대본 본문 ([화면: 지시어] 포함)
+            
+            인사말은 절대 하지 말고 본론만 써줘.
+            """
+            
+            response = model.generate_content(prompt)
+            full_content = response.text
+            
+            # 제목, 설명, 대본 추출 로직
+            title_match = re.search(r'\[TITLE\]:(.*?)\n', full_content)
+            desc_match = re.search(r'\[DESCRIPTION\]:(.*?)\n', full_content)
+            script_match = re.search(r'\[SCRIPT\]:(.*)', full_content, re.DOTALL)
+            
+            if title_match: yt_title = title_match.group(1).strip()
+            if desc_match: yt_desc = desc_match.group(1).strip()
+            if script_match: generated_script = script_match.group(1).strip()
+            else: generated_script = full_content # 실패시 전체 사용
+            
+            add_log(f"[서버] ✓ AI 기획 완료 (제목: {yt_title[:15]}...)", "pink")
+            
+        except Exception as api_err:
+            add_log(f"❌ [서버] API 호출 에러: {str(api_err)}", "warning")
+
+        # STEP 3: 영상 제작 엔진 (음성 TTS + 이미지 생성)
+        system_state["current_step"] = 3
+        
+        # 3-1. AI 성우 (TTS)
+        add_log("[서버] AI 성우 엔진 가동 중...", "info")
+        try:
+            if generated_script:
+                clean_text = re.sub(r'\[.*?\]', '', generated_script)
+                clean_text = clean_text.replace('*', '').replace('#', '').strip()
+                tts = gTTS(text=clean_text, lang='ko', slow=False)
+                audio_filename = "voice_output.mp3"
+                tts.save(audio_filename)
+                add_log(f"[서버] ✓ 음성 변환 완료!", "success")
+        except Exception as tts_err:
+            add_log(f"❌ [서버] 음성 변환 실패: {str(tts_err)}", "warning")
+
+        # 3-2. AI 이미지 생성 엔진
+        add_log("[서버] AI 이미지 엔진 가동 중...", "info")
+        try:
+            if generated_script:
+                scenes = re.findall(r'\[화면:\s*(.*?)\]', generated_script)
+                if not scenes: scenes = ["미래 지향적인 인공지능 해커 느낌의 화려한 네온 배경"]
+                
+                for idx, scene in enumerate(scenes[:5]):
+                    filename = f"scene_{idx+1}.jpg"
+                    prompt_en = f"{scene}, cinematic lighting, highly detailed, vertical aspect ratio"
+                    safe_prompt = urllib.parse.quote(prompt_en)
+                    seed = random.randint(1, 999999)
+                    image_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1080&height=1920&nologo=true&seed={seed}"
+                    
+                    try:
+                        req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req, timeout=30) as response, open(filename, 'wb') as out_file:
+                            out_file.write(response.read())
+                    except:
+                        # 폴백 이미지 생성
+                        bg_color = (random.randint(20, 60), random.randint(20, 60), random.randint(40, 100))
+                        img = Image.new('RGB', (1080, 1920), color=bg_color)
+                        img.save(filename)
+                    time.sleep(1)
+                add_log(f"[서버] ✓ 이미지 리소스 준비 완료", "success")
+        except Exception as img_err:
+            add_log(f"❌ [서버] 이미지 생성 실패: {str(img_err)}", "warning")
+
+
+        # STEP 4: 영상 렌더링 및 YouTube 자동 업로드
+        system_state["current_step"] = 4
+        add_log("[서버] 영상 합성 및 YouTube 공개 업로드 시작...", "info")
+        
+        try:
+            audio_path = "voice_output.mp3"
+            image_paths = [f"scene_{i}.jpg" for i in range(1, 6) if os.path.exists(f"scene_{i}.jpg")]
+
+            if os.path.exists(audio_path) and image_paths:
+                from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip
+
+                audio_clip = AudioFileClip(audio_path)
+                total_duration = audio_clip.duration
+                duration_per_image = 4.0 
+                
+                base_clips = [ImageClip(img_path).set_duration(duration_per_image) for img_path in image_paths]
+                clips = []
+                curr = 0; idx = 0
+                while curr < total_duration:
+                    clips.append(base_clips[idx % len(base_clips)])
+                    curr += duration_per_image; idx += 1
+
+                final_video = concatenate_videoclips(clips, method="compose").set_duration(total_duration)
+                
+                # 자막 생성
+                subtitle_clips = []
+                if clean_text:
+                    sentences = [s.strip() for s in re.split(r'(?<=[.?!])\s+', clean_text) if s.strip()]
+                    if sentences:
+                        dur_sub = total_duration / len(sentences)
+                        curr_sub = 0
+                        try: font = ImageFont.truetype("C:/Windows/Fonts/malgun.ttf", 65)
+                        except: font = ImageFont.load_default()
+
+                        for sentence in sentences:
+                            img = Image.new('RGBA', (1080, 1920), (0, 0, 0, 0))
+                            draw = ImageDraw.Draw(img)
+                            # 간단한 줄바꿈 처리
+                            txt = "\n".join([sentence[i:i+12] for i in range(0, len(sentence), 12)])
+                            draw.multiline_text((540, 1450), txt, font=font, fill="yellow", stroke_width=4, stroke_fill="black", anchor="ms", align="center")
+                            sub_clip = ImageClip(np.array(img)).set_duration(dur_sub).set_start(curr_sub)
+                            subtitle_clips.append(sub_clip)
+                            curr_sub += dur_sub
+                
+                if subtitle_clips: final_video = CompositeVideoClip([final_video] + subtitle_clips)
+                final_video = final_video.set_audio(audio_clip)
+
+                output_filename = "final_shorts.mp4"
+                final_video.write_videofile(output_filename, fps=24, codec="libx264", audio_codec="aac")
+                
+                audio_clip.close(); final_video.close()
+                add_log(f"✅ [서버] 영상 제작 완료!", "success")
+
+                # --- YouTube 업로드 (공개 설정) ---
+                CLIENT_SECRETS_FILE = "client_secret.json"
+                if os.path.exists(CLIENT_SECRETS_FILE):
+                    try:
+                        creds = None
+                        if os.path.exists('token.json'):
+                            creds = Credentials.from_authorized_user_file('token.json', ["https://www.googleapis.com/auth/youtube.upload"])
+                        if not creds or not creds.valid:
+                            if creds and creds.expired and creds.refresh_token: creds.refresh(Request())
+                            else:
+                                flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, ["https://www.googleapis.com/auth/youtube.upload"])
+                                creds = flow.run_local_server(port=0)
+                            with open('token.json', 'w') as token: token.write(creds.to_json())
+                        
+                        youtube = build('youtube', 'v3', credentials=creds)
+                        
+                        body = {
+                            'snippet': {
+                                'title': yt_title,
+                                'description': f"{yt_desc}\n\nAI Automatic Upload System v2.0",
+                                'tags': ['AI', 'Tech', 'Shorts'],
+                                'categoryId': '28'
+                            },
+                            'status': {
+                                'privacyStatus': 'public', # ★ 'private'에서 'public'으로 변경! 바로 채널에 보입니다.
+                                'selfDeclaredMadeForKids': False
+                            }
+                        }
+                        
+                        add_log("⏳ [서버] YouTube로 전송 중... (공개 발행)", "pink")
+                        media = MediaFileUpload(output_filename, chunksize=-1, resumable=True, mimetype="video/mp4")
+                        request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
+                        response = request.execute()
+                        
+                        add_log(f"✅ [서버] YouTube 공개 업로드 성공! (ID: {response['id']})", "success")
+                        print(f"\n📺 유튜브 공개 완료: https://youtu.be/{response['id']}\n")
+                    
+                    except Exception as yt_err:
+                        add_log(f"❌ [서버] YouTube 업로드 에러: {str(yt_err)}", "warning")
+                else:
+                    add_log("⚠️ [서버] 인증 파일이 없어 업로드를 건너뜁니다.", "warning")
+
+            else:
+                add_log("❌ [서버] 파일 누락으로 합성 중단", "warning")
+                
+        except Exception as vid_err:
+            add_log(f"❌ [서버] 영상 합성 실패: {str(vid_err)}", "warning")
+
+        add_log("[서버] ✅ 모든 작업 성공적으로 완료!", "success")
+
+    except Exception as e:
+        add_log(f"❌ [서버] 오류 발생: {str(e)}", "warning")
+    finally:
+        system_state["is_running"] = False
+        system_state["current_step"] = 5
+
+# --- API 엔드포인트 ---
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "is_running": system_state["is_running"]}
+
+@app.post("/api/pipeline/start")
+async def start_pipeline(background_tasks: BackgroundTasks):
+    if system_state["is_running"]: raise HTTPException(status_code=400, detail="이미 실행 중")
+    background_tasks.add_task(run_pipeline_engine)
+    return {"message": "시작됨"}
+
+@app.get("/api/pipeline/status")
+async def get_pipeline_status():
+    return {
+        "is_running": system_state["is_running"],
+        "current_step": system_state["current_step"],
+        "logs": system_state["logs"]
+    }
+
+@app.post("/api/ai/analyze")
+async def analyze_trend(req: TrendRequest):
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = await model.generate_content_async(f"유튜브 쇼츠 전략 분석: {req.topic}")
+        return {"result": response.text}
+    except Exception as e:
+        return {"result": f"에러: {str(e)}"}

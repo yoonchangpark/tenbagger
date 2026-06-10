@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 숏츠 메이커 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background-color: #020617; color: #cbd5e1; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 8px rgba(59,130,246,0.4); } 50% { box-shadow: 0 0 20px rgba(59,130,246,0.7); } }
+        .step-glow { animation: glow 2s infinite; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .log-fade { animation: fadeIn 0.3s ease-out; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const API_BASE = "http://localhost:8000/api";
+
+        function App() {
+            const [jobId, setJobId] = useState(null);
+            const [jobData, setJobData] = useState(null);
+            const [serverStatus, setServerStatus] = useState("확인 중...");
+            const [topicInput, setTopicInput] = useState("");
+            const [isRunning, setIsRunning] = useState(false);
+            const logEndRef = useRef(null);
+            const pollingRef = useRef(null);
+
+            // 서버 헬스 체크
+            useEffect(() => {
+                const check = async () => {
+                    try {
+                        const res = await fetch(`${API_BASE}/health`);
+                        if (res.ok) setServerStatus("정상");
+                        else setServerStatus("오류");
+                    } catch { setServerStatus("오프라인"); }
+                };
+                check();
+                const iv = setInterval(check, 5000);
+                return () => clearInterval(iv);
+            }, []);
+
+            // 폴링
+            useEffect(() => {
+                if (!jobId) return;
+                pollingRef.current = setInterval(async () => {
+                    try {
+                        const res = await fetch(`${API_BASE}/pipeline/status?job_id=${jobId}`);
+                        const data = await res.json();
+                        setJobData(data);
+                        setIsRunning(!!data.is_running);
+                        if (!data.is_running && data.progress >= 100) {
+                            clearInterval(pollingRef.current);
+                        }
+                    } catch {}
+                }, 1000);
+                return () => clearInterval(pollingRef.current);
+            }, [jobId]);
+
+            useEffect(() => {
+                logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, [jobData?.live_logs]);
+
+            // 파이프라인 시작 (수동 주제)
+            const startPipeline = async (auto = false) => {
+                if (isRunning) return;
+                try {
+                    let res;
+                    if (auto) {
+                        res = await fetch(`${API_BASE}/pipeline/auto_start`, { method: 'POST' });
+                    } else {
+                        const topic = topicInput.trim() || "auto";
+                        res = await fetch(`${API_BASE}/pipeline/start`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ topic })
+                        });
+                    }
+                    const data = await res.json();
+                    setJobId(data.job_id);
+                    setIsRunning(true);
+                    setJobData(null);
+                } catch (err) {
+                    alert("서버 연결 실패: " + err.message);
+                }
+            };
+
+            const pipelineSteps = [
+                { id: 1, title: 'STEP 1 — 주제 선정 & 리서치', desc: 'NotebookLM 딥 리서치 + 팩트 수집', icon: 'fa-magnifying-glass' },
+                { id: 2, title: 'STEP 2 — AI 대본 생성', desc: 'GPT-4o Scene 단위 대본 작성', icon: 'fa-pen-nib' },
+                { id: 3, title: 'STEP 3 — B-roll 다운로드', desc: '하이브리드 비전 썸네일 피커', icon: 'fa-download' },
+                { id: 4, title: 'STEP 4 — TTS 음성 생성', desc: 'ElevenLabs / gTTS 나레이션', icon: 'fa-microphone' },
+                { id: 5, title: 'STEP 5 — 렌더링 & 자막', desc: 'MoviePy 자막 합성 + 컬러 그레이딩', icon: 'fa-film' },
+            ];
+
+            const currentStep = jobData?.current_step || 0;
+            const stepTimings = jobData?.step_timings || {};
+            const avgTimings = jobData?.avg_timings || {};
+            const liveLogs = jobData?.live_logs || [];
+            const videoUrl = jobData?.video_url;
+            const progress = jobData?.progress || 0;
+
+            const getStepStatus = (id) => {
+                const t = stepTimings[String(id)];
+                if (t && t.elapsed !== null && t.elapsed !== undefined) return 'done';
+                if (currentStep === id && isRunning) return 'progress';
+                if (currentStep > id) return 'done';
+                return 'wait';
+            };
+
+            return (
+                <div className="flex min-h-screen bg-[#020617] text-slate-300">
+                    {/* Sidebar */}
+                    <aside className="w-64 bg-[#0f172a] border-r border-slate-800 flex flex-col p-6 space-y-8">
+                        <div>
+                            <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent tracking-tight">
+                                AI 숏츠 메이커
+                            </h1>
+                            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-bold">2026 — Hybrid Vision Engine</p>
+                        </div>
+
+                        <nav className="flex-1 space-y-6">
+                            <section>
+                                <p className="text-[10px] font-bold text-slate-500 mb-3 tracking-widest uppercase">Controls</p>
+                                <div className="space-y-1.5">
+                                    <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20 text-sm font-semibold">
+                                        <i className="fa-solid fa-bolt"></i> 공장 자동화
+                                    </button>
+                                </div>
+                            </section>
+                        </nav>
+
+                        <div className="pt-4 border-t border-slate-800 space-y-2">
+                            <div className="flex items-center gap-2 px-3">
+                                <div className={`w-2 h-2 rounded-full ${serverStatus === "정상" ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500 animate-pulse'}`}></div>
+                                <span className="text-xs font-medium text-slate-400">서버: {serverStatus}</span>
+                            </div>
+                        </div>
+                    </aside>
+
+                    {/* Main */}
+                    <main className="flex-1 overflow-y-auto p-8">
+                        <header className="flex justify-between items-center mb-6">
+                            <div>
+                                <h2 className="text-2xl font-black text-white">숏츠 공장 자동화</h2>
+                                <p className="text-sm text-slate-500">주제 선정 → 대본 → 영상 → 자막까지 원클릭</p>
+                            </div>
+                        </header>
+
+                        {/* 주제 입력 + 실행 버튼 */}
+                        <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 mb-6">
+                            <div className="flex gap-3">
+                                <input
+                                    type="text"
+                                    value={topicInput}
+                                    onChange={e => setTopicInput(e.target.value)}
+                                    placeholder="주제를 입력하세요 (비워두면 AI가 자동 선정)"
+                                    className="flex-1 bg-black/40 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                    disabled={isRunning}
+                                />
+                                <button
+                                    onClick={() => startPipeline(false)}
+                                    disabled={isRunning || serverStatus !== "정상"}
+                                    className={`px-6 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                                        isRunning || serverStatus !== "정상"
+                                            ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                            : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 active:scale-95'
+                                    }`}
+                                >
+                                    {isRunning ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-play"></i>}
+                                    <span>{isRunning ? '제작 중...' : '영상 제작 시작'}</span>
+                                </button>
+                                <button
+                                    onClick={() => startPipeline(true)}
+                                    disabled={isRunning || serverStatus !== "정상"}
+                                    className={`px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                                        isRunning || serverStatus !== "정상"
+                                            ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                            : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/20 active:scale-95'
+                                    }`}
+                                >
+                                    <i className="fa-solid fa-wand-magic-sparkles"></i>
+                                    <span>AI 자동</span>
+                                </button>
+                            </div>
+                            {isRunning && progress > 0 && (
+                                <div className="mt-4">
+                                    <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                        <span>전체 진행률</span>
+                                        <span className="text-blue-400 font-bold">{progress}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-800 rounded-full h-2">
+                                        <div className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-700" style={{ width: `${progress}%` }}></div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-6">
+                            {/* Pipeline Steps */}
+                            <div className="col-span-5 bg-[#0f172a] rounded-2xl p-6 border border-slate-800">
+                                <div className="flex justify-between items-center mb-5">
+                                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                        <i className="fa-solid fa-bolt text-blue-400"></i> 파이프라인
+                                    </h3>
+                                    <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold ${isRunning ? 'bg-blue-500/10 text-blue-400 animate-pulse border border-blue-500/30' : jobData?.status?.startsWith('Completed') ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-slate-800 text-slate-500'}`}>
+                                        {isRunning ? 'RUNNING' : jobData?.status?.startsWith('Completed') ? 'DONE' : 'STANDBY'}
+                                    </span>
+                                </div>
+                                <div className="space-y-5 relative">
+                                    <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-slate-800"></div>
+                                    {pipelineSteps.map((step) => {
+                                        const status = getStepStatus(step.id);
+                                        const timing = stepTimings[String(step.id)];
+                                        const avg = avgTimings[String(step.id)];
+                                        return (
+                                            <div key={step.id} className="flex gap-4 relative z-10">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ${
+                                                    status === 'done' ? 'bg-green-500/20 text-green-400 border border-green-500/40' :
+                                                    status === 'progress' ? 'bg-blue-500/20 text-blue-400 border border-blue-400/40 step-glow' :
+                                                    'bg-slate-800/80 text-slate-600 border border-slate-700'
+                                                }`}>
+                                                    {status === 'done' ? <i className="fa-solid fa-check text-xs"></i> :
+                                                     status === 'progress' ? <i className="fa-solid fa-spinner fa-spin text-xs"></i> :
+                                                     <i className={`fa-solid ${step.icon} text-[10px]`}></i>}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-center">
+                                                        <h4 className={`text-xs font-bold truncate ${status === 'wait' ? 'text-slate-500' : status === 'done' ? 'text-green-300' : 'text-white'}`}>{step.title}</h4>
+                                                        {timing?.elapsed != null && (
+                                                            <span className="text-[10px] text-green-400 font-mono font-bold bg-green-500/10 px-1.5 py-0.5 rounded">{timing.elapsed}s</span>
+                                                        )}
+                                                        {status === 'progress' && avg && (
+                                                            <span className="text-[10px] text-blue-400 font-mono bg-blue-500/10 px-1.5 py-0.5 rounded animate-pulse">~{avg}s</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-500 mt-0.5">{step.desc}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Live Logs */}
+                            <div className="col-span-7 bg-[#0f172a] rounded-2xl p-6 border border-slate-800 flex flex-col h-[420px]">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                        <i className="fa-solid fa-terminal text-blue-400"></i> 실시간 로그
+                                    </h3>
+                                    {isRunning && <span className="text-[10px] text-green-400 animate-pulse flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>LIVE</span>}
+                                </div>
+                                <div className="flex-1 bg-black/60 rounded-xl p-4 font-mono text-xs space-y-1.5 overflow-y-auto border border-slate-800/50 shadow-inner">
+                                    {liveLogs.length === 0 && (
+                                        <p className="text-slate-600 italic">파이프라인을 시작하면 실시간 로그가 여기에 표시됩니다...</p>
+                                    )}
+                                    {liveLogs.map((log, i) => (
+                                        <p key={i} className="flex gap-3 leading-relaxed log-fade">
+                                            <span className="text-slate-600 shrink-0">[{log.time}]</span>
+                                            <span className={
+                                                log.type === 'success' ? 'text-green-400' :
+                                                log.type === 'warning' ? 'text-orange-400' :
+                                                'text-slate-400'
+                                            }>{log.text}</span>
+                                        </p>
+                                    ))}
+                                    <div ref={logEndRef} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Video Preview */}
+                        {videoUrl && (
+                            <div className="mt-6 bg-[#0f172a] rounded-2xl p-6 border border-slate-800">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                        <i className="fa-solid fa-clapperboard text-purple-400"></i> 완성된 숏츠 미리보기
+                                    </h3>
+                                    <a href={`http://localhost:8000${videoUrl}`} download className="text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-500/30 flex items-center gap-1.5 transition-colors font-semibold">
+                                        <i className="fa-solid fa-download"></i> 다운로드
+                                    </a>
+                                </div>
+                                <div className="flex justify-center">
+                                    <video
+                                        src={`http://localhost:8000${videoUrl}`}
+                                        controls
+                                        autoPlay
+                                        className="rounded-xl border border-slate-700 shadow-2xl"
+                                        style={{ maxHeight: '500px' }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

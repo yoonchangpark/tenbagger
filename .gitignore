@@ -1,0 +1,38 @@
+# 환경 변수 및 시크릿
+.env
+token.json
+client_secret.json
+
+# Python 캐시
+__pycache__/
+*.pyc
+
+# 에셋 (대용량 미디어 파일 - Git에 올리지 않음)
+assets/
+ai_images/
+source_videos/
+
+# 테스트 임시 파일
+*.part
+*TEMP_MPY*
+test.mp4.*
+test_comp.*
+test_crop.*
+test_frame.*
+test_final_frame.*
+test_process_frame.*
+test_out*.txt
+zoom_base_*.jpg
+raw_scene_*.jpg
+scene_*.jpg
+voice_chunk_*.mp3
+voice_output.mp3
+final_shorts*.mp4
+debug_screenshot.png
+
+# 데이터 (런타임 생성 - 별도 백업)
+data/broll_evals.json
+data/broll_rules.json
+
+# 기타
+*.log

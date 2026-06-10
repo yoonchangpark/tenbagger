@@ -1,0 +1,5 @@
+0: 새 계정 만들기 -> /account/signup
+1: 서비스 소개 -> /about
+2: 서비스 이용약관 -> /policies/terms
+3: 개인정보 처리방침 -> /policies/privacy
+4: 통신판매업신고번호:제2022-서울강남-05034호 -> https://www.ftc.go.kr/bizCommPop.do?wrkr_no=8418601821
