@@ -12,8 +12,6 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-TENBAGGER_API_BASE = os.getenv("TENBAGGER_API_BASE", "http://localhost:8000")
-
 DISCLAIMER = "이 영상은 재무 데이터 기반 분석이며 투자 권유가 아닙니다. 투자 판단의 책임은 본인에게 있습니다."
 
 
@@ -49,7 +47,8 @@ async def pick_tenbagger_topic(exclude_topics: list[str] | None = None) -> tuple
     실패 시 ValueError — 호출 측에서 기존 트렌드 모드로 폴백할 것.
     """
     exclude = exclude_topics or []
-    url = f"{TENBAGGER_API_BASE}/api/screener"
+    base = os.getenv("TENBAGGER_API_BASE", "http://localhost:8000").rstrip("/")
+    url = f"{base}/api/screener"
     params = {"grade": "TENBAGGER,COMPOUNDER", "sort": "total_score", "limit": 20}
 
     async with httpx.AsyncClient() as client:
