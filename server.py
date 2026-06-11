@@ -455,7 +455,11 @@ async def step_3_audio_and_edit(script_data: list, force_free_tts: bool = False,
     """(비동기) ElevenLabs TTS 사용, 에러 시 gTTS 우회. 나레이션 텍스트만 추출하여 읽습니다."""
     
     import re
-    narration_parts = [scene['narration'] for scene in script_data if 'narration' in scene]
+    # "10.0" → "10" : 소수점 .0 제거 (TTS가 "십분의영"처럼 읽는 것 방지, 자막도 동일 적용)
+    narration_parts = [
+        re.sub(r'(\d+)\.0(?!\d)', r'\1', scene['narration'])
+        for scene in script_data if 'narration' in scene
+    ]
     full_narration_text = " ".join(narration_parts)
     # Task 3: TTS 텍스트 정제 (괄호 및 내용 제거)
     full_narration_text = re.sub(r'\(.*?\)', '', full_narration_text)
@@ -682,16 +686,19 @@ async def step_4_assemble_video(video_paths: list, audio_path: str, narrations: 
         # 상단 (제목 영역) 렌더링
         overlays = [video_track]
         
+        def _load_title_font(size):
+            try:
+                return ImageFont.truetype("malgunbd.ttf", size)
+            except IOError:
+                try:
+                    return ImageFont.truetype("malgun.ttf", size)
+                except IOError:
+                    return ImageFont.load_default()
+
         def create_title_image(text, width=1080, height=350):
             img = Image.new('RGBA', (width, height), (0,0,0,0))
             draw = ImageDraw.Draw(img)
-            try:
-                font = ImageFont.truetype("malgunbd.ttf", 90)
-            except IOError:
-                try:
-                    font = ImageFont.truetype("malgun.ttf", 90)
-                except IOError:
-                    font = ImageFont.load_default()
+            font = _load_title_font(90)
                     
             # Wrap text to fit
             words = text.split()
@@ -718,15 +725,24 @@ async def step_4_assemble_video(video_paths: list, audio_path: str, narrations: 
             
             y_offset = 20
             for line in lines:
+                line_font = font
                 if hasattr(draw, 'textlength'):
-                    tw = draw.textlength(line, font=font)
+                    tw = draw.textlength(line, font=line_font)
                 else:
-                    tw, _ = draw.textsize(line, font=font)
-                    
+                    tw, _ = draw.textsize(line, font=line_font)
+
+                # 띄어쓰기 없는 긴 단어(종목명 등)가 폭을 넘으면 해당 줄만 폰트 축소
+                if tw > width - 60 and tw > 0:
+                    line_font = _load_title_font(max(48, int(90 * (width - 60) / tw)))
+                    if hasattr(draw, 'textlength'):
+                        tw = draw.textlength(line, font=line_font)
+                    else:
+                        tw, _ = draw.textsize(line, font=line_font)
+
                 x = (width - tw) / 2
-                
+
                 # 상단 레이아웃 배너: 레퍼런스 스타일의 강렬하고 큰 테두리(Stroke)
-                draw.text((x, y_offset), line, font=font, fill=(255, 240, 100), stroke_width=8, stroke_fill=(0, 0, 0))
+                draw.text((x, y_offset), line, font=line_font, fill=(255, 240, 100), stroke_width=8, stroke_fill=(0, 0, 0))
                 y_offset += 108
                 
             return np.array(img)
@@ -769,27 +785,38 @@ async def step_4_assemble_video(video_paths: list, audio_path: str, narrations: 
         dim_box = dim_box.set_position(('center', 1000))
         overlays.append(dim_box)
                 
+        def _load_subtitle_font(size):
+            try:
+                return ImageFont.truetype("malgunbd.ttf", size)
+            except IOError:
+                try:
+                    return ImageFont.truetype("malgun.ttf", size)
+                except IOError:
+                    return ImageFont.load_default()
+
         def create_text_image(text, width=1080, height=300):
             img = Image.new('RGBA', (width, height), (0,0,0,0))
             draw = ImageDraw.Draw(img)
-            
-            # 가장 굵은 폰트(Bold) 설정
-            try:
-                font = ImageFont.truetype("malgunbd.ttf", 81) # 1080p 해상도에 맞춰 1.5배 확대
-            except IOError:
-                try:
-                    font = ImageFont.truetype("malgun.ttf", 81)
-                except IOError:
-                    font = ImageFont.load_default()
-            
+
+            font_size = 81  # 1080p 해상도에 맞춰 1.5배 확대
+            font = _load_subtitle_font(font_size)
+
             line = text.strip()
-            
-            if hasattr(draw, 'textbbox'):
-                bbox = draw.textbbox((0, 0), line, font=font)
-                lw = bbox[2] - bbox[0]
-                lh = bbox[3] - bbox[1]
-            else:
-                lw, lh = draw.textsize(line, font=font)
+
+            def _measure(f):
+                if hasattr(draw, 'textbbox'):
+                    bbox = draw.textbbox((0, 0), line, font=f)
+                    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+                return draw.textsize(line, font=f)
+
+            lw, lh = _measure(font)
+
+            # 좌우 잘림 방지: 텍스트가 안전폭(양쪽 여백 40px + stroke 여유)을 넘으면 폰트 축소
+            safe_width = width - 80
+            if lw > safe_width and lw > 0:
+                font_size = max(40, int(font_size * safe_width / lw))
+                font = _load_subtitle_font(font_size)
+                lw, lh = _measure(font)
                 
             x = (width - lw) / 2
             y = (height - lh) / 2
