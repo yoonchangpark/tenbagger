@@ -1049,6 +1049,10 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
             jobs[job_id].update({"status": "Failed: 음성 생성 실패", "progress": 100})
             _end_step(5)
         
+        # 텐배거 모드: 성공한 종목을 히스토리에 기록해 3일간 같은 종목 반복 방지
+        if topic.lower() == "tenbagger" and str(jobs[job_id].get("status", "")).startswith("Completed"):
+            save_history(prompt_topic)
+
         _save_step_timings(jobs[job_id].get("step_timings", {}))
         jobs[job_id]["is_running"] = False
         _log("전체 파이프라인 완료!", "success")
