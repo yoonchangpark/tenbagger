@@ -65,7 +65,11 @@ async def pick_tenbagger_topic(exclude_topics: list[str] | None = None) -> tuple
             continue
         context = (
             f"{_build_context(c)}\n\n"
-            f"[준수사항] 마지막 Scene의 narration은 반드시 다음 문구로 끝낼 것: \"{DISCLAIMER}\""
+            f"[대본 구조 강제 규칙]\n"
+            f"1. 첫 Scene의 narration은 반드시 종목명과 핵심 결론으로 시작할 것 (예: \"{c['name']}, 시스템 점수 {_fmt(c.get('total_score'))}점.\"). 배경 설명·분위기 조성 멘트로 시작 금지.\n"
+            f"2. 모든 Scene의 narration에 위 재무 수치 중 최소 1개를 포함할 것. '전문가들', '월가', '시장이 주목' 같은 수치 없는 추상 멘트 절대 금지.\n"
+            f"3. 전체 분량은 40~50초, 위 수치 중 최소 5개를 시청자에게 전달할 것.\n"
+            f"4. 마지막 Scene의 narration은 반드시 다음 문구로 끝낼 것: \"{DISCLAIMER}\""
         )
         logger.info(f"텐배거 주제 선정: {topic} (점수 {c.get('total_score')})")
         return (topic, context)

@@ -466,7 +466,8 @@ async def step_3_audio_and_edit(script_data: list, force_free_tts: bool = False,
     audio_path = os.path.join(save_dir, file_name)
     
     # ElevenLabs API 설정 (Task 3)
-    voice_id = "m3gJBS8OofDJfycyA2Ip" # 사용자 지정 Taehyung 보이스 ID
+    # 보이스 변경: .env에 ELEVENLABS_VOICE_ID 설정 (기본값은 기존 Taehyung 보이스)
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID", "m3gJBS8OofDJfycyA2Ip")
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     
     headers = {

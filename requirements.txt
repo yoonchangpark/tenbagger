@@ -10,3 +10,5 @@ moviepy==1.0.3
 pytrends==4.9.3
 yahooquery==2.3.7
 playwright==1.51.0
+gTTS==2.5.4
+pydub==0.25.1
