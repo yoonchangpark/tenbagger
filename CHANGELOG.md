@@ -2,6 +2,15 @@
 
 ---
 
+## v4.1 — ETL 원격 트리거 + 실행 상태 가시화 (2026-06-11)
+
+### ETL API (신규: `/api/v2/etl`)
+- **POST /api/v2/etl/run**: ETL 백그라운드 즉시 실행 (market=ALL|KOSPI|KOSDAQ, skip_existing 기본 true). 실행 중이면 중복 거부
+- **GET /api/v2/etl/status**: 실행 중 여부·시작/종료 시각·트리거 종류(manual/schedule)·에러·다음 스케줄 시각 조회
+- **02:00 KST 일일 스케줄 잡 개선**: subprocess 방식 → v2_etl 가드 러너로 교체. 수동/스케줄 실행이 같은 가드를 공유해 중복 실행 방지 + status로 실행 기록 확인 가능
+
+---
+
 ## v4.0 — 인증 강화 + UX 개선 + 어드바이저 고도화 (2026-05-10)
 
 ### 인증 시스템 개선
