@@ -27,6 +27,7 @@ from app.api.v2_holdings import router as holdings_router
 from app.api.v2_phase_d import router as phase_d_router
 from app.api.v2_swap import router as swap_router
 from app.api.v2_macro import router as macro_router
+from app.api.v2_etl import router as etl_router, run_scheduled_etl
 from app.core.database import check_db, SessionLocal
 
 
@@ -48,23 +49,6 @@ def init_db():
         db.rollback()
     finally:
         db.close()
-
-
-def _run_etl_job():
-    """매일 새벽 2시(KST) ETL 자동 실행"""
-    import subprocess, sys
-    print("🔄 [SCHEDULER] ETL 자동 시작...")
-    try:
-        result = subprocess.run(
-            [sys.executable, "-m", "app.workers.etl", "--market", "ALL", "--skip-existing"],
-            capture_output=True, text=True, timeout=7200,
-            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        )
-        print(f"✅ [SCHEDULER] ETL 완료\n{result.stdout[-500:] if result.stdout else ''}")
-        if result.returncode != 0:
-            print(f"⚠️ [SCHEDULER] ETL stderr: {result.stderr[-300:]}")
-    except Exception as e:
-        print(f"❌ [SCHEDULER] ETL 오류: {e}")
 
 
 def _run_advisor_job():
@@ -198,8 +182,9 @@ async def lifespan(app: FastAPI):
         scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
 
         # 매일 새벽 2:00 KST — ETL (전종목 재무데이터 수집)
+        # v2_etl의 가드 러너 사용: 중복 실행 방지 + /api/v2/etl/status로 실행 기록 확인 가능
         scheduler.add_job(
-            lambda: asyncio.get_event_loop().run_in_executor(None, _run_etl_job),
+            run_scheduled_etl,
             CronTrigger(hour=2, minute=0, timezone="Asia/Seoul"),
             id="etl_daily",
             name="Daily ETL",
@@ -316,6 +301,7 @@ app.include_router(holdings_router)
 app.include_router(phase_d_router)
 app.include_router(swap_router)
 app.include_router(macro_router)
+app.include_router(etl_router)
 
 
 @app.get("/api/health")
