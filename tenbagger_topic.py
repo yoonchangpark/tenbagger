@@ -41,6 +41,27 @@ def _build_context(c: dict) -> str:
     return "\n".join(lines)
 
 
+async def _fetch_qualitative(base: str, ticker: str) -> str:
+    """AI 정성 분석 (사업모델·해자) — 실패해도 파이프라인은 계속 (빈 문자열 반환)"""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{base}/api/v2/company/{ticker}/qualitative", timeout=60.0
+            )
+            resp.raise_for_status()
+            q = resp.json()
+        moat = q.get("moat_detail") or {}
+        parts = []
+        if q.get("business_model"):
+            parts.append(f"사업모델: {q['business_model']}")
+        if q.get("moat_score") is not None:
+            parts.append(f"경쟁우위(해자) 점수: {q['moat_score']}/10 — {moat.get('summary', '')}")
+        return "\n".join(parts)
+    except Exception as e:
+        logger.warning(f"정성 분석 조회 실패 (수치만으로 진행): {e}")
+        return ""
+
+
 async def pick_tenbagger_topic(exclude_topics: list[str] | None = None) -> tuple[str, str]:
     """
     상위 등급 종목 중 히스토리에 없는 첫 종목을 골라 (주제, 문맥) 반환.
@@ -63,11 +84,13 @@ async def pick_tenbagger_topic(exclude_topics: list[str] | None = None) -> tuple
         topic = f"{c['name']} 주가 10배 가능성 분석"
         if any(c["name"] in t for t in exclude):
             continue
+        qualitative = await _fetch_qualitative(base, c["ticker"])
+        narrative_block = f"\n[왜 이 종목인가 — AI 정성 분석]\n{qualitative}\n" if qualitative else ""
         context = (
-            f"{_build_context(c)}\n\n"
+            f"{_build_context(c)}\n{narrative_block}\n"
             f"[대본 구조 강제 규칙]\n"
             f"1. 첫 Scene의 narration은 반드시 종목명과 핵심 결론으로 시작할 것 (예: \"{c['name']}, 시스템 점수 {_fmt(c.get('total_score'))}점.\"). 배경 설명·분위기 조성 멘트로 시작 금지.\n"
-            f"2. 모든 Scene의 narration에 위 재무 수치 중 최소 1개를 포함할 것. '전문가들', '월가', '시장이 주목' 같은 수치 없는 추상 멘트 절대 금지.\n"
+            f"2. 모든 Scene의 narration에 위 재무 수치 중 최소 1개를 포함할 것 (사업모델·해자 설명 Scene 1~2개만 예외 허용). '전문가들', '월가', '시장이 주목' 같은 수치 없는 추상 멘트 절대 금지.\n"
             f"3. 전체 분량은 40~50초, 위 수치 중 최소 5개를 시청자에게 전달할 것.\n"
             f"4. 마지막 Scene의 narration은 반드시 다음 문구로 끝낼 것: \"{DISCLAIMER}\""
         )

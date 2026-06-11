@@ -15,14 +15,17 @@ from pydantic import BaseModel
 from typing import List, Optional
 import time
 from dotenv import load_dotenv
+
+# 로컬 모듈 import 전에 .env 로드 (모듈 최상위에서 os.getenv 하는 모듈들의 키 누락 방지)
+load_dotenv()
+
 from evaluator.alignment import evaluate_script
 from evolution.prompt_engine import load_prompt_rules, evolve_prompt
 from evolution.broll_optimizer import save_broll_evaluation, load_broll_rules
 from analytics.youtube_metrics import get_video_metrics, save_metrics
 from tenbagger_topic import pick_tenbagger_topic
+from historical_topic import pick_history_topic
 import kling_broll
-
-load_dotenv()
 
 # 로그 설정
 logging.basicConfig(level=logging.INFO)
@@ -346,6 +349,14 @@ async def step_2_download_background_video(script_data: list, output_dir: str = 
         narration = scene.get("narration", "")
         
         logger.info(f"[{idx+1} 씬] [B-roll 소싱 시작] {source_type} | 검색어: {query}")
+
+        # history 모드: 미리 생성된 검색량 차트 클립 사용
+        if scene.get("chart_path") and os.path.exists(scene["chart_path"]):
+            import shutil
+            shutil.copy(scene["chart_path"], final_video_path)
+            logger.info(" ✅ [검색량 차트 클립 삽입]")
+            downloaded_paths.append(final_video_path)
+            continue
 
         # youtube(yt-dlp) 소싱 제거 → Kling AI 생성 우선, 실패 시 Pexels 검색 폴백
         if source_type != "pexels" and kling_broll.is_configured():
@@ -961,6 +972,7 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
         _start_step(1, "주제 선정 및 리서치")
         import data_pipeline
         prompt_topic = topic
+        chart_path = ""
         if topic.lower() == "tenbagger":
             # 텐배거 헌터 연동: 추천 종목 + 재무 근거를 주제/문맥으로 사용
             _log("텐배거 추천 종목 조회 중...")
@@ -968,6 +980,17 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
             history_topics = [item['topic'] for item in load_history()]
             prompt_topic, context_data = await pick_tenbagger_topic(exclude_topics=history_topics)
             _log(f"주제 확정: {prompt_topic}")
+        elif topic.lower() == "history":
+            # 과거 텐배거 해부: 백테스트 + 검색량 트렌드 기반
+            _log("과거 텐배거 종목 선정 + 백테스트 조회 중...")
+            jobs[job_id].update({"status": "Step 1: 과거 텐배거 백테스트 중...", "progress": 5})
+            history_topics = [item['topic'] for item in load_history()]
+            chart_dir = os.path.join(ASSETS_DIR, job_id)
+            os.makedirs(chart_dir, exist_ok=True)
+            prompt_topic, context_data, chart_path = await pick_history_topic(
+                exclude_topics=history_topics, chart_dir=chart_dir
+            )
+            _log(f"주제 확정: {prompt_topic}" + (" (검색량 차트 포함)" if chart_path else ""))
         else:
             if topic.lower() == "auto":
                 _log("트렌드 티커 자동 수집 중...")
@@ -1009,6 +1032,13 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
             top_title = prompt_topic
             script_data = parsed_result
 
+        # history 모드: source_type 'chart' Scene에 미리 생성한 검색량 차트 연결
+        if chart_path and isinstance(script_data, list):
+            for scene in script_data:
+                if scene.get("source_type") == "chart":
+                    scene["chart_path"] = chart_path
+                    break
+
         alignment_result = await evaluate_script(script_data)
         eval_score = alignment_result.get('final_score', 0)
         _log(f"대본 평가 점수: {eval_score}점 ({'통과' if alignment_result['pass'] else '미달(강제 진행)'})")
@@ -1049,8 +1079,8 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
             jobs[job_id].update({"status": "Failed: 음성 생성 실패", "progress": 100})
             _end_step(5)
         
-        # 텐배거 모드: 성공한 종목을 히스토리에 기록해 3일간 같은 종목 반복 방지
-        if topic.lower() == "tenbagger" and str(jobs[job_id].get("status", "")).startswith("Completed"):
+        # 텐배거/과거해부 모드: 성공한 종목을 히스토리에 기록해 3일간 같은 종목 반복 방지
+        if topic.lower() in ("tenbagger", "history") and str(jobs[job_id].get("status", "")).startswith("Completed"):
             save_history(prompt_topic)
 
         _save_step_timings(jobs[job_id].get("step_timings", {}))
