@@ -2,6 +2,21 @@
 
 ---
 
+## v4.3 — 백테스트 사례 유형 자동분류 + 트랙레코드 (2026-06-14)
+
+### 백테스트 사례 유형 자동 판정 (`/api/backtest/{ticker}`)
+- **`classify_case_type()` 신규**: 보유기간(base_year~end_year) 재무 추세를 DART에서 가져와 `success`/`frenzy`를 데이터로 자동 판정
+  - 최종 연도 영업적자 OR 매출 정점대비 30%+ 하락 OR 영업이익 정점대비 70%+ 하락 → `frenzy`
+  - 그 외 견조한 성장 → `success`
+- 백테스트 응답에 `financial_trajectory`(연도별 매출·영업이익) + `case_analysis`(case_type·적자여부·하락률·근거) 추가
+- 목적: 콘텐츠(쇼츠 대본) 생성 시 사람이 손으로 라벨링하던 success/frenzy 오분류를 구조적으로 제거 (예: 에코프로비엠 — 수동 success였으나 2024년 영업적자로 실제 frenzy)
+
+### 트랙 레코드 공개 페이지 (`/api/v2/track-record`, `trackrecord.html`)
+- 큐레이션 종목의 과거 예측 등급 vs 실제 수익률을 DART 공시 기반으로 투명 공개
+- 요약 통계(적중률·평균 수익률) + 종목별 카드 + 스크리너 CTA (시청자→서비스 유입 펀넬)
+
+---
+
 ## v4.2 — ETL 외부 스케줄 트리거 (2026-06-14)
 
 ### GitHub Actions 일일 ETL (신규: `.github/workflows/daily-etl.yml`)
