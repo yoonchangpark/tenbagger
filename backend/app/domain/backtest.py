@@ -9,6 +9,62 @@ from app.infra.clients.dart_client import get_corp_code, fetch_yearly_financials
 from app.domain.scoring import calculate_tenbagger_score
 
 
+def classify_case_type(trajectory: list) -> dict:
+    """보유기간 재무 추세로 사례 유형을 데이터에서 자동 판정한다.
+    사람이 손으로 라벨링하던 success/frenzy 오분류를 구조적으로 제거하기 위한 함수.
+
+    trajectory: [{year, revenue, operating_profit}, ...] (연도 오름차순 무관)
+    반환: {
+      case_type: 'success' | 'frenzy' | 'unknown',
+      final_year_operating_loss: bool|None,   # 최종 연도 영업적자 여부
+      revenue_drop_from_peak_pct: float|None,  # 정점 대비 최종 매출 하락률(%)
+      op_profit_drop_from_peak_pct: float|None,
+      reason: str,
+    }
+    cyclical/caution(업종 판단 필요)은 여기서 판정하지 않고 호출측 수동 라벨을 존중한다.
+    """
+    rows = [r for r in (trajectory or []) if r.get("year") is not None]
+    rows.sort(key=lambda r: r["year"])
+    if len(rows) < 2:
+        return {"case_type": "unknown", "final_year_operating_loss": None,
+                "revenue_drop_from_peak_pct": None, "op_profit_drop_from_peak_pct": None,
+                "reason": "재무 추세 데이터 부족"}
+
+    revenues = [r.get("revenue") for r in rows if r.get("revenue") is not None]
+    ops = [(r["year"], r.get("operating_profit")) for r in rows]
+    final = rows[-1]
+    final_op = final.get("operating_profit")
+    final_rev = final.get("revenue")
+
+    final_loss = (final_op is not None and final_op < 0)
+
+    rev_drop = None
+    if revenues and final_rev is not None:
+        peak_rev = max(revenues)
+        if peak_rev > 0:
+            rev_drop = round((1 - final_rev / peak_rev) * 100, 1)
+
+    op_vals = [v for _, v in ops if v is not None]
+    op_drop = None
+    if op_vals and final_op is not None:
+        peak_op = max(op_vals)
+        if peak_op > 0:
+            op_drop = round((1 - final_op / peak_op) * 100, 1)
+
+    # 판정 규칙: 최종 영업적자 OR 매출 정점대비 30%+ 하락 OR 영업이익 정점대비 70%+ 하락 → frenzy
+    if final_loss:
+        return {"case_type": "frenzy", "final_year_operating_loss": True,
+                "revenue_drop_from_peak_pct": rev_drop, "op_profit_drop_from_peak_pct": op_drop,
+                "reason": "최종 연도 영업적자 — 광풍 후 실적 둔화 사례"}
+    if (rev_drop is not None and rev_drop >= 30) or (op_drop is not None and op_drop >= 70):
+        return {"case_type": "frenzy", "final_year_operating_loss": False,
+                "revenue_drop_from_peak_pct": rev_drop, "op_profit_drop_from_peak_pct": op_drop,
+                "reason": f"정점 대비 매출 {rev_drop}%·영업이익 {op_drop}% 하락 — 고점 후 둔화"}
+    return {"case_type": "success", "final_year_operating_loss": False,
+            "revenue_drop_from_peak_pct": rev_drop, "op_profit_drop_from_peak_pct": op_drop,
+            "reason": "보유기간 내내 실적 견조 — 성공 사례"}
+
+
 async def _get_price_at(ticker: str, year: int) -> Optional[int]:
     """특정 연도 말 주가 조회 (FinanceDataReader 우선 → pykrx fallback)"""
     def _fdr_fetch() -> Optional[int]:
@@ -78,6 +134,18 @@ async def run_backtest(
     # 당시 스코어 계산 (당시 밸류에이션 없으므로 per/pbr/dividend 생략)
     historical_score = calculate_tenbagger_score(historical_fins)
 
+    # 보유기간(base_year~end_year) 재무 추세 수집 → 사례 유형 자동 판정
+    end_year = base_year + hold_years
+    forward_fins = await fetch_yearly_financials(
+        corp_code, ticker, years=hold_years + 1, end_year=end_year
+    )
+    trajectory = [
+        {"year": r["year"], "revenue": r.get("revenue"),
+         "operating_profit": r.get("operating_profit")}
+        for r in forward_fins
+    ]
+    case = classify_case_type(trajectory)
+
     # 주가 조회 (병렬)
     price_base, price_end = await asyncio.gather(
         _get_price_at(ticker, base_year),
@@ -102,6 +170,8 @@ async def run_backtest(
         "price_at_end_year": price_end,
         "actual_return_pct": actual_return,
         "is_tenbagger_actual": is_tenbagger_actual,
+        "financial_trajectory": sorted(trajectory, key=lambda r: r["year"]),
+        "case_analysis": case,
         "predicted_grade": historical_score.get("grade"),
         "prediction_correct": (
             (historical_score.get("grade") == "TENBAGGER" and actual_return >= 20)
