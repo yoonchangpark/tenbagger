@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>요소 발굴 엔진 — 구현 미리보기 (목업)</title>
+<style>
+  :root{
+    --bg:#0a0f1e;--surface:#111827;--surface2:#1f2937;--border:#374151;
+    --text:#f9fafb;--muted:#9ca3af;--green:#10b981;--blue:#3b82f6;
+    --yellow:#f59e0b;--red:#ef4444;--purple:#8b5cf6;--gold:#f5c518;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans KR',sans-serif;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 22px 80px;}
+  .mock-tag{display:inline-block;background:#8b5cf618;border:1px solid var(--purple);color:#c4b5fd;
+    font-size:11px;font-weight:700;border-radius:20px;padding:5px 14px;margin-bottom:18px;}
+  h1{font-size:clamp(24px,4vw,34px);font-weight:900;line-height:1.25;margin-bottom:12px;}
+  h1 span{background:linear-gradient(135deg,#8b5cf6,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  .lead{color:var(--muted);font-size:15px;margin-bottom:34px;max-width:720px;}
+
+  .sec{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px 28px;margin-bottom:22px;}
+  .sec h2{font-size:17px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:9px;}
+  .sec .num{width:26px;height:26px;border-radius:8px;background:var(--purple);color:#fff;font-size:13px;
+    display:inline-flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;}
+  .sec .sub{color:var(--muted);font-size:13px;margin:4px 0 18px 35px;}
+
+  /* loop */
+  .loop{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;}
+  .loop .step{flex:1;min-width:120px;background:#0a0f1e;border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;}
+  .loop .step .t{font-size:12px;color:var(--purple);font-weight:800;margin-bottom:6px;}
+  .loop .step .d{font-size:12px;color:#e5e7eb;}
+  .loop .a{display:flex;align-items:center;color:var(--muted);font-size:18px;}
+  @media(max-width:760px){.loop .a{transform:rotate(90deg);width:100%;justify-content:center;}}
+  .loop-back{text-align:center;font-size:12px;color:var(--purple);margin-top:12px;border-top:1px dashed var(--border);padding-top:10px;}
+
+  /* factor library */
+  .cats{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:640px){.cats{grid-template-columns:1fr;}}
+  .cat{background:#0a0f1e;border:1px solid var(--border);border-radius:12px;padding:15px 16px;}
+  .cat h3{font-size:13px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:7px;}
+  .cat .src{font-size:10px;color:var(--muted);font-weight:500;}
+  .f{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid #1f2937;}
+  .f:last-child{border-bottom:none;}
+  .st{font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;}
+  .st-keep{background:#10b98120;color:var(--green);}
+  .st-test{background:#f59e0b20;color:var(--yellow);}
+  .st-drop{background:#ef444420;color:#fca5a5;}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:10px 11px;text-align:right;border-bottom:1px solid var(--border);}
+  th:first-child,td:first-child{text-align:left;}
+  th{color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+  .ic-pos{color:var(--green);font-weight:700;} .ic-low{color:#64748b;} .ic-neg{color:var(--red);font-weight:700;}
+  .verdict{font-size:11px;font-weight:800;padding:3px 9px;border-radius:12px;}
+  .v-keep{background:#10b98120;color:var(--green);}
+  .v-drop{background:#ef444420;color:#fca5a5;}
+
+  /* walk-forward bar */
+  .wf{display:flex;gap:4px;margin-top:6px;}
+  .wf .yr{flex:1;text-align:center;font-size:10px;padding:8px 2px;border-radius:6px;font-weight:700;}
+  .wf .train{background:#3b82f625;color:#93c5fd;border:1px solid #3b82f644;}
+  .wf .test{background:#f59e0b25;color:#fcd34d;border:1px solid #f59e0b55;}
+  .wf-legend{font-size:11px;color:var(--muted);margin-top:8px;}
+  .wf-legend b.tr{color:#93c5fd;} .wf-legend b.te{color:#fcd34d;}
+
+  .trap{background:#ef444410;border:1px solid #ef444440;border-radius:12px;padding:15px 17px;margin-top:16px;font-size:13px;}
+  .trap b{color:#fca5a5;}
+
+  /* iteration chart */
+  .iters{display:flex;align-items:flex-end;gap:10px;height:150px;margin-top:10px;padding-top:10px;}
+  .iters .bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%;}
+  .iters .bar .col{width:60%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#10b981,#0e7a5f);}
+  .iters .bar .lbl{font-size:10px;color:var(--muted);text-align:center;}
+  .iters .bar .pct{font-size:12px;font-weight:800;color:var(--green);}
+
+  /* fail analysis */
+  .fail{background:#0a0f1e;border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .fail .row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #1f2937;}
+  .fail .row:last-child{border:none;}
+  .fail .hl{color:var(--yellow);font-weight:700;}
+
+  .warn{background:#f59e0b10;border:1px solid #f59e0b40;border-radius:12px;padding:16px 18px;font-size:13px;}
+  .warn b{color:var(--yellow);}
+  .warn ul{margin:8px 0 0 18px;} .warn li{margin-bottom:6px;}
+  .note{font-size:11px;color:#64748b;margin-top:10px;}
+  .codeline{font-family:ui-monospace,monospace;font-size:12px;color:#a5b4fc;background:#0a0f1e;border:1px solid var(--border);border-radius:6px;padding:2px 7px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="mock-tag">🧪 구현 미리보기 · 실제 동작 아님 (목업) · 수치는 설명용 예시</div>
+  <h1>요소 발굴 <span>엔진</span><br>N년 전 예측 → 검증 → 개선 루프</h1>
+  <p class="lead">
+    재무 하나의 공식이 아니라, <b>여러 요소(재무·산업·내러티브·거시)를 후보로 던지고</b>,
+    과거에 실제로 예측력이 있었는지 측정하고, 틀린 이유를 분석해 요소를 갈아끼우며,
+    <b>"진짜 맞히는 요소"만 살아남게</b> 하는 자기개선 엔진. 핵심 규율은 과적합을 막는 walk-forward 검증.
+  </p>
+
+  <!-- 1. 루프 -->
+  <div class="sec">
+    <h2><span class="num">1</span> 자기개선 루프</h2>
+    <div class="sub">회장님이 제안하신 "예측 → 검증 → 실패분석 → 수정 → 재검증" 그대로</div>
+    <div class="loop">
+      <div class="step"><div class="t">① 예측</div><div class="d">N년 전 시점, 요소 조합으로 등급 산출</div></div>
+      <div class="a">→</div>
+      <div class="step"><div class="t">② 검증</div><div class="d">실제 이후 수익률과 대조 (IC·적중률)</div></div>
+      <div class="a">→</div>
+      <div class="step"><div class="t">③ 실패분석</div><div class="d">틀린 종목의 빠진 요소 진단</div></div>
+      <div class="a">→</div>
+      <div class="step"><div class="t">④ 요소수정</div><div class="d">요소 추가/가중치 조정</div></div>
+      <div class="a">→</div>
+      <div class="step"><div class="t">⑤ 재검증</div><div class="d">건드리지 않은 기간으로 out-of-sample 확인</div></div>
+    </div>
+    <div class="loop-back">↻ ⑤가 통과하면 채택, 실패하면 ③으로 — 정확도가 오를 때까지 반복</div>
+  </div>
+
+  <!-- 2. 요소 라이브러리 -->
+  <div class="sec">
+    <h2><span class="num">2</span> 요소 라이브러리</h2>
+    <div class="sub">범주별 후보 요소 — 각 요소는 테스트→채택/탈락 상태를 가진다</div>
+    <div class="cats">
+      <div class="cat">
+        <h3>💰 재무 <span class="src">· DART</span></h3>
+        <div class="f"><span>매출 3년 CAGR</span><span class="st st-keep">채택</span></div>
+        <div class="f"><span>ROE 추세</span><span class="st st-keep">채택</span></div>
+        <div class="f"><span>FCF 마진</span><span class="st st-test">테스트중</span></div>
+        <div class="f"><span>부채비율</span><span class="st st-drop">탈락</span></div>
+      </div>
+      <div class="cat">
+        <h3>🏭 산업/구조 <span class="src">· DART정성 + 큐레이션</span></h3>
+        <div class="f"><span>시장 독과점 지위</span><span class="st st-keep">채택</span></div>
+        <div class="f"><span>산업 성장률</span><span class="st st-test">테스트중</span></div>
+        <div class="f"><span>밸류체인 위치</span><span class="st st-test">테스트중</span></div>
+      </div>
+      <div class="cat">
+        <h3>📣 내러티브 <span class="src">· 네이버 DataLab + 뉴스</span></h3>
+        <div class="f"><span>검색량 가속도(저점)</span><span class="st st-keep">채택</span></div>
+        <div class="f"><span>뉴스 논조 전환</span><span class="st st-test">테스트중</span></div>
+        <div class="f"><span>신사업 공시 빈도</span><span class="st st-test">테스트중</span></div>
+      </div>
+      <div class="cat">
+        <h3>🌐 거시 <span class="src">· BOK API</span></h3>
+        <div class="f"><span>금리 방향성</span><span class="st st-test">테스트중</span></div>
+        <div class="f"><span>섹터 로테이션</span><span class="st st-test">테스트중</span></div>
+        <div class="f"><span>환율(수출주)</span><span class="st st-drop">탈락</span></div>
+      </div>
+    </div>
+    <p class="note">요소는 <span class="codeline">factor_id, category, compute_fn(ticker, as_of_year), 정규화</span> 규격으로 추가 — 새 요소를 끼우면 자동으로 검증 대상에 포함.</p>
+  </div>
+
+  <!-- 3. IC 리더보드 -->
+  <div class="sec">
+    <h2><span class="num">3</span> 요소 예측력 리더보드 (IC)</h2>
+    <div class="sub">IC = 요소값과 이후 2년 수익률의 상관(−1~+1). 높을수록 예측력. ★in-sample만 높고 out이 0이면 과적합</div>
+    <table>
+      <thead><tr><th>요소</th><th>IC (in-sample)</th><th>IC (out-of-sample)</th><th>안정성</th><th>판정</th></tr></thead>
+      <tbody>
+        <tr><td>검색량 가속도(저점)</td><td class="ic-pos">+0.31</td><td class="ic-pos">+0.27</td><td>높음</td><td><span class="verdict v-keep">✓ 채택</span></td></tr>
+        <tr><td>매출 3년 CAGR</td><td class="ic-pos">+0.24</td><td class="ic-pos">+0.21</td><td>높음</td><td><span class="verdict v-keep">✓ 채택</span></td></tr>
+        <tr><td>시장 독과점 지위</td><td class="ic-pos">+0.19</td><td class="ic-pos">+0.18</td><td>높음</td><td><span class="verdict v-keep">✓ 채택</span></td></tr>
+        <tr><td style="color:#fca5a5">특정 분기 깜짝실적 패턴</td><td class="ic-pos">+0.42</td><td class="ic-neg">−0.03</td><td>낮음</td><td><span class="verdict v-drop">✗ 과적합 탈락</span></td></tr>
+        <tr><td>부채비율</td><td class="ic-low">+0.05</td><td class="ic-low">+0.04</td><td>—</td><td><span class="verdict v-drop">✗ 무의미 탈락</span></td></tr>
+      </tbody>
+    </table>
+    <div class="trap">
+      <b>⚠ 4번째 줄을 보세요.</b> in-sample IC가 <b>+0.42</b>로 가장 높지만, 건드리지 않은 기간에선 <b>−0.03</b> — 즉 <b>과거에 우연히 맞은 것</b>입니다.
+      IC만 보고 채택했다면 미래엔 무너졌을 요소. 이걸 걸러내는 게 walk-forward의 존재 이유입니다.
+    </div>
+  </div>
+
+  <!-- 4. Walk-forward -->
+  <div class="sec">
+    <h2><span class="num">4</span> Walk-forward 검증 (과적합 방어의 뼈대)</h2>
+    <div class="sub">요소를 고르는 기간과 검증하는 기간을 분리 — 미래를 미리 보지 않는다</div>
+    <div class="wf">
+      <div class="yr train">2015<br>학습</div>
+      <div class="yr train">2016<br>학습</div>
+      <div class="yr train">2017<br>학습</div>
+      <div class="yr train">2018<br>학습</div>
+      <div class="yr test">2019<br>검증</div>
+      <div class="yr test">2020<br>검증</div>
+      <div class="yr test">2021<br>검증</div>
+    </div>
+    <div class="wf-legend"><b class="tr">■ 학습</b> 구간에서 요소·가중치를 정한다 → <b class="te">■ 검증</b> 구간(미공개)에서만 성적을 매긴다. 검증 성적만 신뢰한다.</div>
+    <p class="note">매년 창을 한 칸씩 밀며 반복(rolling) → 한 시기에 우연히 맞은 요소는 다른 시기 검증에서 탈락. 체제 변화(regime)에도 강해짐.</p>
+  </div>
+
+  <!-- 5. 정확도 개선 추이 -->
+  <div class="sec">
+    <h2><span class="num">5</span> 반복할수록 오르는 out-of-sample 정확도 <span style="font-size:11px;color:var(--muted);font-weight:500;">(예시)</span></h2>
+    <div class="sub">루프를 돌 때마다 '검증 구간' 정확도가 어떻게 변하는지 — 이게 진짜 성적표</div>
+    <div class="iters">
+      <div class="bar"><div class="pct">38%</div><div class="col" style="height:38%"></div><div class="lbl">v1<br>재무만</div></div>
+      <div class="bar"><div class="pct">44%</div><div class="col" style="height:44%"></div><div class="lbl">v2<br>+검색량</div></div>
+      <div class="bar"><div class="pct">49%</div><div class="col" style="height:49%"></div><div class="lbl">v3<br>+독과점</div></div>
+      <div class="bar"><div class="pct">47%</div><div class="col" style="height:47%;background:linear-gradient(180deg,#ef4444,#991b1b)"></div><div class="lbl" style="color:#fca5a5">v4<br>+깜짝실적<br>(되돌림)</div></div>
+      <div class="bar"><div class="pct">53%</div><div class="col" style="height:53%"></div><div class="lbl">v5<br>+거시</div></div>
+    </div>
+    <p class="note">v4에서 과적합 요소를 넣었다가 검증 정확도가 <b style="color:#fca5a5">떨어져서 되돌린</b> 모습 — 이렇게 "틀린 수정"도 데이터가 잡아줍니다. 이게 회장님이 말한 "잘못됐으면 이유 분석 → 수정"의 자동화.</p>
+  </div>
+
+  <!-- 6. 실패 분석 카드 -->
+  <div class="sec">
+    <h2><span class="num">6</span> 실패 분석 — "왜 틀렸나" 자동 진단 <span style="font-size:11px;color:var(--muted);font-weight:500;">(예시)</span></h2>
+    <div class="sub">예측이 빗나간 종목을 모아 공통적으로 빠진 요소를 찾는다</div>
+    <div class="fail">
+      <div class="row"><span>종목 (2019 예측)</span><span class="hl">A사 — WATCHLIST로 과소평가</span></div>
+      <div class="row"><span>실제 결과</span><span>2년 +210% (텐배거급)</span></div>
+      <div class="row"><span>당시 재무 신호</span><span>평범 (매출 정체, ROE 보통)</span></div>
+      <div class="row"><span>놓친 신호</span><span class="hl">산업 전환점(전기차 침투율 급변) + 검색량 저점 가속</span></div>
+      <div class="row"><span>엔진 제안</span><span style="color:var(--green)">→ '산업 침투율 변화' 요소 후보 추가, 다음 루프에서 검증</span></div>
+    </div>
+    <p class="note">실패 패턴이 쌓이면 "재무만으론 못 잡는 유형"이 드러나고, 그게 새 요소 후보가 됩니다 — 회장님 통찰 그대로.</p>
+  </div>
+
+  <!-- 7. 가드레일 -->
+  <div class="sec">
+    <h2><span class="num">7</span> 정직성 가드레일</h2>
+    <div class="sub">이 엔진은 잘못 쓰면 "과거에만 완벽한 거짓말 기계"가 됩니다. 다음을 강제합니다.</div>
+    <div class="warn">
+      <b>⚠ 반드시 지키는 규칙</b>
+      <ul>
+        <li><b>out-of-sample만 신뢰:</b> 학습 구간 성적은 절대 자랑하지 않음. 검증 구간 성적만 페이지·의사결정에 사용.</li>
+        <li><b>다중검정 보정:</b> 요소를 많이 던질수록 우연 발견이 늘어남 → IC 임계값을 표본·요소 수에 맞춰 상향.</li>
+        <li><b>최소 표본:</b> 텐배거는 희귀 → 타깃을 '시장 +50% 초과'로 넓혀 표본 확보. 표본 부족 요소는 '미검증' 보류.</li>
+        <li><b>점-인-타임 고정:</b> 모든 요소는 그 시점에 실제로 알 수 있던 데이터만. 미래참조 1건이라도 섞이면 전체 무효.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="text-align:center;color:#475569;font-size:11px;margin-top:8px;">
+    텐배거 헌터 · 요소 발굴 엔진 구현 미리보기 (목업) · 실제 데이터 아님
+  </p>
+</div>
+</body>
+</html>
