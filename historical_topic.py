@@ -288,8 +288,21 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
         if make_score_card(card_data, card_path):
             asset_clips["card"] = card_path
 
-    # 사례 유형 (성공/광풍/사이클/경계) — 결말 서사를 분기한다
-    case_type = target.get("case_type", "success")
+    # 사례 유형 (성공/광풍/사이클/경계) — 결말 서사를 분기한다.
+    # ★ Layer 1: 백테스트가 보유기간 재무 추세로 자동 판정한 case_type을 우선 사용한다.
+    #   (사람이 손으로 라벨링하던 success/frenzy 오분류를 구조적으로 제거)
+    #   단, 업종 판단이 필요한 cyclical/caution 수동 라벨은 존중한다.
+    manual_case = target.get("case_type", "success")
+    auto = (bt.get("case_analysis") or {})
+    auto_case = auto.get("case_type")  # 'success'|'frenzy'|'unknown'|None
+    if manual_case in ("cyclical", "caution"):
+        case_type = manual_case
+    elif auto_case in ("success", "frenzy"):
+        case_type = auto_case
+        if auto_case != manual_case:
+            logger.info(f"[{name}] case_type 자동교정: 수동='{manual_case}' → 데이터판정='{auto_case}' ({auto.get('reason')})")
+    else:
+        case_type = manual_case
     case_frame = CASE_FRAMES.get(case_type, CASE_FRAMES["success"])
     topic_suffix = {
         "success": "데이터는 이미 알고 있었다",
@@ -311,6 +324,26 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
     ]
     if target.get("note"):
         lines.append(f"배경 메모: {target['note']}")
+    # ★ 실제 보유기간 재무 추세 (DART) — GPT가 인용할 ground-truth 수치. 환각 방지.
+    trajectory = bt.get("financial_trajectory") or []
+    if trajectory:
+        lines.append(f"\n[{base_year}~{bt.get('end_year')}년 실제 재무 추세 — DART 공시, 이 수치만 인용하라]")
+        for r in trajectory:
+            rev = r.get("revenue")
+            op = r.get("operating_profit")
+            rev_s = f"매출 {rev/1e8:,.0f}억" if rev is not None else "매출 N/A"
+            op_s = f"영업이익 {op/1e8:,.0f}억" if op is not None else "영업이익 N/A"
+            lines.append(f"  {r.get('year')}년: {rev_s} · {op_s}")
+        if auto.get("final_year_operating_loss"):
+            lines.append(
+                f"  ※ 최종 {bt.get('end_year')}년은 영업적자다. "
+                "절대 '계속 좋았다'는 식의 거짓 성공담으로 끝내지 마라 — 정점 이후 둔화/적자를 반드시 다뤄라."
+            )
+        elif auto.get("revenue_drop_from_peak_pct") and auto["revenue_drop_from_peak_pct"] >= 30:
+            lines.append(
+                f"  ※ 최종 연도 매출이 정점 대비 {auto['revenue_drop_from_peak_pct']}% 하락했다. "
+                "고점 이후 둔화를 반드시 언급하라."
+            )
     # 공감 포인트: 당시 관찰 가능했던 트리거 신호들
     triggers = target.get("triggers") or []
     if triggers:

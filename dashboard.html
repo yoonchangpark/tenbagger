@@ -324,6 +324,12 @@
                                                 서사품질 {scriptPreview.history_quality.total}/100
                                             </span>
                                         )}
+                                        {scriptPreview.factcheck && (
+                                            <span className={`px-2 py-1 rounded-full border text-[11px] font-semibold ${scriptPreview.factcheck.ok ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-red-500/10 text-red-300 border-red-500/30'}`}
+                                                title={scriptPreview.factcheck.ok ? '재무 데이터와 일치' : (scriptPreview.factcheck.violations || []).join(' / ')}>
+                                                {scriptPreview.factcheck.ok ? '✓ 팩트체크' : '✗ 팩트체크'}
+                                            </span>
+                                        )}
                                         <button onClick={() => setScriptPreview(null)} title="닫기" className="px-2 py-1 rounded-full bg-slate-800 text-slate-500 border border-slate-700 hover:text-slate-300">✕</button>
                                     </div>
                                 </div>

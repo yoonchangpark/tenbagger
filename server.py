@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 # 로컬 모듈 import 전에 .env 로드 (모듈 최상위에서 os.getenv 하는 모듈들의 키 누락 방지)
 load_dotenv()
 
-from evaluator.alignment import evaluate_script, evaluate_history_quality
+from evaluator.alignment import evaluate_script, evaluate_history_quality, factcheck_history_script
 from evolution.prompt_engine import load_prompt_rules, evolve_prompt
 from evolution.broll_optimizer import save_broll_evaluation, load_broll_rules
 from analytics.youtube_metrics import get_video_metrics, save_metrics
@@ -1423,24 +1423,37 @@ async def script_preview(request_data: ShortsRequest):
 
     scenes, top_title, target_company = _extract(parsed)
 
-    # history 모드 품질 평가 + 자동 재생성 루프
+    # history 모드: Layer 2 팩트체크 게이트(하드) + 품질 평가(소프트) → 위반 시 1회 재생성
     history_eval = {}
+    factcheck = {"ok": True, "violations": [], "fix_instruction": ""}
     if is_history:
+        factcheck = factcheck_history_script(scenes, context_data)
         history_eval = await evaluate_history_quality(scenes, prompt_topic)
-        if history_eval.get("total", 100) < 70:
-            feedback = history_eval.get("feedback", "")
-            logger.info(f"history 대본 품질 미달({history_eval['total']}/100) — 피드백 재생성: {feedback}")
+        needs_retry = (not factcheck["ok"]) or (history_eval.get("total", 100) < 70)
+        if needs_retry:
+            fix_parts = []
+            if not factcheck["ok"]:
+                fix_parts.append(factcheck["fix_instruction"])
+            if history_eval.get("total", 100) < 70:
+                fix_parts.append(history_eval.get("feedback", ""))
+            fix = "\n".join(p for p in fix_parts if p)
+            logger.info(f"history 재생성 트리거 (팩트체크 ok={factcheck['ok']}, 품질={history_eval.get('total')}): {fix}")
             try:
-                retry_context = context_data + f"\n\n[이전 초안 개선 지시]\n{feedback}"
+                retry_context = context_data + f"\n\n[이전 초안 개선 지시 — 반드시 반영]\n{fix}"
                 parsed2 = await call_openai_script(prompt_topic, retry_context)
                 scenes2, top_title2, tc2 = _extract(parsed2)
+                fc2 = factcheck_history_script(scenes2, context_data)
                 eval2 = await evaluate_history_quality(scenes2, prompt_topic)
-                if eval2.get("total", 0) > history_eval.get("total", 0):
+                # 팩트체크는 하드 게이트: 초안이 실패했는데 재생성이 통과하면 무조건 채택.
+                # 그 외엔 품질 점수가 더 높을 때만 교체.
+                adopt = (not factcheck["ok"] and fc2["ok"]) or \
+                        (factcheck["ok"] and eval2.get("total", 0) > history_eval.get("total", 0))
+                if adopt:
                     scenes, top_title, target_company = scenes2, top_title2, tc2
-                    history_eval = eval2
-                    logger.info(f"재생성 채택: {eval2['total']}/100")
+                    history_eval, factcheck = eval2, fc2
+                    logger.info(f"재생성 채택 (팩트체크 ok={fc2['ok']}, 품질={eval2.get('total')})")
                 else:
-                    logger.info(f"초안 유지 (재생성 {eval2['total']} < 초안 {history_eval['total']})")
+                    logger.info("초안 유지 (재생성이 더 낫지 않음)")
             except Exception as e:
                 logger.warning(f"재생성 실패 — 초안 유지: {e}")
 
@@ -1462,6 +1475,10 @@ async def script_preview(request_data: ShortsRequest):
             "conclusion_clarity": history_eval.get("conclusion_clarity"),
             "total": history_eval.get("total"),
             "feedback": history_eval.get("feedback"),
+        }
+        response["factcheck"] = {
+            "ok": factcheck["ok"],
+            "violations": factcheck["violations"],
         }
     return response
 

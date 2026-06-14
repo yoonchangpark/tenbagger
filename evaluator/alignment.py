@@ -158,3 +158,43 @@ async def evaluate_history_quality(scenes: list, topic: str = "") -> dict:
             "data_integration": 0, "conclusion_clarity": 0,
             "total": 0, "feedback": "평가 실패 — 재생성 권장",
         }
+
+
+# 둔화/하락을 나타내는 표현 — 팩트체크 게이트가 대본에서 찾는 키워드
+_DOWNTURN_WORDS = (
+    "적자", "하락", "무너", "꺾", "반토막", "고점", "폭락", "식", "둔화",
+    "물렸", "물린", "떨어", "추락", "거품", "정점", "꼭대기", "위험",
+)
+
+
+def factcheck_history_script(scenes: list, context_data: str) -> dict:
+    """Layer 2 팩트체크 게이트 — 규칙 기반(LLM 호출 없음, 빠름·결정적).
+
+    context_data에 '최종 연도 영업적자/정점 대비 하락' ground-truth 요구가 들어있는데
+    대본이 그 둔화를 한 번도 언급하지 않으면 '거짓 성공담'으로 보고 위반 처리한다.
+
+    반환: {ok: bool, violations: [str], fix_instruction: str}
+    """
+    ctx = context_data or ""
+    requires_downturn = ("영업적자" in ctx) or ("정점 대비" in ctx and "하락" in ctx)
+    if not requires_downturn:
+        return {"ok": True, "violations": [], "fix_instruction": ""}
+
+    narr = " ".join(
+        s.get("narration", "") for s in scenes
+        if s.get("source_type") != "disclaimer"
+    )
+    mentions_downturn = any(w in narr for w in _DOWNTURN_WORDS)
+    if mentions_downturn:
+        return {"ok": True, "violations": [], "fix_instruction": ""}
+
+    return {
+        "ok": False,
+        "violations": ["최종 연도 실적 둔화(영업적자/정점 대비 하락)를 대본이 전혀 언급하지 않음 — 거짓 성공담 위험"],
+        "fix_instruction": (
+            "★팩트체크 실패: 이 종목은 정점 이후 실적이 꺾였다(영업적자 또는 매출 급감). "
+            "그런데 대본이 폭락/둔화를 한 번도 다루지 않아 거짓 성공담이 됐다. "
+            "반드시 후반부에 '정점이 곧 고점이었고 이후 실적/주가가 꺾였다'는 반전과, "
+            "'광풍에 올라타면 물린다'는 경계 교훈을 넣어 다시 작성하라."
+        ),
+    }
