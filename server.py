@@ -66,6 +66,13 @@ class ShortsRequest(BaseModel):
     target_audience: str = "investors"
     style: str = "brand_story"
 
+
+class FromScriptRequest(BaseModel):
+    """'대본만 보기'로 검증한 대본을 GPT 재생성 없이 그대로 영상화."""
+    topic: str = "history"          # card/chart 에셋 생성을 위해 모드 유지
+    top_title: str = ""
+    scenes: list = []
+
 class JobStatus(BaseModel):
     job_id: str
     status: str
@@ -1026,8 +1033,12 @@ async def resolve_topic_context(topic: str, chart_dir: str = None,
     return prompt_topic, context_data, asset_clips
 
 
-async def step_4_automation_pipeline(job_id: str, topic: str):
-    """메인 자동화 파이프라인 - Step별 타이밍 기록 + 실시간 로그 축적"""
+async def step_4_automation_pipeline(job_id: str, topic: str,
+                                     preset_scenes: list = None,
+                                     preset_title: str = None):
+    """메인 자동화 파이프라인 - Step별 타이밍 기록 + 실시간 로그 축적.
+    preset_scenes 가 주어지면 STEP 2(GPT 대본 생성)를 건너뛰고 그 대본을 그대로 렌더링한다
+    ('대본만 보기'로 검증한 대본을 GPT 재생성 없이 바로 영상화 — WYSIWYG)."""
     
     def _log(msg, log_type="info"):
         t = time.strftime("%H:%M:%S")
@@ -1063,13 +1074,22 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
         )
         _end_step(1)
         
-        # ===== STEP 2: AI 대본 생성 =====
-        _start_step(2, "AI 대본 생성")
-        jobs[job_id].update({"status": "Step 2: AI Scene 단위 대본 작성 중...", "progress": 25})
-        
-        parsed_result = await call_openai_script(prompt_topic, context_data)
-        
-        if isinstance(parsed_result, dict) and "scenes" in parsed_result and len(parsed_result["scenes"]) > 0:
+        # ===== STEP 2: AI 대본 생성 (preset_scenes 있으면 건너뜀) =====
+        if preset_scenes:
+            _start_step(2, "검증된 대본 적용 (GPT 생략)")
+            jobs[job_id].update({"status": "Step 2: 검증된 대본 적용 중...", "progress": 25})
+            parsed_result = {
+                "scenes": preset_scenes,
+                "top_title": preset_title or prompt_topic,
+                "target_company": "",
+            }
+            _log(f"검증된 대본 {len(preset_scenes)}개 씬을 그대로 사용 (GPT 재생성 없음)", "success")
+        else:
+            _start_step(2, "AI 대본 생성")
+            jobs[job_id].update({"status": "Step 2: AI Scene 단위 대본 작성 중...", "progress": 25})
+            parsed_result = await call_openai_script(prompt_topic, context_data)
+
+        if not preset_scenes and isinstance(parsed_result, dict) and "scenes" in parsed_result and len(parsed_result["scenes"]) > 0:
             target_company = parsed_result.get("target_company", "")
             first_scene = parsed_result["scenes"][0]
             first_narration = first_scene.get("narration", "")
@@ -1318,6 +1338,24 @@ async def create_shorts(request_data: ShortsRequest, background_tasks: Backgroun
     
     background_tasks.add_task(step_4_automation_pipeline, job_id, topic)
     return {"job_id": job_id, "message": "작업 시작"}
+
+@app.post("/api/pipeline/from_script")
+async def create_shorts_from_script(request_data: FromScriptRequest, background_tasks: BackgroundTasks):
+    """검증된 대본(scenes)을 그대로 영상화한다. GPT 대본 생성 단계를 건너뛴다.
+    topic(history/tenbagger)은 card/chart B-roll 에셋을 만들기 위해 유지한다."""
+    scenes = request_data.scenes or []
+    if not scenes:
+        raise HTTPException(status_code=400, detail="scenes가 비어 있습니다.")
+
+    topic = (request_data.topic or "history").strip()
+    job_id = f"job_{int(time.time())}"
+    jobs[job_id] = {"status": "Queued (검증 대본)", "topic": topic, "progress": 0}
+
+    background_tasks.add_task(
+        step_4_automation_pipeline, job_id, topic,
+        scenes, request_data.top_title or topic,
+    )
+    return {"job_id": job_id, "message": "검증된 대본으로 영상 제작 시작"}
 
 @app.post("/api/pipeline/auto_start")
 async def create_shorts_auto(background_tasks: BackgroundTasks):
