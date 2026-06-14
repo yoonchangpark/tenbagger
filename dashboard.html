@@ -310,7 +310,11 @@
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm text-white leading-relaxed">{sc.narration}</p>
                                                     <p className="text-[11px] text-slate-500 mt-1.5">
-                                                        <span className="text-slate-600">[{sc.source_type}]</span> {sc.search}
+                                                        {sc.source_type === 'card'
+                                                            ? <span className="text-emerald-400 font-semibold">🏷️ 텐배거 분석 카드</span>
+                                                            : sc.source_type === 'chart'
+                                                                ? <span className="text-amber-400 font-semibold">📈 검색량 차트</span>
+                                                                : <><span className="text-slate-600">[{sc.source_type}]</span> {sc.search}</>}
                                                     </p>
                                                 </div>
                                             </div>

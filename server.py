@@ -356,11 +356,11 @@ async def step_2_download_background_video(script_data: list, output_dir: str = 
         
         logger.info(f"[{idx+1} 씬] [B-roll 소싱 시작] {source_type} | 검색어: {query}")
 
-        # history 모드: 미리 생성된 검색량 차트 클립 사용
-        if scene.get("chart_path") and os.path.exists(scene["chart_path"]):
+        # 미리 생성된 에셋 클립(분석 카드 / 검색량 차트) 사용
+        if scene.get("clip_path") and os.path.exists(scene["clip_path"]):
             import shutil
-            shutil.copy(scene["chart_path"], final_video_path)
-            logger.info(" ✅ [검색량 차트 클립 삽입]")
+            shutil.copy(scene["clip_path"], final_video_path)
+            logger.info(f" ✅ [{source_type} 클립 삽입]")
             downloaded_paths.append(final_video_path)
             continue
 
@@ -981,30 +981,33 @@ async def step_4_assemble_video(video_paths: list, audio_path: str, narrations: 
     return await asyncio.to_thread(_moviepy_assemble)
 
 async def resolve_topic_context(topic: str, chart_dir: str = None,
-                                make_chart: bool = True, log=None):
-    """STEP 1 공통 로직: 모드(tenbagger/history/auto/일반)별 주제·문맥·차트를 확정한다.
-    반환: (prompt_topic, context_data, chart_path). 대본 프리뷰와 풀 파이프라인이 공유."""
+                                render_clips: bool = True, log=None):
+    """STEP 1 공통 로직: 모드(tenbagger/history/auto/일반)별 주제·문맥·에셋클립을 확정한다.
+    반환: (prompt_topic, context_data, asset_clips). asset_clips는 {source_type: mp4경로} dict.
+    대본 프리뷰와 풀 파이프라인이 공유. render_clips=False 면 클립 렌더 생략(프리뷰)."""
     def _l(m):
         if log:
             log(m)
     import data_pipeline
     prompt_topic = topic
     context_data = ""
-    chart_path = ""
+    asset_clips = {}
+    cdir = chart_dir or os.path.join(ASSETS_DIR, "preview")
     if topic.lower() == "tenbagger":
         _l("텐배거 추천 종목 조회 중...")
         history_topics = [item['topic'] for item in load_history()]
-        prompt_topic, context_data = await pick_tenbagger_topic(exclude_topics=history_topics)
-        _l(f"주제 확정: {prompt_topic}")
+        prompt_topic, context_data, asset_clips = await pick_tenbagger_topic(
+            exclude_topics=history_topics, clip_dir=cdir, render_clips=render_clips
+        )
+        _l(f"주제 확정: {prompt_topic}" + (" (분석 카드 포함)" if asset_clips.get("card") else ""))
     elif topic.lower() == "history":
         _l("과거 텐배거 종목 선정 + 백테스트 조회 중...")
         history_topics = [item['topic'] for item in load_history()]
-        cdir = chart_dir or os.path.join(ASSETS_DIR, "preview")
-        os.makedirs(cdir, exist_ok=True)
-        prompt_topic, context_data, chart_path = await pick_history_topic(
-            exclude_topics=history_topics, chart_dir=cdir, make_chart=make_chart
+        prompt_topic, context_data, asset_clips = await pick_history_topic(
+            exclude_topics=history_topics, chart_dir=cdir, render_clips=render_clips
         )
-        _l(f"주제 확정: {prompt_topic}" + (" (검색량 차트 포함)" if chart_path else ""))
+        extras = "+".join(k for k in ("card", "chart") if asset_clips.get(k))
+        _l(f"주제 확정: {prompt_topic}" + (f" ({extras} 포함)" if extras else ""))
     else:
         if topic.lower() == "auto":
             _l("트렌드 티커 자동 수집 중...")
@@ -1018,7 +1021,7 @@ async def resolve_topic_context(topic: str, chart_dir: str = None,
             f"[트렌드 주제]: {prompt_topic}\n[단순 팩트/뉴스]: {facts}\n"
             f"[🔥 NotebookLM 심층 분석 인사이트]: {notebooklm_insights}"
         )
-    return prompt_topic, context_data, chart_path
+    return prompt_topic, context_data, asset_clips
 
 
 async def step_4_automation_pipeline(job_id: str, topic: str):
@@ -1053,8 +1056,8 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
         _start_step(1, "주제 선정 및 리서치")
         jobs[job_id].update({"status": "Step 1: 주제 선정 및 리서치 중...", "progress": 10})
         chart_dir = os.path.join(ASSETS_DIR, job_id)
-        prompt_topic, context_data, chart_path = await resolve_topic_context(
-            topic, chart_dir=chart_dir, make_chart=True, log=_log
+        prompt_topic, context_data, asset_clips = await resolve_topic_context(
+            topic, chart_dir=chart_dir, render_clips=True, log=_log
         )
         _end_step(1)
         
@@ -1081,12 +1084,12 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
             top_title = prompt_topic
             script_data = parsed_result
 
-        # history 모드: source_type 'chart' Scene에 미리 생성한 검색량 차트 연결
-        if chart_path and isinstance(script_data, list):
+        # 에셋 클립(card/chart)을 source_type이 일치하는 Scene에 연결
+        if asset_clips and isinstance(script_data, list):
             for scene in script_data:
-                if scene.get("source_type") == "chart":
-                    scene["chart_path"] = chart_path
-                    break
+                st = scene.get("source_type")
+                if st in asset_clips and asset_clips[st]:
+                    scene["clip_path"] = asset_clips[st]
 
         alignment_result = await evaluate_script(script_data)
         eval_score = alignment_result.get('final_score', 0)
@@ -1363,8 +1366,8 @@ async def script_preview(request_data: ShortsRequest):
     대본 JSON을 즉시 동기 반환한다. 톤·문구를 빠르게 반복 검토하기 위한 용도."""
     topic = (request_data.topic or "").strip() or "auto"
     try:
-        # make_chart=False: 프리뷰는 검색량 차트 mp4 렌더링을 건너뛰어 빠르게 응답
-        prompt_topic, context_data, _ = await resolve_topic_context(topic, make_chart=False)
+        # render_clips=False: 프리뷰는 카드/차트 mp4 렌더링을 건너뛰어 빠르게 응답
+        prompt_topic, context_data, _ = await resolve_topic_context(topic, render_clips=False)
         parsed = await call_openai_script(prompt_topic, context_data)
     except ValueError as e:
         # 텐배거/과거 종목 소진 등 — 사용자에게 사유 전달

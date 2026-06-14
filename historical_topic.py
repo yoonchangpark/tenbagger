@@ -20,6 +20,7 @@ import datetime
 import httpx
 
 from tenbagger_topic import DISCLAIMER, _fmt
+from tenbagger_card import make_score_card
 
 logger = logging.getLogger(__name__)
 
@@ -151,11 +152,12 @@ def make_trend_chart(name: str, trend: list[dict], base_year: int, output_path: 
 
 async def pick_history_topic(exclude_topics: list[str] | None = None,
                              chart_dir: str = ".",
-                             make_chart: bool = True) -> tuple[str, str, str]:
+                             render_clips: bool = True) -> tuple[str, str, dict]:
     """
-    큐레이션 목록에서 히스토리에 없는 종목을 골라
-    (주제, 문맥, 차트mp4경로) 반환. 차트 생성 실패 시 경로는 빈 문자열.
-    make_chart=False면 차트 mp4 렌더링을 건너뛴다(대본 프리뷰용 — 빠름).
+    큐레이션 목록에서 히스토리에 없는 종목을 골라 (주제, 문맥, asset_clips) 반환.
+    asset_clips: {'chart': 검색량차트mp4, 'card': 분석카드mp4} — 생성된 것만 포함.
+    영상의 source_type==키 인 씬에 각각 삽입된다.
+    render_clips=False 면 mp4 렌더링을 모두 건너뛴다(대본 프리뷰용 — 빠름).
     """
     exclude = exclude_topics or []
     base = os.getenv("TENBAGGER_API_BASE", "http://localhost:8000").rstrip("/")
@@ -178,11 +180,31 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
     trend = await _fetch_datalab_trend(name, base_year)
     trend_block = _trend_narrative(trend, base_year)
 
+    asset_clips = {}
     chart_path = ""
-    if trend and make_chart:
-        candidate = os.path.join(chart_dir, f"trend_{ticker}.mp4")
-        if make_trend_chart(name, trend, base_year, candidate):
-            chart_path = candidate
+    if render_clips:
+        os.makedirs(chart_dir, exist_ok=True)
+        if trend:
+            candidate = os.path.join(chart_dir, f"trend_{ticker}.mp4")
+            if make_trend_chart(name, trend, base_year, candidate):
+                chart_path = candidate
+                asset_clips["chart"] = chart_path
+        # 당시 재무 스냅샷 + 이후 실제 수익률 분석 카드
+        card_path = os.path.join(chart_dir, f"card_{ticker}.mp4")
+        gs = score.get("growth_score")
+        ret = bt.get("actual_return_pct")
+        card_data = {
+            "name": name,
+            "subtitle": f"{base_year}년 재무 데이터 기준 분석",
+            "grade": score.get("grade"),
+            "total_score": score.get("total_score"),
+            "metrics": ([("성장성 점수", f"{float(gs):.1f}/10", float(gs) / 10)]
+                        if gs is not None else []),
+            "highlight": (f"+{float(ret):,.0f}%" if ret is not None else None),
+            "highlight_label": f"{hold_years}년 뒤 실제 주가",
+        }
+        if make_score_card(card_data, card_path):
+            asset_clips["card"] = card_path
 
     topic = f"{base_year}년의 {name}, 시스템은 알고 있었다"
     lines = [
@@ -199,10 +221,16 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
     if trend_block:
         lines.append(f"\n[대중 심리 — 네이버 검색량]\n{trend_block}")
 
+    card_rule = (
+        "4-1. 초반 Scene 하나는 반드시 source_type을 'card'로 지정하라 "
+        "(텐배거 시스템이 당시 재무 데이터로 매긴 등급·점수·이후 수익률 카드가 화면에 뜬다). "
+        "해당 narration은 '재무 데이터로만 분석했을 때 이런 결과였다'는 맥락으로 카드를 가리키듯 말하라.\n"
+        if asset_clips.get("card") else ""
+    )
     chart_rule = (
-        "4. Scene 2 또는 3 중 하나는 반드시 source_type을 'chart'로 지정할 것 "
-        "(검색량 추이 차트가 삽입됨). 해당 Scene의 narration은 대중 관심과 주가 타이밍에 관한 내용일 것.\n"
-        if chart_path else ""
+        "4-2. 중반 Scene 하나는 반드시 source_type을 'chart'로 지정하라 "
+        "(검색량 추이 차트가 삽입됨). 해당 narration은 대중 관심과 주가 타이밍에 관한 내용일 것.\n"
+        if asset_clips.get("chart") else ""
     )
     context = (
         "\n".join(lines) + "\n\n"
@@ -216,10 +244,10 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
         "이 한 편의 이야기를 처음부터 끝까지 끌고 가라.\n"
         "4. 수치는 결정적 순간에만 — 실제 수익률, 검색량 고점 시기, 이 2~3개면 충분하다. "
         "나머지 Scene은 숫자 없이 서사·긴장·맥락으로 채워라.\n"
-        f"{chart_rule}"
+        f"{card_rule}{chart_rule}"
         "6. 후견지명처럼 보이지 않게: '당시 데이터만으로' 평가했다는 점을 반드시 1회 명시하라.\n"
         f"7. 마지막 Scene은 source_type을 반드시 'disclaimer'로 지정하고 narration에 다음 문구를 넣어라: \"{DISCLAIMER}\" "
         "(이 씬은 TTS 낭독 없이 영상 하단 자막으로만 표시된다.)"
     )
     logger.info(f"과거 텐배거 주제 선정: {topic} (수익률 {bt.get('actual_return_pct')}%)")
-    return (topic, context, chart_path)
+    return (topic, context, asset_clips)
