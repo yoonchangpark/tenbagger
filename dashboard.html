@@ -75,14 +75,14 @@
             }, [jobData?.live_logs]);
 
             // 파이프라인 시작 (수동 주제)
-            const startPipeline = async (auto = false) => {
+            const startPipeline = async (auto = false, explicitTopic = null) => {
                 if (isRunning) return;
                 try {
                     let res;
                     if (auto) {
                         res = await fetch(`${API_BASE}/pipeline/auto_start`, { method: 'POST' });
                     } else {
-                        const topic = topicInput.trim() || "auto";
+                        const topic = (explicitTopic || topicInput.trim() || "auto");
                         res = await fetch(`${API_BASE}/pipeline/start`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -162,6 +162,46 @@
 
                         {/* 주제 입력 + 실행 버튼 */}
                         <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 mb-6">
+                            {/* 텐배거 모드 프리셋 — 클릭 시 즉시 해당 모드로 제작 시작 */}
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                <span className="text-[10px] font-bold text-slate-500 self-center tracking-widest uppercase mr-1">모드</span>
+                                <button
+                                    onClick={() => startPipeline(false, 'history')}
+                                    disabled={isRunning || serverStatus !== "정상"}
+                                    title="과거에 10배 오른 종목을 백테스트 + 검색량 트렌드로 해부"
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                                        isRunning || serverStatus !== "정상"
+                                            ? 'bg-slate-800 text-slate-600 border-slate-700 cursor-not-allowed'
+                                            : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20 active:scale-95'
+                                    }`}
+                                >
+                                    <i className="fa-solid fa-chart-line"></i> 과거 텐배거 해부
+                                </button>
+                                <button
+                                    onClick={() => startPipeline(false, 'tenbagger')}
+                                    disabled={isRunning || serverStatus !== "정상"}
+                                    title="시스템이 추천한 미래 텐배거 후보 + 재무 근거로 제작"
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                                        isRunning || serverStatus !== "정상"
+                                            ? 'bg-slate-800 text-slate-600 border-slate-700 cursor-not-allowed'
+                                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 active:scale-95'
+                                    }`}
+                                >
+                                    <i className="fa-solid fa-rocket"></i> 미래 텐배거 추천
+                                </button>
+                                <button
+                                    onClick={() => startPipeline(true)}
+                                    disabled={isRunning || serverStatus !== "정상"}
+                                    title="트렌드 기반 자동 주제 선정"
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                                        isRunning || serverStatus !== "정상"
+                                            ? 'bg-slate-800 text-slate-600 border-slate-700 cursor-not-allowed'
+                                            : 'bg-slate-700/40 text-slate-300 border-slate-600 hover:bg-slate-700/60 active:scale-95'
+                                    }`}
+                                >
+                                    <i className="fa-solid fa-wand-magic-sparkles"></i> 자동 트렌드
+                                </button>
+                            </div>
                             <div className="flex gap-3">
                                 <input
                                     type="text"
