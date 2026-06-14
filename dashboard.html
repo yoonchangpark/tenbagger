@@ -297,17 +297,25 @@
                                 </div>
                                 <p className="text-xs text-slate-500 mb-4">주제: {scriptPreview.topic}</p>
                                 <div className="space-y-3">
-                                    {(scriptPreview.scenes || []).map((sc, i) => (
-                                        <div key={i} className="flex gap-3 p-3 rounded-xl bg-black/30 border border-slate-800">
-                                            <div className="w-7 h-7 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center justify-center shrink-0 text-xs font-bold">{sc.scene_num || i + 1}</div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm text-white leading-relaxed">{sc.narration}</p>
-                                                <p className="text-[11px] text-slate-500 mt-1.5">
-                                                    <span className="text-slate-600">[{sc.source_type}]</span> {sc.search}
-                                                </p>
+                                    {(scriptPreview.scenes || []).map((sc, i) => {
+                                        const isDisclaimer = sc.source_type === 'disclaimer';
+                                        return isDisclaimer ? (
+                                            <div key={i} className="px-4 py-2 rounded-lg bg-slate-900/60 border border-slate-700/40 flex items-center gap-2">
+                                                <i className="fa-solid fa-circle-info text-slate-500 text-[11px] shrink-0"></i>
+                                                <p className="text-[11px] text-slate-500 italic">{sc.narration} <span className="text-slate-600 not-italic">(하단 자막 전용 — TTS 낭독 없음)</span></p>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ) : (
+                                            <div key={i} className="flex gap-3 p-3 rounded-xl bg-black/30 border border-slate-800">
+                                                <div className="w-7 h-7 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center justify-center shrink-0 text-xs font-bold">{sc.scene_num || i + 1}</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm text-white leading-relaxed">{sc.narration}</p>
+                                                    <p className="text-[11px] text-slate-500 mt-1.5">
+                                                        <span className="text-slate-600">[{sc.source_type}]</span> {sc.search}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                                 <div className="flex gap-2 mt-4">
                                     <button

@@ -148,9 +148,10 @@ async def call_openai_script(topic: str, context: str):
     
     🚨 [치명적 JSON 문법 에러 및 Pacing 방지 규칙] 🚨
     1. 내부 문자열에 줄바꿈(엔터) 절대 금지.
-    2. 숏츠를 위해 한 Scene당 narration 분량은 최대 1.5초~2.5초(약 10~15자) 단위로 아주 잘게 쪼개어라(Micro-segmentation). 
+    2. 숏츠를 위해 한 Scene당 narration 분량은 최대 1.5초~2.5초(약 10~15자) 단위로 아주 잘게 쪼개어라(Micro-segmentation).
     3. 인접한 Scene에서 `search` 쿼리가 절대 겹치지 않게 무조건 바꿔라.
-    4. 대본 전체 길이는 70초(모든 narration 합산 300자~400자) 이내가 되도록 약 5~8개의 Scene 조합으로 쳐라.
+    4. 대본 전체 길이는 65~80초(모든 narration 합산 430~600자)로 서사를 충분히 담아라. 8~12개 Scene 구성.
+    5. [면책 씬] 마지막 Scene은 반드시 source_type을 "disclaimer"로 지정할 것. narration 필드에 면책 문구를 그대로 넣어라. 이 씬은 TTS 낭독 없이 영상 하단 자막으로만 표시되며 B-roll도 필요 없다. search 필드는 빈 문자열로 둬도 된다.
 
     [추가 최적화 규칙]
     {rules}
@@ -347,6 +348,11 @@ async def step_2_download_background_video(script_data: list, output_dir: str = 
         source_type = scene.get("source_type", "youtube")
         query = scene.get("search", "finance background")
         narration = scene.get("narration", "")
+
+        # disclaimer 씬: B-roll 불필요 (영상 하단 자막 오버레이로만 처리)
+        if source_type == "disclaimer":
+            logger.info(f"[{idx+1} 씬] disclaimer — B-roll 스킵")
+            continue
         
         logger.info(f"[{idx+1} 씬] [B-roll 소싱 시작] {source_type} | 검색어: {query}")
 
@@ -469,7 +475,8 @@ async def step_3_audio_and_edit(script_data: list, force_free_tts: bool = False,
     # "10.0" → "10" : 소수점 .0 제거 (TTS가 "십분의영"처럼 읽는 것 방지, 자막도 동일 적용)
     narration_parts = [
         re.sub(r'(\d+)\.0(?!\d)', r'\1', scene['narration'])
-        for scene in script_data if 'narration' in scene
+        for scene in script_data
+        if 'narration' in scene and scene.get('source_type') != 'disclaimer'
     ]
     full_narration_text = " ".join(narration_parts)
     # Task 3: TTS 텍스트 정제 (괄호 및 내용 제거)
@@ -560,7 +567,7 @@ async def step_3_audio_and_edit(script_data: list, force_free_tts: bool = False,
 
     return audio_path, narration_parts
 
-async def step_4_assemble_video(video_paths: list, audio_path: str, narrations: list, topic: str, is_draft_mode: bool = False, output_dir: str = None):
+async def step_4_assemble_video(video_paths: list, audio_path: str, narrations: list, topic: str, is_draft_mode: bool = False, output_dir: str = None, disclaimer_text: str = ""):
     """(비동기) moviepy를 사용하여 비디오와 오디오를 합성하고, 대략적인 자막을 씌웁니다."""
     def _moviepy_assemble():
         from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip
@@ -886,6 +893,39 @@ async def step_4_assemble_video(video_paths: list, audio_path: str, narrations: 
                 
             current_time += scene_duration
 
+        # 면책 고정 자막 — 기존 자막과 분리된 하단 고정 스트립 (TTS 낭독 없음)
+        if disclaimer_text:
+            try:
+                disc_font_size = 30
+                disc_font = _load_subtitle_font(disc_font_size)
+                disc_img = Image.new('RGBA', (1080, 80), (0, 0, 0, 0))
+                disc_draw = ImageDraw.Draw(disc_img)
+                # 배경: 반투명 검정 스트립
+                disc_draw.rectangle([(0, 0), (1080, 80)], fill=(0, 0, 0, 160))
+                if hasattr(disc_draw, 'textbbox'):
+                    tb = disc_draw.textbbox((0, 0), disclaimer_text, font=disc_font)
+                    tw = tb[2] - tb[0]
+                else:
+                    tw, _ = disc_draw.textsize(disclaimer_text, font=disc_font)
+                # 폭 초과 시 폰트 축소
+                if tw > 1020 and tw > 0:
+                    disc_font_size = max(18, int(disc_font_size * 1020 / tw))
+                    disc_font = _load_subtitle_font(disc_font_size)
+                    if hasattr(disc_draw, 'textbbox'):
+                        tb = disc_draw.textbbox((0, 0), disclaimer_text, font=disc_font)
+                        tw = tb[2] - tb[0]
+                    else:
+                        tw, _ = disc_draw.textsize(disclaimer_text, font=disc_font)
+                disc_draw.text(((1080 - tw) / 2, 25), disclaimer_text, font=disc_font,
+                               fill=(200, 200, 200, 220), stroke_width=2, stroke_fill=(0, 0, 0, 220))
+                disc_clip = (ImageClip(np.array(disc_img))
+                             .set_duration(target_duration)
+                             .set_position(('center', 1820))
+                             .set_start(0))
+                subtitles.append(disc_clip)
+            except Exception as e:
+                logger.warning(f"면책 자막 오버레이 실패: {e}")
+
         # 워터마크 방어용 로고 오버레이
         # Brand Analyzer2.png 로고 적용. 화면의 최상단 우측에 여백 30을 두고 배치합니다.
         logo_path = os.path.join(ASSETS_DIR, "Brand Analyzer2.png")
@@ -1056,17 +1096,23 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
         jobs[job_id]["script"] = display_script
         _end_step(2)
         
+        # disclaimer 씬 분리 — TTS/B-roll 제외, 영상 하단 자막 오버레이로만 처리
+        disclaimer_text = next(
+            (s.get("narration", "") for s in script_data if s.get("source_type") == "disclaimer"),
+            ""
+        )
+
         # ===== STEP 3: B-roll 영상 다운로드 =====
         _start_step(3, "B-roll 영상 다운로드")
         job_dir = os.path.join(ASSETS_DIR, job_id)
         os.makedirs(job_dir, exist_ok=True)
-        
+
         jobs[job_id].update({"status": "Step 3: 하이브리드 비전 매칭 처리 중...", "progress": 40})
         _log(f"{len(script_data)}개 씬의 B-roll 영상 검색 및 다운로드 시작")
         video_local_paths = await step_2_download_background_video(script_data, output_dir=job_dir)
         _log(f"{len(video_local_paths)}개 영상 다운로드 완료")
         _end_step(3)
-        
+
         # ===== STEP 4: TTS 음성 생성 =====
         _start_step(4, "TTS 음성 생성")
         jobs[job_id].update({"status": "Step 4: 나레이션 오디오 추출 중 (TTS)...", "progress": 65})
@@ -1077,7 +1123,7 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
         _start_step(5, "영상 렌더링 및 자막 합성")
         jobs[job_id].update({"status": "Step 5: 비디오 인코딩 및 자막 합성 중...", "progress": 80})
         if audio_local_path:
-            final_result = await step_4_assemble_video(video_local_paths, audio_local_path, narrations, top_title, output_dir=job_dir)
+            final_result = await step_4_assemble_video(video_local_paths, audio_local_path, narrations, top_title, output_dir=job_dir, disclaimer_text=disclaimer_text)
             jobs[job_id]["video_url"] = final_result.get("video_url")
             jobs[job_id]["thumbnail_url"] = final_result.get("thumbnail_url")
             _log(f"영상 렌더링 완료: {final_result.get('video_url')}", "success")

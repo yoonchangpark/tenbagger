@@ -97,7 +97,8 @@ async def pick_tenbagger_topic(exclude_topics: list[str] | None = None) -> tuple
             f"3. 사업모델·경제적 해자(위 정성 분석)를 이야기의 중심에 둬라. '무엇을 파는 회사이고 왜 강한가'를 "
             f"수치 나열이 아니라 스토리로 풀어라. '전문가들', '월가가 주목' 같은 근거 없는 공허한 멘트만 금지한다.\n"
             f"4. 전체 분량 35~45초. 빠른 리듬으로 끝까지 끌고 가라.\n"
-            f"5. 마지막 Scene의 narration은 반드시 다음 문구로 끝낼 것: \"{DISCLAIMER}\""
+            f"5. 마지막 Scene은 source_type을 반드시 'disclaimer'로 지정하고 narration에 다음 문구를 넣어라: \"{DISCLAIMER}\" "
+            "(이 씬은 TTS 낭독 없이 영상 하단 자막으로만 표시된다.)"
         )
         logger.info(f"텐배거 주제 선정: {topic} (점수 {c.get('total_score')})")
         return (topic, context)
