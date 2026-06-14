@@ -17,6 +17,7 @@ import os
 import json
 import logging
 import datetime
+import asyncio
 import httpx
 
 from tenbagger_topic import DISCLAIMER, _fmt
@@ -150,6 +151,29 @@ def make_trend_chart(name: str, trend: list[dict], base_year: int, output_path: 
         return False
 
 
+async def _fetch_qualitative(base: str, ticker: str) -> str:
+    """텐배거 백엔드 정성 분석 API 호출. 실패 시 빈 문자열."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{base}/api/v2/company/{ticker}/qualitative",
+                timeout=30.0,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                # 정성 분석 결과에서 핵심 필드 추출
+                parts = []
+                for key in ("moat", "business_model", "ceo_story", "industry_trend",
+                            "summary", "analysis"):
+                    val = data.get(key)
+                    if val and isinstance(val, str) and len(val) > 10:
+                        parts.append(val.strip())
+                return " ".join(parts)[:800]
+    except Exception as e:
+        logger.warning(f"정성 분석 API 실패: {e}")
+    return ""
+
+
 async def pick_history_topic(exclude_topics: list[str] | None = None,
                              chart_dir: str = ".",
                              render_clips: bool = True) -> tuple[str, str, dict]:
@@ -174,10 +198,12 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
     name, ticker = target["name"], target["ticker"]
     base_year, hold_years = target["base_year"], target.get("hold_years", 5)
 
-    bt = await _fetch_backtest(base, ticker, base_year, hold_years)
+    bt, trend, qualitative = await asyncio.gather(
+        _fetch_backtest(base, ticker, base_year, hold_years),
+        _fetch_datalab_trend(name, base_year),
+        _fetch_qualitative(base, ticker),
+    )
     score = bt.get("score_at_base_year", {}) or {}
-
-    trend = await _fetch_datalab_trend(name, base_year)
     trend_block = _trend_narrative(trend, base_year)
 
     asset_clips = {}
@@ -219,8 +245,19 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
     ]
     if target.get("note"):
         lines.append(f"배경 메모: {target['note']}")
+    # 공감 포인트: 당시 관찰 가능했던 트리거 신호들
+    triggers = target.get("triggers") or []
+    if triggers:
+        lines.append(
+            f"\n[{base_year}년 당시 존재했던 트리거 신호 — 알아봤다면 잡을 수 있었던 정보]"
+        )
+        for i, t in enumerate(triggers, 1):
+            lines.append(f"  신호 {i}: {t}")
     if trend_block:
         lines.append(f"\n[대중 심리 — 네이버 검색량]\n{trend_block}")
+    # 정성 분석 (해자·CEO·산업 구조)
+    if qualitative:
+        lines.append(f"\n[정성 분석 — 비즈니스 해자 및 산업 구조]\n{qualitative}")
 
     card_rule = (
         "4-1. 초반 Scene 하나는 반드시 source_type을 'card'로 지정하라 "
@@ -247,8 +284,16 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
         "4. 수치는 결정적 순간에만 — 실제 수익률, 검색량 고점 시기, 이 2~3개면 충분하다. "
         "나머지 Scene은 숫자 없이 서사·긴장·맥락으로 채워라.\n"
         f"{card_rule}{chart_rule}"
-        "6. 후견지명처럼 보이지 않게: '당시 데이터만으로' 평가했다는 점을 반드시 1회 명시하라.\n"
-        f"7. 마지막 Scene은 source_type을 반드시 'disclaimer'로 지정하고 narration에 다음 문구를 넣어라: \"{DISCLAIMER}\" "
+        "6. 후견지명처럼 보이지 않게: '당시 DART 공시 데이터만으로 분석했다'는 점을 반드시 1회 명시하라. "
+        "DART = 금융감독원 전자공시 시스템. 이 수치는 법정공시 원본이다.\n"
+        "7. 트리거 씬 (1개 이상): 제공된 '당시 트리거 신호' 중 가장 강력한 것을 하나 골라 "
+        "'그때 이 신호를 봤다면 알아챌 수 있었다'는 공감 서사로 만들어라. "
+        "시청자가 '아, 그걸 봤으면 됐겠구나' 하는 반응을 유도해야 한다.\n"
+        "8. 결말 직전 CTA 씬 (1개): 마지막 교훈 씬 바로 앞에 "
+        "source_type을 'pexels'로 지정하고 narration에 "
+        "'이 분석의 전체 예측 기록은 공개 중입니다 — 프로필 링크에서 확인하세요'와 유사한 CTA를 넣어라. "
+        "search는 'financial data dashboard screen glow'처럼 데이터 화면 이미지로 지정.\n"
+        f"9. 마지막 Scene은 source_type을 반드시 'disclaimer'로 지정하고 narration에 다음 문구를 넣어라: \"{DISCLAIMER}\" "
         "(이 씬은 TTS 낭독 없이 영상 하단 자막으로만 표시된다.)"
     )
     logger.info(f"과거 텐배거 주제 선정: {topic} (수익률 {bt.get('actual_return_pct')}%)")

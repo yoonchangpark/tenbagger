@@ -292,10 +292,20 @@
                                     <div className="flex items-center gap-2 text-[11px]">
                                         <span className="px-2 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700">{scriptPreview.scene_count}개 Scene</span>
                                         <span className="px-2 py-1 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30">정합성 {scriptPreview.eval_score}점</span>
+                                        {scriptPreview.history_quality && (
+                                            <span className={`px-2 py-1 rounded-full border text-[11px] font-semibold ${scriptPreview.history_quality.total >= 70 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`}>
+                                                서사품질 {scriptPreview.history_quality.total}/100
+                                            </span>
+                                        )}
                                         <button onClick={() => setScriptPreview(null)} title="닫기" className="px-2 py-1 rounded-full bg-slate-800 text-slate-500 border border-slate-700 hover:text-slate-300">✕</button>
                                     </div>
                                 </div>
-                                <p className="text-xs text-slate-500 mb-4">주제: {scriptPreview.topic}</p>
+                                <p className="text-xs text-slate-500 mb-3">주제: {scriptPreview.topic}</p>
+                                {scriptPreview.history_quality?.feedback && (
+                                    <div className="mb-4 px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-500/20 text-[11px] text-amber-300">
+                                        <span className="font-semibold">AI 피드백: </span>{scriptPreview.history_quality.feedback}
+                                    </div>
+                                )}
                                 <div className="space-y-3">
                                     {(scriptPreview.scenes || []).map((sc, i) => {
                                         const isDisclaimer = sc.source_type === 'disclaimer';

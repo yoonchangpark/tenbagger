@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 # 로컬 모듈 import 전에 .env 로드 (모듈 최상위에서 os.getenv 하는 모듈들의 키 누락 방지)
 load_dotenv()
 
-from evaluator.alignment import evaluate_script
+from evaluator.alignment import evaluate_script, evaluate_history_quality
 from evolution.prompt_engine import load_prompt_rules, evolve_prompt
 from evolution.broll_optimizer import save_broll_evaluation, load_broll_rules
 from analytics.youtube_metrics import get_video_metrics, save_metrics
@@ -1365,30 +1365,49 @@ async def get_status_path(job_id: str):
 @app.post("/api/pipeline/script_preview")
 async def script_preview(request_data: ShortsRequest):
     """대본 전용 빠른 모드 — STEP 1~2만 실행. B-roll 다운로드/TTS/렌더링 없이
-    대본 JSON을 즉시 동기 반환한다. 톤·문구를 빠르게 반복 검토하기 위한 용도."""
+    대본 JSON을 즉시 동기 반환한다. 톤·문구를 빠르게 반복 검토하기 위한 용도.
+    history 모드: 품질 점수가 70 미만이면 피드백을 붙여 1회 재생성 후 더 나은 결과 반환."""
     topic = (request_data.topic or "").strip() or "auto"
+    is_history = topic.lower() == "history"
     try:
-        # render_clips=False: 프리뷰는 카드/차트 mp4 렌더링을 건너뛰어 빠르게 응답
         prompt_topic, context_data, _ = await resolve_topic_context(topic, render_clips=False)
         parsed = await call_openai_script(prompt_topic, context_data)
     except ValueError as e:
-        # 텐배거/과거 종목 소진 등 — 사용자에게 사유 전달
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"대본 프리뷰 에러: {e}")
         raise HTTPException(status_code=500, detail=f"대본 생성 실패: {e}")
 
-    if isinstance(parsed, dict) and "scenes" in parsed:
-        scenes = parsed.get("scenes", []) or []
-        top_title = parsed.get("top_title", prompt_topic)
-        target_company = parsed.get("target_company", "")
-    else:
-        scenes = parsed if isinstance(parsed, list) else []
-        top_title = prompt_topic
-        target_company = ""
+    def _extract(p):
+        if isinstance(p, dict) and "scenes" in p:
+            return p.get("scenes", []), p.get("top_title", prompt_topic), p.get("target_company", "")
+        return (p if isinstance(p, list) else []), prompt_topic, ""
+
+    scenes, top_title, target_company = _extract(parsed)
+
+    # history 모드 품질 평가 + 자동 재생성 루프
+    history_eval = {}
+    if is_history:
+        history_eval = await evaluate_history_quality(scenes, prompt_topic)
+        if history_eval.get("total", 100) < 70:
+            feedback = history_eval.get("feedback", "")
+            logger.info(f"history 대본 품질 미달({history_eval['total']}/100) — 피드백 재생성: {feedback}")
+            try:
+                retry_context = context_data + f"\n\n[이전 초안 개선 지시]\n{feedback}"
+                parsed2 = await call_openai_script(prompt_topic, retry_context)
+                scenes2, top_title2, tc2 = _extract(parsed2)
+                eval2 = await evaluate_history_quality(scenes2, prompt_topic)
+                if eval2.get("total", 0) > history_eval.get("total", 0):
+                    scenes, top_title, target_company = scenes2, top_title2, tc2
+                    history_eval = eval2
+                    logger.info(f"재생성 채택: {eval2['total']}/100")
+                else:
+                    logger.info(f"초안 유지 (재생성 {eval2['total']} < 초안 {history_eval['total']})")
+            except Exception as e:
+                logger.warning(f"재생성 실패 — 초안 유지: {e}")
 
     eval_result = await evaluate_script(scenes)
-    return {
+    response = {
         "topic": prompt_topic,
         "top_title": top_title,
         "target_company": target_company,
@@ -1396,6 +1415,17 @@ async def script_preview(request_data: ShortsRequest):
         "scenes": scenes,
         "eval_score": round(eval_result.get("final_score", 0), 1),
     }
+    if is_history and history_eval:
+        response["history_quality"] = {
+            "story_arc": history_eval.get("story_arc"),
+            "no_jargon": history_eval.get("no_jargon"),
+            "hook_strength": history_eval.get("hook_strength"),
+            "data_integration": history_eval.get("data_integration"),
+            "conclusion_clarity": history_eval.get("conclusion_clarity"),
+            "total": history_eval.get("total"),
+            "feedback": history_eval.get("feedback"),
+        }
+    return response
 
 
 @app.get("/api/health")
