@@ -36,6 +36,8 @@
             const [serverStatus, setServerStatus] = useState("확인 중...");
             const [topicInput, setTopicInput] = useState("");
             const [isRunning, setIsRunning] = useState(false);
+            const [scriptPreview, setScriptPreview] = useState(null);
+            const [previewLoading, setPreviewLoading] = useState(false);
             const logEndRef = useRef(null);
             const pollingRef = useRef(null);
 
@@ -95,6 +97,32 @@
                     setJobData(null);
                 } catch (err) {
                     alert("서버 연결 실패: " + err.message);
+                }
+            };
+
+            // 대본 전용 빠른 모드 — 렌더링 없이 대본 JSON만 즉시 받아온다
+            const previewScript = async (explicitTopic = null) => {
+                if (previewLoading || isRunning) return;
+                setPreviewLoading(true);
+                setScriptPreview(null);
+                try {
+                    const topic = (explicitTopic || topicInput.trim() || "auto");
+                    const res = await fetch(`${API_BASE}/pipeline/script_preview`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ topic })
+                    });
+                    if (!res.ok) {
+                        let detail = `HTTP ${res.status}`;
+                        try { const e = await res.json(); detail = e.detail || detail; } catch {}
+                        throw new Error(detail);
+                    }
+                    const data = await res.json();
+                    setScriptPreview(data);
+                } catch (err) {
+                    alert("대본 생성 실패: " + err.message);
+                } finally {
+                    setPreviewLoading(false);
                 }
             };
 
@@ -162,45 +190,34 @@
 
                         {/* 주제 입력 + 실행 버튼 */}
                         <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 mb-6">
-                            {/* 텐배거 모드 프리셋 — 클릭 시 즉시 해당 모드로 제작 시작 */}
+                            {/* 텐배거 모드 프리셋 — 클릭 시 주제 입력창에 키워드 채움(선택 강조) */}
                             <div className="flex flex-wrap gap-2 mb-4">
                                 <span className="text-[10px] font-bold text-slate-500 self-center tracking-widest uppercase mr-1">모드</span>
-                                <button
-                                    onClick={() => startPipeline(false, 'history')}
-                                    disabled={isRunning || serverStatus !== "정상"}
-                                    title="과거에 10배 오른 종목을 백테스트 + 검색량 트렌드로 해부"
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${
-                                        isRunning || serverStatus !== "정상"
-                                            ? 'bg-slate-800 text-slate-600 border-slate-700 cursor-not-allowed'
-                                            : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20 active:scale-95'
-                                    }`}
-                                >
-                                    <i className="fa-solid fa-chart-line"></i> 과거 텐배거 해부
-                                </button>
-                                <button
-                                    onClick={() => startPipeline(false, 'tenbagger')}
-                                    disabled={isRunning || serverStatus !== "정상"}
-                                    title="시스템이 추천한 미래 텐배거 후보 + 재무 근거로 제작"
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${
-                                        isRunning || serverStatus !== "정상"
-                                            ? 'bg-slate-800 text-slate-600 border-slate-700 cursor-not-allowed'
-                                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 active:scale-95'
-                                    }`}
-                                >
-                                    <i className="fa-solid fa-rocket"></i> 미래 텐배거 추천
-                                </button>
-                                <button
-                                    onClick={() => startPipeline(true)}
-                                    disabled={isRunning || serverStatus !== "정상"}
-                                    title="트렌드 기반 자동 주제 선정"
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${
-                                        isRunning || serverStatus !== "정상"
-                                            ? 'bg-slate-800 text-slate-600 border-slate-700 cursor-not-allowed'
-                                            : 'bg-slate-700/40 text-slate-300 border-slate-600 hover:bg-slate-700/60 active:scale-95'
-                                    }`}
-                                >
-                                    <i className="fa-solid fa-wand-magic-sparkles"></i> 자동 트렌드
-                                </button>
+                                {[
+                                    { key: 'history', label: '과거 텐배거 해부', icon: 'fa-chart-line', color: 'amber', title: '과거에 10배 오른 종목을 백테스트 + 검색량 트렌드로 해부' },
+                                    { key: 'tenbagger', label: '미래 텐배거 추천', icon: 'fa-rocket', color: 'emerald', title: '시스템이 추천한 미래 텐배거 후보 + 재무 근거' },
+                                    { key: 'auto', label: '자동 트렌드', icon: 'fa-wand-magic-sparkles', color: 'slate', title: '트렌드 기반 자동 주제 선정' },
+                                ].map(m => {
+                                    const active = topicInput.trim().toLowerCase() === m.key;
+                                    const palette = {
+                                        amber: active ? 'bg-amber-500/25 text-amber-300 border-amber-400' : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20',
+                                        emerald: active ? 'bg-emerald-500/25 text-emerald-300 border-emerald-400' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20',
+                                        slate: active ? 'bg-slate-600/60 text-white border-slate-400' : 'bg-slate-700/40 text-slate-300 border-slate-600 hover:bg-slate-700/60',
+                                    }[m.color];
+                                    return (
+                                        <button
+                                            key={m.key}
+                                            onClick={() => setTopicInput(m.key)}
+                                            disabled={isRunning}
+                                            title={m.title}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border active:scale-95 ${
+                                                isRunning ? 'bg-slate-800 text-slate-600 border-slate-700 cursor-not-allowed' : palette
+                                            }`}
+                                        >
+                                            <i className={`fa-solid ${m.icon}`}></i> {m.label}{active && <i className="fa-solid fa-check text-[10px] ml-0.5"></i>}
+                                        </button>
+                                    );
+                                })}
                             </div>
                             <div className="flex gap-3">
                                 <input
@@ -210,10 +227,25 @@
                                     placeholder="주제를 입력하세요 (비워두면 AI가 자동 선정)"
                                     className="flex-1 bg-black/40 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                                     disabled={isRunning}
+                                    onKeyDown={e => { if (e.key === 'Enter') previewScript(); }}
                                 />
+                                <button
+                                    onClick={() => previewScript()}
+                                    disabled={previewLoading || isRunning || serverStatus !== "정상"}
+                                    title="렌더링 없이 대본만 빠르게 생성 (10~20초)"
+                                    className={`px-6 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                                        previewLoading || isRunning || serverStatus !== "정상"
+                                            ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                            : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/20 active:scale-95'
+                                    }`}
+                                >
+                                    {previewLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-pen-nib"></i>}
+                                    <span>{previewLoading ? '대본 생성 중...' : '대본만 보기'}</span>
+                                </button>
                                 <button
                                     onClick={() => startPipeline(false)}
                                     disabled={isRunning || serverStatus !== "정상"}
+                                    title="대본 + B-roll + TTS + 렌더링까지 풀 파이프라인"
                                     className={`px-6 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
                                         isRunning || serverStatus !== "정상"
                                             ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
@@ -221,7 +253,7 @@
                                     }`}
                                 >
                                     {isRunning ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-play"></i>}
-                                    <span>{isRunning ? '제작 중...' : '영상 제작 시작'}</span>
+                                    <span>{isRunning ? '제작 중...' : '영상 제작'}</span>
                                 </button>
                                 <button
                                     onClick={() => startPipeline(true)}
@@ -248,6 +280,53 @@
                                 </div>
                             )}
                         </div>
+
+                        {/* 대본 프리뷰 결과 (대본만 보기) */}
+                        {scriptPreview && (
+                            <div className="bg-[#0f172a] rounded-2xl p-6 border border-purple-500/30 mb-6">
+                                <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <i className="fa-solid fa-pen-nib text-purple-400"></i>
+                                        <h3 className="text-base font-bold text-white truncate">{scriptPreview.top_title || '대본'}</h3>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[11px]">
+                                        <span className="px-2 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700">{scriptPreview.scene_count}개 Scene</span>
+                                        <span className="px-2 py-1 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30">정합성 {scriptPreview.eval_score}점</span>
+                                        <button onClick={() => setScriptPreview(null)} title="닫기" className="px-2 py-1 rounded-full bg-slate-800 text-slate-500 border border-slate-700 hover:text-slate-300">✕</button>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-500 mb-4">주제: {scriptPreview.topic}</p>
+                                <div className="space-y-3">
+                                    {(scriptPreview.scenes || []).map((sc, i) => (
+                                        <div key={i} className="flex gap-3 p-3 rounded-xl bg-black/30 border border-slate-800">
+                                            <div className="w-7 h-7 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center justify-center shrink-0 text-xs font-bold">{sc.scene_num || i + 1}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm text-white leading-relaxed">{sc.narration}</p>
+                                                <p className="text-[11px] text-slate-500 mt-1.5">
+                                                    <span className="text-slate-600">[{sc.source_type}]</span> {sc.search}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2 mt-4">
+                                    <button
+                                        onClick={() => previewScript()}
+                                        disabled={previewLoading || isRunning}
+                                        className="px-4 py-2 rounded-lg text-xs font-bold bg-slate-700/60 text-slate-200 border border-slate-600 hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-1.5"
+                                    >
+                                        <i className="fa-solid fa-rotate"></i> 다시 생성
+                                    </button>
+                                    <button
+                                        onClick={() => startPipeline(false)}
+                                        disabled={isRunning || serverStatus !== "정상"}
+                                        className="px-4 py-2 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-500 active:scale-95 transition-all flex items-center gap-1.5"
+                                    >
+                                        <i className="fa-solid fa-film"></i> 이 방향으로 영상 제작
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-12 gap-6">
                             {/* Pipeline Steps */}

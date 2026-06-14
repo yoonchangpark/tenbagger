@@ -940,6 +940,47 @@ async def step_4_assemble_video(video_paths: list, audio_path: str, narrations: 
     # 복잡한 Moviepy 렌더링은 블로킹 작업이므로 스레드에서 실행
     return await asyncio.to_thread(_moviepy_assemble)
 
+async def resolve_topic_context(topic: str, chart_dir: str = None,
+                                make_chart: bool = True, log=None):
+    """STEP 1 공통 로직: 모드(tenbagger/history/auto/일반)별 주제·문맥·차트를 확정한다.
+    반환: (prompt_topic, context_data, chart_path). 대본 프리뷰와 풀 파이프라인이 공유."""
+    def _l(m):
+        if log:
+            log(m)
+    import data_pipeline
+    prompt_topic = topic
+    context_data = ""
+    chart_path = ""
+    if topic.lower() == "tenbagger":
+        _l("텐배거 추천 종목 조회 중...")
+        history_topics = [item['topic'] for item in load_history()]
+        prompt_topic, context_data = await pick_tenbagger_topic(exclude_topics=history_topics)
+        _l(f"주제 확정: {prompt_topic}")
+    elif topic.lower() == "history":
+        _l("과거 텐배거 종목 선정 + 백테스트 조회 중...")
+        history_topics = [item['topic'] for item in load_history()]
+        cdir = chart_dir or os.path.join(ASSETS_DIR, "preview")
+        os.makedirs(cdir, exist_ok=True)
+        prompt_topic, context_data, chart_path = await pick_history_topic(
+            exclude_topics=history_topics, chart_dir=cdir, make_chart=make_chart
+        )
+        _l(f"주제 확정: {prompt_topic}" + (" (검색량 차트 포함)" if chart_path else ""))
+    else:
+        if topic.lower() == "auto":
+            _l("트렌드 티커 자동 수집 중...")
+            trends = data_pipeline.get_trending_topics()
+            prompt_topic = trends[0] if trends else "미국 주식 시장 트렌드"
+        _l(f"주제 확정: {prompt_topic}")
+        facts = data_pipeline.fetch_facts_for_topic(prompt_topic)
+        _l("NotebookLM 딥 리서치 인사이트 추출 중...")
+        notebooklm_insights = await query_notebooklm(prompt_topic)
+        context_data = (
+            f"[트렌드 주제]: {prompt_topic}\n[단순 팩트/뉴스]: {facts}\n"
+            f"[🔥 NotebookLM 심층 분석 인사이트]: {notebooklm_insights}"
+        )
+    return prompt_topic, context_data, chart_path
+
+
 async def step_4_automation_pipeline(job_id: str, topic: str):
     """메인 자동화 파이프라인 - Step별 타이밍 기록 + 실시간 로그 축적"""
     
@@ -970,43 +1011,11 @@ async def step_4_automation_pipeline(job_id: str, topic: str):
     try:
         # ===== STEP 1: 주제 선정 및 리서치 =====
         _start_step(1, "주제 선정 및 리서치")
-        import data_pipeline
-        prompt_topic = topic
-        chart_path = ""
-        if topic.lower() == "tenbagger":
-            # 텐배거 헌터 연동: 추천 종목 + 재무 근거를 주제/문맥으로 사용
-            _log("텐배거 추천 종목 조회 중...")
-            jobs[job_id].update({"status": "Step 1: 텐배거 종목 선정 중...", "progress": 5})
-            history_topics = [item['topic'] for item in load_history()]
-            prompt_topic, context_data = await pick_tenbagger_topic(exclude_topics=history_topics)
-            _log(f"주제 확정: {prompt_topic}")
-        elif topic.lower() == "history":
-            # 과거 텐배거 해부: 백테스트 + 검색량 트렌드 기반
-            _log("과거 텐배거 종목 선정 + 백테스트 조회 중...")
-            jobs[job_id].update({"status": "Step 1: 과거 텐배거 백테스트 중...", "progress": 5})
-            history_topics = [item['topic'] for item in load_history()]
-            chart_dir = os.path.join(ASSETS_DIR, job_id)
-            os.makedirs(chart_dir, exist_ok=True)
-            prompt_topic, context_data, chart_path = await pick_history_topic(
-                exclude_topics=history_topics, chart_dir=chart_dir
-            )
-            _log(f"주제 확정: {prompt_topic}" + (" (검색량 차트 포함)" if chart_path else ""))
-        else:
-            if topic.lower() == "auto":
-                _log("트렌드 티커 자동 수집 중...")
-                jobs[job_id].update({"status": "Step 1: 트렌드 수집 중...", "progress": 5})
-                trends = data_pipeline.get_trending_topics()
-                prompt_topic = trends[0] if trends else "미국 주식 시장 트렌드"
-
-            _log(f"주제 확정: {prompt_topic}")
-            jobs[job_id].update({"status": f"Step 1: {prompt_topic} 팩트 검색 중...", "progress": 10})
-            facts = data_pipeline.fetch_facts_for_topic(prompt_topic)
-
-            _log("NotebookLM 딥 리서치 인사이트 추출 중...")
-            jobs[job_id].update({"status": "Step 1: NotebookLM 딥 리서치 중...", "progress": 15})
-            notebooklm_insights = await query_notebooklm(prompt_topic)
-
-            context_data = f"[트렌드 주제]: {prompt_topic}\n[단순 팩트/뉴스]: {facts}\n[🔥 NotebookLM 심층 분석 인사이트]: {notebooklm_insights}"
+        jobs[job_id].update({"status": "Step 1: 주제 선정 및 리서치 중...", "progress": 10})
+        chart_dir = os.path.join(ASSETS_DIR, job_id)
+        prompt_topic, context_data, chart_path = await resolve_topic_context(
+            topic, chart_dir=chart_dir, make_chart=True, log=_log
+        )
         _end_step(1)
         
         # ===== STEP 2: AI 대본 생성 =====
@@ -1301,6 +1310,42 @@ async def get_status_path(job_id: str):
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     return {**jobs[job_id], "job_id": job_id}
+
+@app.post("/api/pipeline/script_preview")
+async def script_preview(request_data: ShortsRequest):
+    """대본 전용 빠른 모드 — STEP 1~2만 실행. B-roll 다운로드/TTS/렌더링 없이
+    대본 JSON을 즉시 동기 반환한다. 톤·문구를 빠르게 반복 검토하기 위한 용도."""
+    topic = (request_data.topic or "").strip() or "auto"
+    try:
+        # make_chart=False: 프리뷰는 검색량 차트 mp4 렌더링을 건너뛰어 빠르게 응답
+        prompt_topic, context_data, _ = await resolve_topic_context(topic, make_chart=False)
+        parsed = await call_openai_script(prompt_topic, context_data)
+    except ValueError as e:
+        # 텐배거/과거 종목 소진 등 — 사용자에게 사유 전달
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        logger.error(f"대본 프리뷰 에러: {e}")
+        raise HTTPException(status_code=500, detail=f"대본 생성 실패: {e}")
+
+    if isinstance(parsed, dict) and "scenes" in parsed:
+        scenes = parsed.get("scenes", []) or []
+        top_title = parsed.get("top_title", prompt_topic)
+        target_company = parsed.get("target_company", "")
+    else:
+        scenes = parsed if isinstance(parsed, list) else []
+        top_title = prompt_topic
+        target_company = ""
+
+    eval_result = await evaluate_script(scenes)
+    return {
+        "topic": prompt_topic,
+        "top_title": top_title,
+        "target_company": target_company,
+        "scene_count": len(scenes),
+        "scenes": scenes,
+        "eval_score": round(eval_result.get("final_score", 0), 1),
+    }
+
 
 @app.get("/api/health")
 async def health_check():

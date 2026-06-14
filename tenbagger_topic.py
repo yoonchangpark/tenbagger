@@ -88,11 +88,16 @@ async def pick_tenbagger_topic(exclude_topics: list[str] | None = None) -> tuple
         narrative_block = f"\n[왜 이 종목인가 — AI 정성 분석]\n{qualitative}\n" if qualitative else ""
         context = (
             f"{_build_context(c)}\n{narrative_block}\n"
-            f"[대본 구조 강제 규칙]\n"
-            f"1. 첫 Scene의 narration은 반드시 종목명과 핵심 결론으로 시작할 것 (예: \"{c['name']}, 시스템 점수 {_fmt(c.get('total_score'))}점.\"). 배경 설명·분위기 조성 멘트로 시작 금지.\n"
-            f"2. 모든 Scene의 narration에 위 재무 수치 중 최소 1개를 포함할 것 (사업모델·해자 설명 Scene 1~2개만 예외 허용). '전문가들', '월가', '시장이 주목' 같은 수치 없는 추상 멘트 절대 금지.\n"
-            f"3. 전체 분량은 40~50초, 위 수치 중 최소 5개를 시청자에게 전달할 것.\n"
-            f"4. 마지막 Scene의 narration은 반드시 다음 문구로 끝낼 것: \"{DISCLAIMER}\""
+            f"[대본 작성 가이드 — 스토리텔링 우선, 수치는 근거로]\n"
+            f"1. 훅(첫 Scene): {c['name']}을(를) 한 문장으로 각인시켜라. 가장 강력한 수치 1개를 충격적 사실처럼 던져라 "
+            f"(예: \"{c['name']}, 5년 새 매출이 폭발한 회사입니다\"). 단조로운 \"시스템 점수 X점\" 나열로 시작하지 마라.\n"
+            f"2. 수치는 '서사의 근거'다. 전체 대본에서 가장 강력한 수치 2~3개만 골라 깊게 꽂아라. "
+            f"모든 문장에 숫자를 욱여넣지 마라 — 숫자 없는 Scene이 있어도 좋다. 그 자리는 '왜 지금인가', '시장이 놓친 것', "
+            f"'경쟁자가 못 따라오는 이유' 같은 서사적 긴장과 맥락으로 채워라.\n"
+            f"3. 사업모델·경제적 해자(위 정성 분석)를 이야기의 중심에 둬라. '무엇을 파는 회사이고 왜 강한가'를 "
+            f"수치 나열이 아니라 스토리로 풀어라. '전문가들', '월가가 주목' 같은 근거 없는 공허한 멘트만 금지한다.\n"
+            f"4. 전체 분량 35~45초. 빠른 리듬으로 끝까지 끌고 가라.\n"
+            f"5. 마지막 Scene의 narration은 반드시 다음 문구로 끝낼 것: \"{DISCLAIMER}\""
         )
         logger.info(f"텐배거 주제 선정: {topic} (점수 {c.get('total_score')})")
         return (topic, context)

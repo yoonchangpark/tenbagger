@@ -150,10 +150,12 @@ def make_trend_chart(name: str, trend: list[dict], base_year: int, output_path: 
 
 
 async def pick_history_topic(exclude_topics: list[str] | None = None,
-                             chart_dir: str = ".") -> tuple[str, str, str]:
+                             chart_dir: str = ".",
+                             make_chart: bool = True) -> tuple[str, str, str]:
     """
     큐레이션 목록에서 히스토리에 없는 종목을 골라
     (주제, 문맥, 차트mp4경로) 반환. 차트 생성 실패 시 경로는 빈 문자열.
+    make_chart=False면 차트 mp4 렌더링을 건너뛴다(대본 프리뷰용 — 빠름).
     """
     exclude = exclude_topics or []
     base = os.getenv("TENBAGGER_API_BASE", "http://localhost:8000").rstrip("/")
@@ -177,7 +179,7 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
     trend_block = _trend_narrative(trend, base_year)
 
     chart_path = ""
-    if trend:
+    if trend and make_chart:
         candidate = os.path.join(chart_dir, f"trend_{ticker}.mp4")
         if make_trend_chart(name, trend, base_year, candidate):
             chart_path = candidate
@@ -198,20 +200,23 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
         lines.append(f"\n[대중 심리 — 네이버 검색량]\n{trend_block}")
 
     chart_rule = (
-        "3. Scene 2 또는 3 중 하나는 반드시 source_type을 'chart'로 지정할 것 "
+        "4. Scene 2 또는 3 중 하나는 반드시 source_type을 'chart'로 지정할 것 "
         "(검색량 추이 차트가 삽입됨). 해당 Scene의 narration은 대중 관심과 주가 타이밍에 관한 내용일 것.\n"
         if chart_path else ""
     )
     context = (
         "\n".join(lines) + "\n\n"
-        "[대본 구조 강제 규칙]\n"
-        f"1. 첫 Scene은 \"{base_year}년의 {name}. 당시 시스템 점수 {_fmt(score.get('total_score'))}점.\" 같이 "
-        "과거 시점 + 시스템 평가로 시작할 것.\n"
-        "2. 핵심 서사: '대중은 늦는다. 검색량이 터졌을 때는 이미 고점. 데이터는 먼저 알고 있었다.' "
-        "모든 Scene에 위 수치 중 1개 이상 포함 (배경 설명 Scene 1개만 예외).\n"
+        "[대본 작성 가이드 — 반전 서사 우선, 수치는 결정적 순간에만]\n"
+        f"1. 훅(첫 Scene): \"{base_year}년, 아무도 {name}을(를) 거들떠보지 않았습니다\" 처럼 "
+        "과거의 무관심 → 반전 구조로 시작하라. 충격적 결과(몇 년 뒤 +몇 %)를 미리 살짝 흘려 호기심을 걸어도 좋다. "
+        "건조한 \"시스템 점수 X점\" 나열로 시작하지 마라.\n"
+        "2. 관통하는 서사: '대중은 늘 늦는다. 검색량이 터졌을 땐 이미 고점. 하지만 데이터는 먼저 알고 있었다.' "
+        "이 한 편의 이야기를 처음부터 끝까지 끌고 가라.\n"
+        "3. 수치는 결정적 순간에만 꽂아라 — 당시 시스템 점수, 실제 수익률, 검색량 고점 시기, 이 2~3개면 충분하다. "
+        "나머지 Scene은 숫자 없이 서사·긴장·맥락으로 채워라. 모든 문장에 숫자를 넣지 마라.\n"
         f"{chart_rule}"
-        "4. 후견지명처럼 보이지 않게: '당시 데이터만으로' 시스템이 평가했다는 점을 반드시 1회 명시할 것.\n"
-        f"5. 마지막 Scene의 narration은 반드시 다음 문구로 끝낼 것: \"{DISCLAIMER}\""
+        "5. 후견지명처럼 보이지 않게: '당시 데이터만으로' 시스템이 평가했다는 점을 반드시 1회 명시하라.\n"
+        f"6. 마지막 Scene의 narration은 반드시 다음 문구로 끝낼 것: \"{DISCLAIMER}\""
     )
     logger.info(f"과거 텐배거 주제 선정: {topic} (수익률 {bt.get('actual_return_pct')}%)")
     return (topic, context, chart_path)
