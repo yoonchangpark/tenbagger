@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/v2/track-record", tags=["TrackRecord"])
 # 공개 큐레이션 목록 — 대본 생성에 쓰이는 aiva/data/tenbagger_history.json 과 동기화
 CURATED = [
     {"name": "에코프로",    "ticker": "086520", "base_year": 2019, "hold_years": 5,
-     "note": "2차전지 양극재 밸류체인. 2019년엔 환경설비주 취급."},
+     "note": "2차전지 양극재 광풍의 상징. 2023년 검색량·주가 정점 직후 2024년 영업적자 전환."},
     {"name": "에코프로비엠", "ticker": "247540", "base_year": 2019, "hold_years": 5,
      "note": "하이니켈 양극재 글로벌 선두. 상장 직후 무관심 구간."},
     {"name": "한미반도체",  "ticker": "042700", "base_year": 2019, "hold_years": 5,
