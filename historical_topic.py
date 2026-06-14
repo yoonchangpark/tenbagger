@@ -325,16 +325,21 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
     if qualitative:
         lines.append(f"\n[정성 분석 — 비즈니스 해자 및 산업 구조]\n{qualitative}")
 
+    # 카드/차트 씬 지시는 '데이터 가용성'으로 판단한다(렌더 여부와 무관).
+    # 프리뷰(render_clips=False)에서도 score/trend가 있으면 규칙을 넣어야
+    # 미리보기 대본에 card/chart 씬이 포함되고, '이 대본 그대로 제작' 시 클립이 붙는다.
+    card_available = bool(score) or bool(asset_clips.get("card"))
+    chart_available = bool(trend) or bool(asset_clips.get("chart"))
     card_rule = (
         "4-1. 초반 Scene 하나는 반드시 source_type을 'card'로 지정하라 "
         "(텐배거 시스템이 당시 재무 데이터로 매긴 등급·점수·이후 수익률 카드가 화면에 뜬다). "
         "해당 narration은 '재무 데이터로만 분석했을 때 이런 결과였다'는 맥락으로 카드를 가리키듯 말하라.\n"
-        if asset_clips.get("card") else ""
+        if card_available else ""
     )
     chart_rule = (
         "4-2. 중반 Scene 하나는 반드시 source_type을 'chart'로 지정하라 "
         "(검색량 추이 차트가 삽입됨). 해당 narration은 대중 관심과 주가 타이밍에 관한 내용일 것.\n"
-        if asset_clips.get("chart") else ""
+        if chart_available else ""
     )
     context = (
         "\n".join(lines) + "\n\n"
