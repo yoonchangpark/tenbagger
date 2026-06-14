@@ -248,25 +248,63 @@ function accuracyCard(grade, d) {
     </div>`;
 }
 
+function backfillCard(grade, d) {
+  const med = d.median_pct;
+  const cls = med == null ? 'mv-neu' : (med >= 0 ? 'stat-green' : '');
+  const medStr = med == null ? '—' : (med >= 0 ? '+' : '') + med.toFixed(1) + '%';
+  const hit = d.hit_rate == null ? '' : ` · 적중 ${d.hit_rate}%`;
+  return `
+    <div class="stat-card">
+      <div class="label">${gradeBadge(grade)}</div>
+      <div class="value ${cls}" style="font-size:26px;">${medStr}</div>
+      <div class="sub">중간값 수익률 · n=${d.count}${hit}</div>
+    </div>`;
+}
+
 async function loadAccuracy() {
   const wrap = document.getElementById('accuracyWrap');
+  // ① 편향 없는 실시간 추적 (예측 시점 등급) 우선
   try {
     const res = await fetch(`${API}/api/v2/accuracy/results`);
-    if (!res.ok) throw new Error(res.statusText);
-    const data = await res.json();
-    const summary = data.summary || {};
-    const grades = GRADE_ORDER.filter(g => summary[g]);
-    if (!grades.length) {
-      wrap.innerHTML = `<div class="record-card" style="text-align:center;color:var(--muted);font-size:13px;">
-        아직 검증 데이터가 충분히 쌓이지 않았습니다. 시스템이 등급을 기록한 뒤 시간이 지나야
-        편향 없는 정확도가 집계됩니다 (매주 일요일 자동 검증). 신뢰는 시간이 만듭니다.</div>`;
-      return;
+    if (res.ok) {
+      const data = await res.json();
+      const summary = data.summary || {};
+      const grades = GRADE_ORDER.filter(g => summary[g]);
+      if (grades.length) {
+        wrap.innerHTML = `<div class="summary-grid">${grades.map(g => accuracyCard(g, summary[g])).join('')}</div>`;
+        return;
+      }
     }
-    wrap.innerHTML = `<div class="summary-grid">${grades.map(g => accuracyCard(g, summary[g])).join('')}</div>`;
-  } catch (e) {
-    wrap.innerHTML = `<div class="record-card" style="text-align:center;color:var(--muted);font-size:13px;">
-      검증 데이터를 불러오지 못했습니다 (${e.message}).</div>`;
-  }
+  } catch (e) { /* 백필 폴백으로 진행 */ }
+
+  // ② 실시간 추적이 비어 있으면 백필 v1(점-인-타임 재구성)으로 보완
+  try {
+    const res = await fetch(`${API}/api/v2/accuracy/backfill`);
+    if (res.ok) {
+      const data = await res.json();
+      const summary = data.summary || {};
+      const grades = GRADE_ORDER.filter(g => summary[g]);
+      if (grades.length) {
+        const yrs = [];
+        GRADE_ORDER.forEach(g => { if (summary[g]) { yrs.push(summary[g].from_year, summary[g].to_year); } });
+        const fy = Math.min(...yrs.filter(Boolean)), ty = Math.max(...yrs.filter(Boolean));
+        wrap.innerHTML = `
+          <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:800;background:#f59e0b18;border:1px solid var(--yellow);color:var(--yellow);border-radius:14px;padding:3px 10px;">백필 기준선 v1</span>
+            <span style="font-size:11px;color:var(--muted);">${fy}~${ty}년 시점 재구성 · 상폐 제외 표본(낙관 편향 가능)</span>
+          </div>
+          <div class="summary-grid">${grades.map(g => backfillCard(g, summary[g])).join('')}</div>
+          <p style="font-size:11px;color:#64748b;margin-top:10px;">
+            ※ 현재 스코어 공식 1개를 과거 시점에 적용한 기준선입니다. 룩어헤드 없이 그 시점 이전 재무만 사용했으나,
+            상폐 종목이 빠져 있어 실제보다 낙관적일 수 있습니다. 편향 없는 실시간 추적이 쌓이면 자동으로 대체됩니다.</p>`;
+        return;
+      }
+    }
+  } catch (e) { /* 둘 다 없으면 안내 */ }
+
+  wrap.innerHTML = `<div class="record-card" style="text-align:center;color:var(--muted);font-size:13px;">
+    아직 검증 데이터가 없습니다. 백필을 실행하면 과거 시점 기준선이 즉시 채워지고,
+    이후 편향 없는 실시간 추적이 누적됩니다 (매주 일요일 자동 검증). 신뢰는 시간이 만듭니다.</div>`;
 }
 
 async function loadTrackRecord() {
