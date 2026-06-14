@@ -550,8 +550,10 @@ async def step_3_audio_and_edit(script_data: list, force_free_tts: bool = False,
             if chunks:
                 audio = sum(chunks)
                 
-            # 2. 1.1배속 텐션 업그레이드 (프레임 레이트 조절 트릭 이용, 쇼츠 특유의 통통 튀는 피치)
-            speed_factor = 1.1
+            # 2. 배속 텐션 업그레이드 (프레임 레이트 조절 트릭, 쇼츠 특유의 통통 튀는 피치)
+            # 한국 경제채널 평균 ~5.5음절/초. gTTS 1.1배속은 ~4.7음절/초로 다소 느림 → 기본 1.15로 상향.
+            # .env의 AIVA_SPEED_FACTOR로 조절 가능 (피치가 높으면 1.1, 더 빠르게는 1.2)
+            speed_factor = float(os.getenv("AIVA_SPEED_FACTOR", "1.15"))
             new_sample_rate = int(audio.frame_rate * speed_factor)
             fast_audio = audio._spawn(audio.raw_data, overrides={'frame_rate': new_sample_rate})
             fast_audio = fast_audio.set_frame_rate(44100)
