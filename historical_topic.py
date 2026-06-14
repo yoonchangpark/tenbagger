@@ -206,15 +206,16 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
         if make_score_card(card_data, card_path):
             asset_clips["card"] = card_path
 
-    topic = f"{base_year}년의 {name}, 시스템은 알고 있었다"
+    topic = f"{base_year}년의 {name}, 데이터는 이미 알고 있었다"
+    # 데이터 라벨에 '시스템 점수' 같은 내부 용어를 쓰지 않는다(GPT가 그대로 베껴 읽는 것 방지)
     lines = [
         f"종목명: {name} ({ticker})",
-        f"[백테스트 — {base_year}년 당시 재무데이터만으로 계산한 시스템 평가]",
-        f"당시 시스템 점수: {_fmt(score.get('total_score'))}/10 | 등급: {score.get('grade', 'N/A')}",
-        f"당시 성장성 점수: {_fmt(score.get('growth_score'))}/10",
+        f"[{base_year}년 당시 재무데이터만으로 분석한 결과]",
+        f"재무 종합 평가: 10점 만점에 {_fmt(score.get('total_score'))}점 | 당시 분류 등급: {score.get('grade', 'N/A')}",
+        f"성장성 평가: 10점 만점에 {_fmt(score.get('growth_score'))}점",
         f"{base_year}년 주가: {_fmt(bt.get('price_at_base_year'), '원', 0)}",
         f"{bt.get('end_year')}년 주가: {_fmt(bt.get('price_at_end_year'), '원', 0)}",
-        f"실제 수익률 ({hold_years}년): {_fmt(bt.get('actual_return_pct'), '%')}",
+        f"실제 수익률 ({hold_years}년 보유 시): {_fmt(bt.get('actual_return_pct'), '%')}",
     ]
     if target.get("note"):
         lines.append(f"배경 메모: {target['note']}")
@@ -241,7 +242,8 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
         "대신 '재무 데이터로만 분석했을 때', '당시 숫자들이 보내던 신호', '아무도 몰랐지만 숫자는 이미 답을 갖고 있었다' "
         "같이 누구나 이해할 수 있는 표현으로 치환하라.\n"
         "3. 관통하는 서사: '대중은 늘 늦는다. 검색량이 터졌을 땐 이미 고점. 하지만 데이터는 먼저 알고 있었다.' "
-        "이 한 편의 이야기를 처음부터 끝까지 끌고 가라.\n"
+        "이 한 편의 이야기를 처음부터 끝까지 끌고 가라. 서사를 충분히 담도록 "
+        "전체 65~80초 / 10~12개 Scene으로 구성하라(너무 짧게 끝내지 마라).\n"
         "4. 수치는 결정적 순간에만 — 실제 수익률, 검색량 고점 시기, 이 2~3개면 충분하다. "
         "나머지 Scene은 숫자 없이 서사·긴장·맥락으로 채워라.\n"
         f"{card_rule}{chart_rule}"
