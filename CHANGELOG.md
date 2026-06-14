@@ -2,6 +2,16 @@
 
 ---
 
+## v4.2 — ETL 외부 스케줄 트리거 (2026-06-14)
+
+### GitHub Actions 일일 ETL (신규: `.github/workflows/daily-etl.yml`)
+- **매일 02:00 KST(UTC 17:00) Railway ETL 엔드포인트 자동 호출** — GitHub 서버가 외부에서 발동하므로 Railway 컨테이너 재시작·로컬 PC 전원과 무관하게 100% 실행
+- **workflow_dispatch**: Actions 탭에서 수동 즉시 트리거 가능
+- 기존 in-process APScheduler(02:00 KST)와 동일 시각이나, v2_etl 가드가 중복 실행 차단 → 이중 안전장치
+- 대상 주소는 repo Variable `TENBAGGER_API_BASE`로 덮어쓰기 가능 (기본값: 운영 주소)
+
+---
+
 ## v4.1 — ETL 원격 트리거 + 실행 상태 가시화 (2026-06-11)
 
 ### ETL API (신규: `/api/v2/etl`)

@@ -1,0 +1,29 @@
+name: Daily ETL Trigger
+
+# 매일 정해진 시각에 Railway ETL 엔드포인트를 호출한다.
+# Railway 컨테이너 재시작과 무관하게 외부(GitHub)에서 발동 → PC on/off 무관.
+on:
+  schedule:
+    # UTC 17:00 = KST 익일 02:00 (한국은 UTC+9)
+    - cron: "0 17 * * *"
+  workflow_dispatch: {}   # 수동 실행 버튼 (Actions 탭에서 즉시 트리거 가능)
+
+jobs:
+  trigger-etl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger ETL on Railway
+        env:
+          # 기본값은 운영 주소. 다른 환경이면 repo Variables의 TENBAGGER_API_BASE로 덮어쓸 수 있음.
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          echo "ETL 트리거: $BASE"
+          code=$(curl -s -o resp.json -w "%{http_code}" \
+            -X POST "$BASE/api/v2/etl/run?market=ALL&skip_existing=true")
+          echo "HTTP $code"
+          cat resp.json
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::ETL 트리거 실패 (HTTP $code)"
+            exit 1
+          fi
