@@ -69,7 +69,9 @@ async def evaluate_history_quality(scenes: list, topic: str = "") -> dict:
     """
     narrations = " / ".join(s.get("narration", "") for s in scenes if s.get("narration"))
     scene_count = len(scenes)
-    char_count = sum(len(s.get("narration", "")) for s in scenes)
+    # 면책 씬은 실제 낭독되지 않으므로 글자 수 집계에서 제외
+    char_count = sum(len(s.get("narration", "")) for s in scenes
+                     if s.get("source_type") != "disclaimer")
     has_disclaimer = any(s.get("source_type") == "disclaimer" for s in scenes)
 
     prompt = f"""
@@ -135,10 +137,17 @@ async def evaluate_history_quality(scenes: list, topic: str = "") -> dict:
             + data.get("conclusion_clarity", 0)
         )
         data["total"] = total
-        # 씬 수 / 면책 씬 패널티
-        if scene_count < 8:
+        # 분량(씬 수·글자 수) / 면책 씬 패널티 — 90초 기준선(22~28씬, 440~560자) 미달 시 감점
+        if scene_count < 18:
+            data["total"] = max(0, data["total"] - 25)
+            data["feedback"] = (
+                f"(분량 부족: {scene_count}씬 — 22~28씬으로 늘려라) " + data.get("feedback", "")
+            )
+        elif char_count < 380:
             data["total"] = max(0, data["total"] - 15)
-            data["feedback"] = "(씬 부족 패널티) " + data.get("feedback", "")
+            data["feedback"] = (
+                f"(낭독 분량 부족: {char_count}자 — 440자 이상으로) " + data.get("feedback", "")
+            )
         if not has_disclaimer:
             data["total"] = max(0, data["total"] - 10)
         return data
