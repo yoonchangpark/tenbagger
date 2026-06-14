@@ -62,18 +62,19 @@ async def get_track_record():
 
     results = await asyncio.gather(*[_safe_run(item) for item in CURATED])
     results = list(results)
-
     ok = [r for r in results if r.get("status") == "ok"]
-    correct = [r for r in ok if r.get("prediction_correct")]
-    returns = [r["actual_return_pct"] for r in ok if r.get("actual_return_pct") is not None]
 
+    # ⚠️ 생존자 편향 주의: 아래 records는 '이미 텐배거가 된 것을 아는' 종목을 손으로 고른
+    # 큐레이션 사례다. 이걸로 '적중률/평균수익률'을 집계하면 승자만 본 편향된 수치가 된다.
+    # 따라서 여기서는 종합 적중률을 계산하지 않는다.
+    # 편향 없는 시스템 정확도는 /api/v2/accuracy/results (예측 시점 등급 기준 전수 추적)를 써라.
     return {
         "records": results,
         "summary": {
             "total": len(CURATED),
             "resolved": len(ok),
-            "correct_count": len(correct),
-            "accuracy_pct": round(len(correct) / len(ok) * 100, 1) if ok else None,
-            "avg_return_pct": round(sum(returns) / len(returns), 1) if returns else None,
+            "is_curated_examples": True,
+            "note": ("이 목록은 설명을 위해 선별한 대표 사례입니다. 전체 예측의 표본이 아니므로 "
+                     "여기서 적중률을 집계하지 않습니다. 편향 없는 검증 정확도는 '검증된 정확도' 섹션을 보세요."),
         },
     }

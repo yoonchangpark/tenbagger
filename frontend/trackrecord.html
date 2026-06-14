@@ -125,27 +125,35 @@
 <main class="main">
   <div class="hero">
     <div class="hero-badge">📊 공개 트랙 레코드</div>
-    <h1>우리 시스템이 <span>실제로 맞췄는지</span><br>직접 보세요</h1>
-    <p>숨기지 않습니다. 과거 TENBAGGER 예측 종목과 이후 실제 수익률을<br>DART 공시 기반 재무 데이터 그대로 공개합니다.</p>
+    <h1>우리 시스템이 <span>실제로 맞췄는지</span><br>편향 없이 공개합니다</h1>
+    <p>승자만 골라 자랑하지 않습니다. 예측 시점에 기록한 등급으로<br>전체 종목을 추적한 검증 정확도와, 대표 분석 사례를 함께 공개합니다.</p>
     <div class="dart-badge">
       <span class="dot"></span>
       DART 공시 데이터 기반 · 금융감독원 법정공시 원본
     </div>
   </div>
 
-  <!-- 요약 통계 -->
-  <div class="summary-grid" id="summaryGrid">
-    <div class="stat-card"><div class="label">분석 종목</div><div class="value stat-blue" id="statTotal">—</div><div class="sub">큐레이션 사례</div></div>
-    <div class="stat-card"><div class="label">예측 적중률</div><div class="value stat-green" id="statAccuracy">—</div><div class="sub">방향성 기준</div></div>
-    <div class="stat-card"><div class="label">평균 실제 수익률</div><div class="value stat-gold" id="statReturn">—</div><div class="sub">보유 기간 기준</div></div>
+  <!-- ① 검증된 정확도 (편향 없음) -->
+  <div class="section-title">검증된 시스템 정확도</div>
+  <p style="font-size:12px;color:var(--muted);margin:-8px 0 16px;line-height:1.6;">
+    예측 <b>시점에 기록된 등급</b>을 기준으로 그 이후 실제 수익률을 추적합니다. 승자만 골라낸 것이 아니라,
+    시스템이 그 등급으로 분류한 <b>모든 종목</b>을 집계하므로 생존자 편향이 없습니다.
+  </p>
+  <div id="accuracyWrap">
+    <div class="loading-wrap"><div class="spinner"></div><div class="loading-text">검증 데이터 불러오는 중...</div></div>
   </div>
 
-  <div class="section-title">종목별 예측 기록</div>
+  <!-- ② 주요 분석 사례 (예시 — 편향 주의 라벨) -->
+  <div class="section-title" style="margin-top:40px;">주요 분석 사례 <span style="font-size:12px;color:var(--muted);font-weight:500;">(예시)</span></div>
+  <p style="font-size:12px;color:var(--muted);margin:-8px 0 16px;line-height:1.6;">
+    아래는 설명을 위해 선별한 대표 사례입니다. <b>전체 예측의 표본이 아니므로</b> 여기서 적중률을 집계하지 않습니다 —
+    위 '검증된 정확도'가 편향 없는 지표입니다. 각 사례의 수치는 해당 종목의 실제 DART 공시·주가 데이터입니다.
+  </p>
 
   <div id="recordsWrap">
     <div class="loading-wrap">
       <div class="spinner"></div>
-      <div class="loading-text">백테스트 계산 중... (최대 30초 소요)</div>
+      <div class="loading-text">사례 백테스트 계산 중... (최대 30초 소요)</div>
     </div>
   </div>
 
@@ -222,17 +230,46 @@ function renderCard(r) {
   `;
 }
 
+const GRADE_ORDER = ['TENBAGGER', 'COMPOUNDER', 'WATCHLIST'];
+
+function accuracyCard(grade, d) {
+  const med = d.median_pct;
+  const cls = med == null ? 'mv-neu' : (med >= 0 ? 'stat-green' : '');
+  const medStr = med == null ? '—' : (med >= 0 ? '+' : '') + med.toFixed(1) + '%';
+  return `
+    <div class="stat-card">
+      <div class="label">${gradeBadge(grade)}</div>
+      <div class="value ${cls}" style="font-size:26px;">${medStr}</div>
+      <div class="sub">중간값 수익률 · n=${d.count}${d.target_label ? ' · 목표 ' + d.target_label : ''}</div>
+    </div>`;
+}
+
+async function loadAccuracy() {
+  const wrap = document.getElementById('accuracyWrap');
+  try {
+    const res = await fetch(`${API}/api/v2/accuracy/results`);
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    const summary = data.summary || {};
+    const grades = GRADE_ORDER.filter(g => summary[g]);
+    if (!grades.length) {
+      wrap.innerHTML = `<div class="record-card" style="text-align:center;color:var(--muted);font-size:13px;">
+        아직 검증 데이터가 충분히 쌓이지 않았습니다. 시스템이 등급을 기록한 뒤 시간이 지나야
+        편향 없는 정확도가 집계됩니다 (매주 일요일 자동 검증). 신뢰는 시간이 만듭니다.</div>`;
+      return;
+    }
+    wrap.innerHTML = `<div class="summary-grid">${grades.map(g => accuracyCard(g, summary[g])).join('')}</div>`;
+  } catch (e) {
+    wrap.innerHTML = `<div class="record-card" style="text-align:center;color:var(--muted);font-size:13px;">
+      검증 데이터를 불러오지 못했습니다 (${e.message}).</div>`;
+  }
+}
+
 async function loadTrackRecord() {
   try {
     const res = await fetch(`${API}/api/v2/track-record`);
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
-    const s = data.summary || {};
-
-    document.getElementById('statTotal').textContent = s.total ?? '—';
-    document.getElementById('statAccuracy').textContent = s.accuracy_pct != null ? s.accuracy_pct + '%' : '—';
-    document.getElementById('statReturn').textContent = s.avg_return_pct != null ? (s.avg_return_pct >= 0 ? '+' : '') + s.avg_return_pct + '%' : '—';
-
     const records = data.records || [];
     const html = records.map(renderCard).join('');
     document.getElementById('recordsWrap').innerHTML = html || '<p style="color:var(--muted);text-align:center;padding:40px 0">기록 없음</p>';
@@ -242,6 +279,7 @@ async function loadTrackRecord() {
   }
 }
 
+loadAccuracy();
 loadTrackRecord();
 </script>
 </body>
