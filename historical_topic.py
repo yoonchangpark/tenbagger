@@ -27,6 +27,26 @@ logger = logging.getLogger(__name__)
 
 HISTORY_LIST_FILE = os.path.join("data", "tenbagger_history.json")
 
+# ── 퀄리티 기준선 예시 (한미반도체 v2) ──────────────────────────
+# GPT에게 "이 정도 수준·구조로 써라"를 보여주는 few-shot. 다른 종목 사례이므로
+# 구조(무관심→떡밥→DART신뢰도→겨울버티기→트리거공감→폭발→대중지각→교훈→CTA)만
+# 참고하고, 내용·수치는 반드시 현재 주어진 종목의 실제 데이터로 채우게 한다.
+_FEWSHOT_EXEMPLAR = (
+    "[참고 예시 — '한미반도체' 사례. 톤·서사 구조만 참고하라. "
+    "절대 이 회사 이름·수치를 복사하지 마라. 너는 위에 주어진 종목으로 써야 한다.]\n"
+    "S1 무관심 훅: \"2019년, 한미반도체는 끝났다는 소리를 들었습니다.\"\n"
+    "S5 반전 떡밥: \"그런데 5년 뒤, 영업이익이 18배가 됩니다.\"\n"
+    "S6 [card·DART신뢰도]: \"당시 DART 공시 숫자만 봐도, 신호는 이미 거기 있었죠.\"\n"
+    "S9 겨울 은유: \"죽은 게 아니라, 겨울을 버티고 있었던 거죠.\"\n"
+    "S13~15 [핵심·트리거 공감]: \"근데 2019년, SK하이닉스는 이미 HBM 생산을 늘리고 있었어요.\" "
+    "→ \"HBM이 늘면, 그걸 쌓는 장비도 필요하다.\" → \"그 장비 독점사가 한미반도체. 이 연결만 봤어도.\" "
+    "(★ 이 부분이 시청자가 '아, 그때 이 연결만 봤으면' 하고 무릎 치게 만드는 가장 중요한 대목이다. "
+    "주어진 트리거 신호로 반드시 이런 '봤어야 할 연결고리' 서사를 만들어라.)\n"
+    "S20 [chart]: \"그제서야, 사람들이 검색하기 시작했습니다.\"\n"
+    "S24 교훈: \"화제는 항상 늦게 옵니다. 숫자는, 먼저 오죠.\"\n"
+    "S25 [CTA]: \"이런 과거 분석의 전체 기록은, 프로필 링크에서 공개 중입니다.\"\n"
+)
+
 
 def _load_curated_list() -> list[dict]:
     with open(HISTORY_LIST_FILE, "r", encoding="utf-8") as f:
@@ -161,13 +181,16 @@ async def _fetch_qualitative(base: str, ticker: str) -> str:
             )
             if resp.status_code == 200:
                 data = resp.json()
-                # 정성 분석 결과에서 핵심 필드 추출
+                # 정성 분석 결과에서 네러티브에 쓸 핵심 필드 추출 (실제 API 스키마 기준)
                 parts = []
-                for key in ("moat", "business_model", "ceo_story", "industry_trend",
-                            "summary", "analysis"):
+                for key in ("business_model", "competitive_advantage", "future_outlook"):
                     val = data.get(key)
                     if val and isinstance(val, str) and len(val) > 10:
                         parts.append(val.strip())
+                # 해자 요약 (moat_detail.summary)
+                moat = data.get("moat_detail")
+                if isinstance(moat, dict) and moat.get("summary"):
+                    parts.append(str(moat["summary"]).strip())
                 return " ".join(parts)[:800]
     except Exception as e:
         logger.warning(f"정성 분석 API 실패: {e}")
@@ -294,7 +317,8 @@ async def pick_history_topic(exclude_topics: list[str] | None = None,
         "'이 분석의 전체 예측 기록은 공개 중입니다 — 프로필 링크에서 확인하세요'와 유사한 CTA를 넣어라. "
         "search는 'financial data dashboard screen glow'처럼 데이터 화면 이미지로 지정.\n"
         f"9. 마지막 Scene은 source_type을 반드시 'disclaimer'로 지정하고 narration에 다음 문구를 넣어라: \"{DISCLAIMER}\" "
-        "(이 씬은 TTS 낭독 없이 영상 하단 자막으로만 표시된다.)"
+        "(이 씬은 TTS 낭독 없이 영상 하단 자막으로만 표시된다.)\n\n"
+        + _FEWSHOT_EXEMPLAR
     )
     logger.info(f"과거 텐배거 주제 선정: {topic} (수익률 {bt.get('actual_return_pct')}%)")
     return (topic, context, asset_clips)
