@@ -10,6 +10,7 @@ Walk-forward 방지: train/test 기간을 분리해 과적합을 막는다.
 """
 import math
 from collections import defaultdict
+from typing import Optional
 from sqlalchemy import text
 from app.core.database import SessionLocal
 
@@ -44,8 +45,6 @@ def _spearman(xs: list[float], ys: list[float]) -> Optional[float]:
         return None
     return round(num / (den_x * den_y), 4)
 
-
-from typing import Optional
 
 
 def baseline_ic(train_years: list[int] | None = None) -> dict:
