@@ -57,11 +57,13 @@ def _is_hit(grade: str, ret: float) -> bool | None:
 
 
 def _get_universe(limit: int, market: str | None) -> list[str]:
-    sql = "SELECT DISTINCT ticker FROM scores"
-    params: dict = {}
-    # market 필터는 scores 스키마에 시장 컬럼이 있을 때만 의미. 없으면 전체.
-    sql += " ORDER BY total_score DESC LIMIT :limit"
-    params["limit"] = limit
+    params: dict = {"limit": limit}
+    sql = """
+        SELECT ticker FROM scores
+        GROUP BY ticker
+        ORDER BY MAX(total_score) DESC
+        LIMIT :limit
+    """
     with SessionLocal() as session:
         rows = session.execute(text(sql), params).fetchall()
         return [r[0] for r in rows]
