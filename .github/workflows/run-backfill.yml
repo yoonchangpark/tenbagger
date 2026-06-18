@@ -1,0 +1,75 @@
+name: Run Accuracy Backfill
+
+# 백필 v1 — (종목×연도) 점-인-타임 재구성으로 검증 정확도 기준선 즉시 채움
+on:
+  workflow_dispatch:
+    inputs:
+      base_years:
+        description: "기준 연도 (쉼표구분, 예: 2018,2019,2020)"
+        required: false
+        default: "2018,2019,2020"
+      hold_years:
+        description: "보유 기간 (년)"
+        required: false
+        default: "2"
+      limit:
+        description: "상위 N종목 (점수순)"
+        required: false
+        default: "200"
+
+jobs:
+  run-backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Backfill on Railway
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+          BASE_YEARS: ${{ inputs.base_years || '2018,2019,2020' }}
+          HOLD_YEARS: ${{ inputs.hold_years || '2' }}
+          LIMIT: ${{ inputs.limit || '200' }}
+        run: |
+          echo "백필 트리거: $BASE"
+          echo "파라미터: base_years=$BASE_YEARS hold_years=$HOLD_YEARS limit=$LIMIT"
+          code=$(curl -s -o resp.json -w "%{http_code}" \
+            -X POST "$BASE/api/v2/accuracy/backfill?base_years=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$BASE_YEARS'))")&hold_years=$HOLD_YEARS&limit=$LIMIT")
+          echo "HTTP $code"
+          cat resp.json
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::백필 트리거 실패 (HTTP $code)"
+            exit 1
+          fi
+          echo "백필이 Railway 백그라운드에서 실행 중입니다."
+          echo "진행 상황 확인: GET $BASE/api/v2/accuracy/backfill"
+
+      - name: Poll Backfill Progress
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          echo "진행 상황 폴링 (최대 30분)..."
+          for i in $(seq 1 60); do
+            sleep 30
+            result=$(curl -s "$BASE/api/v2/accuracy/backfill")
+            status=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('progress',{}).get('status','unknown'))" 2>/dev/null)
+            done=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('progress',{}).get('done',0))" 2>/dev/null)
+            total=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('progress',{}).get('total',0))" 2>/dev/null)
+            stored=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('progress',{}).get('stored',0))" 2>/dev/null)
+            echo "[$i/60] status=$status done=$done/$total stored=$stored"
+            if [ "$status" = "completed" ]; then
+              echo "백필 완료!"
+              echo "$result" | python3 -c "
+          import sys,json
+          d=json.load(sys.stdin)
+          s=d.get('summary',{})
+          for grade,v in s.items():
+              print(f'{grade}: 중간값={v.get(\"median_pct\")}% 적중률={v.get(\"hit_rate\")}% 표본={v.get(\"count_priced\")}')
+          "
+              exit 0
+            fi
+            if [ "$status" = "error" ]; then
+              echo "::error::백필 오류"
+              echo "$result"
+              exit 1
+            fi
+          done
+          echo "::warning::30분 내 완료되지 않음. Railway에서 계속 실행 중일 수 있습니다."
