@@ -67,7 +67,7 @@ def baseline_ic(train_years: list[int] | None = None) -> dict:
         """), params).fetchall()
 
     if not rows:
-        return {"ic": None, "n": 0, "note": "backfill 데이터 없음"}
+        return {"ic": None, "n": 0, "years": [], "note": "backfill 데이터 없음"}
 
     scores = [float(r[0]) for r in rows]
     returns = [float(r[1]) for r in rows]
@@ -114,7 +114,7 @@ def factor_ic(factor_scores: dict[str, float], train_years: list[int] | None = N
 
     pairs = [(factor_scores[r[0]], float(r[1])) for r in rows if r[0] in factor_scores]
     if len(pairs) < 3:
-        return {"ic": None, "n": len(pairs), "note": "표본 부족"}
+        return {"ic": None, "n": len(pairs), "years": [], "note": "표본 부족"}
 
     xs, ys = zip(*pairs)
     ic = _spearman(list(xs), list(ys))
