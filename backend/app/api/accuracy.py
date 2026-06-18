@@ -1,8 +1,10 @@
 """
-GET  /api/v2/accuracy/results  — 정확도 검증 최신 결과 조회
-POST /api/v2/accuracy/run      — 수동 트리거 (백그라운드)
+GET  /api/v2/accuracy/results   — 정확도 검증 최신 결과 조회 (예측 시점 등급 전수 추적)
+POST /api/v2/accuracy/run       — 수동 트리거 (백그라운드)
+GET  /api/v2/accuracy/backfill  — 백필 v1 집계 조회 (점-인-타임 재구성)
+POST /api/v2/accuracy/backfill  — 백필 실행 (백그라운드)
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, BackgroundTasks
 from sqlalchemy import text
 
 from app.core.database import SessionLocal
@@ -101,3 +103,48 @@ def trigger_accuracy_run(grade: str = Query(None, description="특정 등급만 
         cwd=os.path.join(os.path.dirname(__file__), "..", "..", ".."),
     )
     return {"message": "정확도 검증 시작 (백그라운드)", "grade": grade or "ALL"}
+
+
+# ── 백필 v1 (점-인-타임 재구성) ──────────────────────────────
+_backfill_progress: dict = {"status": "idle", "total": 0, "done": 0, "stored": 0}
+
+
+@router.get("/backfill")
+def get_backfill():
+    """백필 집계 + 진행 상황 조회."""
+    from app.domain.backfill import get_backfill_summary
+    result = get_backfill_summary()
+    result["progress"] = _backfill_progress
+    return result
+
+
+@router.post("/backfill")
+async def run_backfill_endpoint(
+    background_tasks: BackgroundTasks,
+    base_years: str = Query("2018,2019,2020", description="쉼표구분 연도 (예: 2018,2019,2020)"),
+    hold_years: int = Query(2, ge=1, le=6),
+    limit: int = Query(200, ge=1, le=1000, description="상위 N종목 (점수순)"),
+):
+    """백필 실행 — (종목 × 연도) 점-인-타임 등급·수익률을 재구성해 저장. 백그라운드."""
+    from app.domain.backfill import run_backfill
+    if _backfill_progress.get("status") == "running":
+        return {"message": "이미 백필이 실행 중입니다.", "progress": _backfill_progress}
+
+    try:
+        years = sorted({int(y.strip()) for y in base_years.split(",") if y.strip()})
+    except ValueError:
+        return {"error": "base_years 형식 오류 (예: 2018,2019,2020)"}
+    if not years:
+        return {"error": "base_years가 비어 있습니다."}
+
+    _backfill_progress.update({"status": "running", "total": 0, "done": 0, "stored": 0})
+
+    async def _job():
+        try:
+            await run_backfill(years, hold_years, limit, progress=_backfill_progress)
+        except Exception as e:
+            _backfill_progress.update({"status": "error", "error": str(e)})
+
+    background_tasks.add_task(_job)
+    return {"message": "백필 시작 (백그라운드)", "base_years": years,
+            "hold_years": hold_years, "limit": limit}

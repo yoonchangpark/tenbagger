@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>검증 정확도 백필 — 구현 미리보기 (목업)</title>
+<style>
+  :root{
+    --bg:#0a0f1e;--surface:#111827;--surface2:#1f2937;--border:#374151;
+    --text:#f9fafb;--muted:#9ca3af;--green:#10b981;--blue:#3b82f6;
+    --yellow:#f59e0b;--red:#ef4444;--purple:#8b5cf6;--gold:#f5c518;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Pretendard','Noto Sans KR',sans-serif;line-height:1.6;}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 22px 80px;}
+
+  .mock-tag{display:inline-block;background:#f59e0b18;border:1px solid var(--yellow);color:var(--yellow);
+    font-size:11px;font-weight:700;border-radius:20px;padding:5px 14px;margin-bottom:18px;}
+  h1{font-size:clamp(24px,4vw,34px);font-weight:900;line-height:1.25;margin-bottom:12px;}
+  h1 span{background:linear-gradient(135deg,#10b981,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  .lead{color:var(--muted);font-size:15px;margin-bottom:36px;max-width:680px;}
+
+  .sec{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px 28px;margin-bottom:22px;}
+  .sec h2{font-size:17px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:9px;}
+  .sec .num{width:26px;height:26px;border-radius:8px;background:var(--purple);color:#fff;font-size:13px;
+    display:inline-flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;}
+  .sec .sub{color:var(--muted);font-size:13px;margin:4px 0 18px 35px;}
+
+  /* problem cards */
+  .prob{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:600px){.prob{grid-template-columns:1fr;}}
+  .prob .card{border-radius:12px;padding:16px 18px;font-size:13px;}
+  .prob .bad{background:#ef444412;border:1px solid #ef444433;}
+  .prob .good{background:#10b98112;border:1px solid #10b98133;}
+  .prob .card b{display:block;margin-bottom:6px;font-size:13px;}
+  .prob .bad b{color:#fca5a5;} .prob .good b{color:#6ee7b7;}
+
+  /* flow diagram */
+  .flow{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap;}
+  .flow .step{flex:1;min-width:150px;background:#0a0f1e;border:1px solid var(--border);border-radius:12px;padding:16px;}
+  .flow .step .t{font-size:12px;color:var(--purple);font-weight:800;margin-bottom:7px;}
+  .flow .step .d{font-size:13px;color:#e5e7eb;}
+  .flow .step .m{font-size:11px;color:var(--muted);margin-top:7px;}
+  .arrow{display:flex;align-items:center;color:var(--muted);font-size:20px;}
+  @media(max-width:700px){.arrow{transform:rotate(90deg);justify-content:center;width:100%;}}
+
+  /* panel mock */
+  .panel{background:#0a0f1e;border:1px solid var(--border);border-radius:14px;padding:20px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:7px;font-weight:600;}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:13px;cursor:default;}
+  .chip.on{background:#8b5cf61f;border-color:var(--purple);color:#c4b5fd;font-weight:700;}
+  .run-btn{background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:10px;
+    padding:12px 22px;font-size:14px;font-weight:800;cursor:default;display:inline-flex;align-items:center;gap:8px;}
+  .progress{margin-top:16px;}
+  .bar{height:10px;background:var(--surface2);border-radius:6px;overflow:hidden;}
+  .bar>div{height:100%;width:62%;background:linear-gradient(90deg,#8b5cf6,#3b82f6);}
+  .plog{font-family:ui-monospace,monospace;font-size:11.5px;color:#94a3b8;background:#060912;border:1px solid var(--border);
+    border-radius:8px;padding:12px 14px;margin-top:14px;white-space:pre-line;}
+
+  /* result table */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:11px 12px;text-align:right;border-bottom:1px solid var(--border);}
+  th:first-child,td:first-child{text-align:left;}
+  th{color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+  .badge{display:inline-block;padding:3px 10px;border-radius:14px;font-size:11px;font-weight:800;}
+  .b-ten{background:#f5c51820;color:var(--gold);border:1px solid var(--gold);}
+  .b-comp{background:#10b98120;color:var(--green);border:1px solid var(--green);}
+  .b-watch{background:#3b82f620;color:var(--blue);border:1px solid var(--blue);}
+  .pos{color:var(--green);font-weight:700;} .neg{color:var(--red);font-weight:700;}
+  .pass{color:var(--green);} .fail{color:var(--red);}
+
+  .warn{background:#f59e0b10;border:1px solid #f59e0b40;border-radius:12px;padding:16px 18px;font-size:13px;}
+  .warn b{color:var(--yellow);}
+  .warn ul{margin:8px 0 0 18px;} .warn li{margin-bottom:6px;}
+
+  .note{font-size:11px;color:#64748b;margin-top:10px;}
+  .codeline{font-family:ui-monospace,monospace;font-size:12px;color:#a5b4fc;background:#0a0f1e;
+    border:1px solid var(--border);border-radius:6px;padding:2px 7px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="mock-tag">🧪 구현 미리보기 · 실제 동작 아님 (목업)</div>
+  <h1>검증 정확도 <span>백필(Backfill)</span><br>이렇게 구현합니다</h1>
+  <p class="lead">
+    신규 시스템은 "검증된 정확도"가 비어 있습니다 — 지금 등급을 매겨도 수익률이 나오려면 1~2년을 기다려야 하니까요.
+    백필은 <b>지금 가진 DART 데이터로 '그 시점이었다면 시스템이 뭐라고 했을지'를 재구성</b>해서,
+    실제 이후 수익률과 대조해 정확도 표를 즉시 채웁니다.
+  </p>
+
+  <!-- 1. 왜 필요한가 -->
+  <div class="sec">
+    <h2><span class="num">1</span> 왜 필요한가</h2>
+    <div class="sub">"검증된 정확도" 섹션이 비어 있는 이유와 백필이 푸는 문제</div>
+    <div class="prob">
+      <div class="card bad">
+        <b>지금 (백필 전)</b>
+        오늘부터 등급을 기록 → 2년 뒤에야 "TENBAGGER 적중률 N%"가 나옴.
+        그 전까지 트랙레코드 페이지는 "데이터 축적 중"만 표시. 신뢰 자산 0.
+      </div>
+      <div class="card good">
+        <b>백필 후</b>
+        2018·2019·2020년 시점 점수를 재구성 → 이미 지난 수익률로 즉시 검증.
+        "TENBAGGER로 찍은 종목의 2년 수익률 중간값 +XX%"를 오늘 바로 공개.
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 어떻게 동작 -->
+  <div class="sec">
+    <h2><span class="num">2</span> 어떻게 동작하나</h2>
+    <div class="sub">종목 × 과거연도 격자를 돌며 점수 → 등급 → 이후 수익률을 기록</div>
+    <div class="flow">
+      <div class="step">
+        <div class="t">① 시점 고정</div>
+        <div class="d">base_year = 2019로 고정</div>
+        <div class="m">그 시점에 <b>공시돼 있던</b> 재무만 사용 (룩어헤드 차단)</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step">
+        <div class="t">② 점수 재구성</div>
+        <div class="d">calculate_tenbagger_score()로 당시 등급 산출</div>
+        <div class="m">현재 스코어 공식을 과거 데이터에 적용</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step">
+        <div class="t">③ 스냅샷 저장</div>
+        <div class="d">score_history에 (ticker, 2019, 등급) 기록</div>
+        <div class="m">예측 시점 등급 = 편향 없는 기준점</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step">
+        <div class="t">④ 수익률 대조</div>
+        <div class="d">accuracy_validator가 이후 실제 수익률 측정</div>
+        <div class="m">기존 검증 파이프라인 그대로 재사용</div>
+      </div>
+    </div>
+    <p class="note">※ ②~④는 이미 있는 함수(<span class="codeline">calculate_tenbagger_score</span>, <span class="codeline">run_validation</span>)를 재사용합니다. 신규 코드는 ①의 점-인-타임 수집 + 격자 루프뿐입니다.</p>
+  </div>
+
+  <!-- 3. 실행 패널 목업 -->
+  <div class="sec">
+    <h2><span class="num">3</span> 관리자 실행 패널 <span style="font-size:11px;color:var(--muted);font-weight:500;">(목업)</span></h2>
+    <div class="sub">POST /api/v2/accuracy/backfill — 백그라운드 실행 + 진행률</div>
+    <div class="panel">
+      <div class="field">
+        <label>대상 연도 (point-in-time 시점)</label>
+        <div class="chips">
+          <div class="chip on">2018 ✓</div><div class="chip on">2019 ✓</div>
+          <div class="chip on">2020 ✓</div><div class="chip">2021</div><div class="chip">2022</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>종목 유니버스</label>
+        <div class="chips">
+          <div class="chip on">KOSPI ✓</div><div class="chip">KOSDAQ</div>
+          <div class="chip on">상폐 종목 포함 ✓ <span style="color:var(--yellow)">(편향 방지)</span></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>보유 기간</label>
+        <div class="chips"><div class="chip on">2년 ✓</div><div class="chip">3년</div><div class="chip">5년</div></div>
+      </div>
+      <button class="run-btn">▶ 백필 실행 (949종목 × 3년)</button>
+
+      <div class="progress">
+        <div class="bar"><div></div></div>
+        <div class="plog">[backfill] 2019 · 588/949 종목 처리 중 (62%)
+[backfill] 005930 삼성전자 → COMPOUNDER (당시 7.1점) 기록
+[backfill] 042700 한미반도체 → TENBAGGER (당시 7.8점) 기록
+[backfill] 086520 에코프로 → WATCHLIST (당시 5.4점) 기록
+[backfill] score_history 누적 1,842건 · 예상 잔여 4분</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 결과 미리보기 -->
+  <div class="sec">
+    <h2><span class="num">4</span> 결과 — "검증된 정확도"가 이렇게 채워집니다 <span style="font-size:11px;color:var(--muted);font-weight:500;">(예시 수치)</span></h2>
+    <div class="sub">백필 완료 후 trackrecord.html '검증된 정확도' 섹션에 표시될 모습</div>
+    <table>
+      <thead>
+        <tr><th>등급 (예측 시점)</th><th>표본 수</th><th>2년 수익률 중간값</th><th>평균</th><th>목표</th><th>달성</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge b-ten">⭐ TENBAGGER</span></td>
+          <td>34</td><td class="pos">+61.2%</td><td class="pos">+88.5%</td>
+          <td>+50%</td><td class="pass">✓ 달성</td>
+        </tr>
+        <tr>
+          <td><span class="badge b-comp">✅ COMPOUNDER</span></td>
+          <td>112</td><td class="pos">+23.4%</td><td class="pos">+31.0%</td>
+          <td>+20%</td><td class="pass">✓ 달성</td>
+        </tr>
+        <tr>
+          <td><span class="badge b-watch">👁 WATCHLIST</span></td>
+          <td>205</td><td class="pos">+8.1%</td><td class="pos">+12.7%</td>
+          <td>+10%</td><td class="fail">근접</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">↑ 위 숫자는 <b>설명용 예시</b>입니다. 실제 값은 백필 실행 후 DART·주가 데이터로 산출됩니다. AVOID 등급은 "하락 회피율"로 별도 검증.</p>
+  </div>
+
+  <!-- 5. 정직성 한계 -->
+  <div class="sec">
+    <h2><span class="num">5</span> 정직하게 — 백필의 함정과 방어</h2>
+    <div class="sub">잘못 만들면 백필 자체가 새로운 편향이 됩니다. 다음을 반드시 지킵니다.</div>
+    <div class="warn">
+      <b>⚠ 3가지 편향을 이렇게 막습니다</b>
+      <ul>
+        <li><b>룩어헤드(미래참조):</b> 2019년 점수엔 2019년에 <u>이미 공시된</u> 재무(=2018 사업보고서 등)만 사용. 2020년 이후 데이터는 점수 산출에서 원천 차단.</li>
+        <li><b>생존자 편향:</b> 현재 상장 종목만 백필하면 망해서 상폐된 종목이 빠져 정확도가 부풀려짐 → 유니버스에 <b>상폐 종목 포함</b>(옵션 기본 ON). 불가 시 "상폐 제외 표본"임을 페이지에 명시.</li>
+        <li><b>공식 과적합:</b> 현재 공식을 과거에 맞춰 튜닝하면 안 됨 → 백필은 <b>읽기 전용 검증</b>으로만 쓰고, 백필 결과로 가중치를 거꾸로 수정하지 않음(별도 승인 절차).</li>
+      </ul>
+    </div>
+    <p class="note">이 한계를 페이지에 같이 표기하면, 오히려 "이 팀은 자기 검증의 약점까지 공개한다"는 신뢰가 됩니다.</p>
+  </div>
+
+  <p style="text-align:center;color:#475569;font-size:11px;margin-top:8px;">
+    텐배거 헌터 · 검증 정확도 백필 구현 미리보기 (목업) · 실제 데이터 아님
+  </p>
+</div>
+</body>
+</html>
