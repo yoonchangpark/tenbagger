@@ -1,0 +1,84 @@
+name: Run Factor IC Measurement
+
+# 요소별 IC(예측력) 측정 — 기준선(v1 total_score) → 검색량(Naver DataLab) 순으로 실행
+on:
+  workflow_dispatch:
+    inputs:
+      factors:
+        description: "측정할 요소 (baseline / search_volume / all)"
+        required: false
+        default: "all"
+
+jobs:
+  measure-ic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Measure Baseline IC (total_score_v1)
+        if: ${{ inputs.factors == 'baseline' || inputs.factors == 'all' || inputs.factors == '' }}
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          echo "=== 기준선 IC 측정 (total_score_v1) ==="
+          code=$(curl -s -o resp.json -w "%{http_code}" -X POST "$BASE/api/v2/factors/ic/baseline")
+          echo "HTTP $code"
+          cat resp.json | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          print(f'train IC: {d[\"train\"][\"ic\"]}  (n={d[\"train\"][\"n\"]})')
+          print(f'test  IC: {d[\"test\"][\"ic\"]}  (n={d[\"test\"][\"n\"]})')
+          print(f'기간: train={d[\"train\"][\"years\"]}  test={d[\"test\"][\"years\"]}')
+          "
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::기준선 IC 측정 실패 (HTTP $code)"
+            exit 1
+          fi
+
+      - name: Trigger Search Volume IC (Naver DataLab, background)
+        if: ${{ inputs.factors == 'search_volume' || inputs.factors == 'all' || inputs.factors == '' }}
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          echo "=== 검색량 IC 측정 시작 (백그라운드) ==="
+          code=$(curl -s -o resp.json -w "%{http_code}" -X POST "$BASE/api/v2/factors/ic/search-volume")
+          echo "HTTP $code"
+          cat resp.json
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::검색량 IC 트리거 실패 (HTTP $code)"
+            exit 1
+          fi
+          echo "Railway에서 백그라운드로 실행 중... (수분 소요)"
+
+      - name: Poll Search Volume IC Completion
+        if: ${{ inputs.factors == 'search_volume' || inputs.factors == 'all' || inputs.factors == '' }}
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          echo "IC 리더보드 폴링 (최대 15분)..."
+          for i in $(seq 1 30); do
+            sleep 30
+            result=$(curl -s "$BASE/api/v2/factors/ic")
+            count=$(echo "$result" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          print(len(d.get('leaderboard', [])))
+          " 2>/dev/null)
+            echo "[$i/30] 등록된 요소 수: $count"
+            if [ "$count" -ge "2" ] 2>/dev/null; then
+              echo ""
+              echo "=== IC 리더보드 ==="
+              echo "$result" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          print(f'{'요소':<30} {'train IC':>10} {'test IC':>10} {'과적합':>8}')
+          print('-' * 62)
+          for r in d['leaderboard']:
+              flag = '⚠️' if r.get('overfit_flag') else '✅'
+              print(f'{r[\"factor_name\"]:<30} {str(r[\"train_ic\"]):>10} {str(r[\"test_ic\"]):>10} {flag:>8}')
+          "
+              exit 0
+            fi
+          done
+          echo "::warning::15분 내 완료되지 않음. Railway에서 계속 실행 중일 수 있습니다."
+          echo "GET $BASE/api/v2/factors/ic 로 결과 확인하세요."
