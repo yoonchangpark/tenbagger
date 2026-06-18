@@ -1,0 +1,81 @@
+name: Backfill Completion Monitor
+
+# 30분마다 백필 완료 여부 체크 → 완료 시 이슈 생성 후 자동 종료
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check-completion:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check Backfill Status
+        id: check
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          result=$(curl -s "$BASE/api/v2/accuracy/backfill")
+          status=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('progress',{}).get('status','unknown'))" 2>/dev/null)
+          echo "status=$status"
+          echo "status=$status" >> $GITHUB_OUTPUT
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          echo "$result" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Check if Issue Already Exists
+        if: steps.check.outputs.status == 'completed'
+        id: issue_check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          count=$(gh api repos/${{ github.repository }}/issues \
+            --jq '[.[] | select(.title | startswith("백필 v1 완료"))] | length' \
+            -H "Accept: application/vnd.github+json")
+          echo "existing=$count" >> $GITHUB_OUTPUT
+
+      - name: Create Completion Issue
+        if: steps.check.outputs.status == 'completed' && steps.issue_check.outputs.existing == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os, subprocess
+
+          result = json.loads(os.environ.get('BACKFILL_RESULT', '{}'))
+          summary = result.get('summary', {})
+          meta = result.get('meta', {})
+          progress = result.get('progress', {})
+
+          lines = ["## 백필 v1 기준선 완료\n"]
+          lines.append(f"- 처리: {progress.get('stored', '?')}개 저장 / {progress.get('total', '?')}개 시도")
+          lines.append(f"- 마지막 실행: {meta.get('last_run', '?')}\n")
+          lines.append("### 등급별 결과\n")
+          lines.append("| 등급 | 중간값 수익률 | 적중률 | 표본수 | 목표 |")
+          lines.append("|------|-------------|--------|--------|------|")
+
+          order = ["TENBAGGER", "COMPOUNDER", "WATCHLIST", "AVOID"]
+          for grade in order:
+              v = summary.get(grade, {})
+              if v:
+                  lines.append(f"| {grade} | {v.get('median_pct')}% | {v.get('hit_rate')}% | {v.get('count_priced')} | {v.get('target_pct')}% |")
+
+          lines.append("\n### 다음 단계")
+          lines.append("- [ ] 검색량 요소(Naver DataLab) IC 측정 시작")
+          lines.append("- [ ] walk-forward 검증 골격 구현")
+
+          body = "\n".join(lines)
+
+          cmd = ["gh", "api", "repos/${{ github.repository }}/issues",
+                 "-X", "POST",
+                 "-f", "title=백필 v1 완료 — 다음 단계: 검색량 요소 IC 측정",
+                 "-f", f"body={body}",
+                 "-f", "labels[]=backfill",
+                 "-H", "Accept: application/vnd.github+json"]
+          subprocess.run(cmd, env={**os.environ})
+          PYEOF
+        env:
+          BACKFILL_RESULT: ${{ steps.check.outputs.result }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

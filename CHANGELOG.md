@@ -2,6 +2,18 @@
 
 ---
 
+## v4.5 — 요소 발굴 엔진 v1 (2026-06-18)
+
+### 요소 발굴 엔진 (`app/domain/factors/`, `/api/v2/factors`)
+- **IC(Information Coefficient) 측정 엔진** (`ic_engine.py`): 스피어만 순위 상관으로 요소 예측력 수치화
+- **Walk-forward 검증**: train(2018~2019) / test(2020) 분리 — 과적합 탐지 자동화 (train IC와 test IC 차이 >0.1 → overfit_flag)
+- **기준선 IC** (`POST /api/v2/factors/ic/baseline`): v1 total_score의 IC 측정 → 이후 요소 개선 기준점
+- **검색량 요소** (`search_volume.py`, `POST /api/v2/factors/ic/search-volume`): Naver DataLab 기준일 직전 3개월 검색 추세 → 0~10 점수 → IC 측정
+- **IC 리더보드** (`GET /api/v2/factors/ic`): 요소별 train/test IC + overfit_flag 조회
+- **모니터링 워크플로우** (`.github/workflows/backfill-completion-monitor.yml`): 30분마다 백필 완료 체크 → 완료 시 이슈 자동 생성
+
+---
+
 ## v4.4 — 검증 정확도 백필 v1 (2026-06-14)
 
 ### 백필 엔진 (`app/domain/backfill.py`, `/api/v2/accuracy/backfill`)
