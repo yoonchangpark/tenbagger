@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       factors:
-        description: "측정할 요소 (baseline / search_volume / all)"
+        description: "측정할 요소 (baseline / search_volume / momentum / value / disclosure / all)"
         required: false
         default: "all"
 
@@ -33,6 +33,30 @@ jobs:
             echo "::error::기준선 IC 측정 실패 (HTTP $code)"
             exit 1
           fi
+
+      - name: Trigger Momentum IC (pykrx 6개월 수익률, background)
+        if: ${{ inputs.factors == 'momentum' || inputs.factors == 'all' || inputs.factors == '' }}
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          echo "=== 모멘텀 IC 측정 시작 ==="
+          curl -s -X POST "$BASE/api/v2/factors/ic/momentum" | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',''))"
+
+      - name: Trigger Value IC (저PBR/저PER, background)
+        if: ${{ inputs.factors == 'value' || inputs.factors == 'all' || inputs.factors == '' }}
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          echo "=== 가치 IC 측정 시작 ==="
+          curl -s -X POST "$BASE/api/v2/factors/ic/value" | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',''))"
+
+      - name: Trigger Disclosure IC (DART 공시 건수, background)
+        if: ${{ inputs.factors == 'disclosure' || inputs.factors == 'all' || inputs.factors == '' }}
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          echo "=== 공시 활동 IC 측정 시작 ==="
+          curl -s -X POST "$BASE/api/v2/factors/ic/disclosure" | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',''))"
 
       - name: Trigger Search Volume IC (Naver DataLab, background)
         if: ${{ inputs.factors == 'search_volume' || inputs.factors == 'all' || inputs.factors == '' }}
@@ -65,7 +89,7 @@ jobs:
           print(len(d.get('leaderboard', [])))
           " 2>/dev/null)
             echo "[$i/30] 등록된 요소 수: $count"
-            if [ "$count" -ge "2" ] 2>/dev/null; then
+            if [ "$count" -ge "5" ] 2>/dev/null; then
               echo ""
               echo "=== IC 리더보드 ==="
               echo "$result" | python3 -c "
