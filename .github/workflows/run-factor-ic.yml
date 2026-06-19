@@ -79,8 +79,8 @@ jobs:
         env:
           BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
         run: |
-          echo "IC 리더보드 폴링 (최대 15분)..."
-          for i in $(seq 1 30); do
+          echo "IC 리더보드 폴링 (최대 30분)..."
+          for i in $(seq 1 60); do
             sleep 30
             result=$(curl -s "$BASE/api/v2/factors/ic")
             count=$(echo "$result" | python3 -c "
@@ -88,7 +88,7 @@ jobs:
           d = json.load(sys.stdin)
           print(len(d.get('leaderboard', [])))
           " 2>/dev/null)
-            echo "[$i/30] 등록된 요소 수: $count"
+            echo "[$i/60] 등록된 요소 수: $count"
             if [ "$count" -ge "5" ] 2>/dev/null; then
               echo ""
               echo "=== IC 리더보드 ==="
@@ -104,5 +104,5 @@ jobs:
               exit 0
             fi
           done
-          echo "::warning::15분 내 완료되지 않음. Railway에서 계속 실행 중일 수 있습니다."
+          echo "::warning::30분 내 완료되지 않음. Railway에서 계속 실행 중일 수 있습니다."
           echo "GET $BASE/api/v2/factors/ic 로 결과 확인하세요."
