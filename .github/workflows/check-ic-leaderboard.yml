@@ -1,0 +1,29 @@
+name: Check IC Leaderboard
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch IC Leaderboard
+        env:
+          BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
+        run: |
+          result=$(curl -s "$BASE/api/v2/factors/ic")
+          echo "$result" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          board = d.get('leaderboard', [])
+          print(f'등록된 요소 수: {len(board)}')
+          print()
+          if board:
+              print(f\"{'요소':<30} {'train IC':>10} {'test IC':>10} {'train N':>8} {'test N':>7} {'과적합':>6}\")
+              print('-' * 72)
+              for r in board:
+                  flag = '⚠️' if r.get('overfit_flag') else '✅'
+                  print(f\"{r['factor_name']:<30} {str(r.get('train_ic','N/A')):>10} {str(r.get('test_ic','N/A')):>10} {str(r.get('n_train','?')):>8} {str(r.get('n_test','?')):>7} {flag:>6}\")
+          else:
+              print('리더보드 비어있음')
+          "
