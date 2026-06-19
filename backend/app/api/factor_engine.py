@@ -203,15 +203,20 @@ async def _run_disclosure_ic():
     tickers = [r[0] for r in rows]
 
     scores_by_year: dict[int, dict[str, float]] = {y: {} for y in _TRAIN_YEARS + _TEST_YEARS}
-    for ticker in tickers:
-        corp_code = get_corp_code(ticker)
-        if not corp_code:
-            continue
-        for base_year in _TRAIN_YEARS + _TEST_YEARS:
-            result = get_disclosure_score(corp_code, base_year)
-            if result:
-                scores_by_year[base_year][ticker] = result["disclosure_score"]
-        await asyncio.sleep(0.3)
+    # DART API 동시 5개 요청으로 병렬화 (순차 대비 ~5x 빠름)
+    sem = asyncio.Semaphore(5)
+
+    async def _fetch_ticker(ticker: str):
+        async with sem:
+            corp_code = await asyncio.to_thread(get_corp_code, ticker)
+            if not corp_code:
+                return
+            for base_year in _TRAIN_YEARS + _TEST_YEARS:
+                result = await asyncio.to_thread(get_disclosure_score, corp_code, base_year)
+                if result:
+                    scores_by_year[base_year][ticker] = result["disclosure_score"]
+
+    await asyncio.gather(*[_fetch_ticker(t) for t in tickers])
 
     train_scores = {t: s for y in _TRAIN_YEARS for t, s in scores_by_year[y].items()}
     test_scores  = {t: s for y in _TEST_YEARS  for t, s in scores_by_year[y].items()}
