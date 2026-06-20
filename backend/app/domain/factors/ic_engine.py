@@ -139,7 +139,7 @@ def get_ic_leaderboard() -> dict:
             return {"leaderboard": [], "note": "IC 측정 결과 없음. /api/v2/factors/ic 실행 필요"}
 
         rows = session.execute(text("""
-            SELECT factor_name, train_ic, test_ic, n_train, n_test, measured_at
+            SELECT factor_name, train_ic, test_ic, n_train, n_test, status, measured_at
             FROM factor_ic_results
             ORDER BY COALESCE(test_ic, train_ic) DESC NULLS LAST
         """)).fetchall()
@@ -176,6 +176,24 @@ def save_factor_ic(factor_name: str, train_ic: Optional[float], test_ic: Optiona
         s.commit()
 
 
+def update_factor_status(factor_name: str, status: str) -> bool:
+    """요소 상태 변경 (testing → adopted/rejected).
+
+    status: 'testing' | 'adopted' | 'rejected'
+    Returns True if row was found and updated.
+    """
+    valid = {"testing", "adopted", "rejected"}
+    if status not in valid:
+        raise ValueError(f"status must be one of {valid}")
+    with SessionLocal() as s:
+        result = s.execute(text("""
+            UPDATE factor_ic_results SET status = :status
+            WHERE factor_name = :name
+        """), {"name": factor_name, "status": status})
+        s.commit()
+        return result.rowcount > 0
+
+
 def _ensure_ic_table(_=None):
     with SessionLocal() as s:
         s.execute(text("""
@@ -185,7 +203,13 @@ def _ensure_ic_table(_=None):
                 test_ic     NUMERIC(6,4),
                 n_train     INT,
                 n_test      INT,
+                status      VARCHAR(20) DEFAULT 'testing',
                 measured_at TIMESTAMP DEFAULT NOW()
             )
+        """))
+        # 기존 테이블에 status 컬럼 추가 (이미 있으면 무시)
+        s.execute(text("""
+            ALTER TABLE factor_ic_results
+            ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'testing'
         """))
         s.commit()
