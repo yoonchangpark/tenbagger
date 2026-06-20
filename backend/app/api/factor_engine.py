@@ -14,8 +14,9 @@ from fastapi import APIRouter, Query, BackgroundTasks
 router = APIRouter(prefix="/api/v2/factors", tags=["factors"])
 
 # train/test 기간 분리 (walk-forward)
-_TRAIN_YEARS = [2018, 2019]
-_TEST_YEARS  = [2020]
+# train 5년(2015~2019) → 요소 선별, test 2년(2020~2021) → 과적합 검증
+_TRAIN_YEARS = [2015, 2016, 2017, 2018, 2019]
+_TEST_YEARS  = [2020, 2021]
 
 
 @router.get("/ic")
@@ -23,6 +24,17 @@ def get_ic_leaderboard():
     """저장된 요소별 IC 리더보드. train/test 분리로 과적합 탐지."""
     from app.domain.factors.ic_engine import get_ic_leaderboard
     return get_ic_leaderboard()
+
+
+@router.patch("/ic/{factor_name}/status")
+def update_factor_status(factor_name: str, status: str = Query(..., regex="^(testing|adopted|rejected)$")):
+    """요소 상태 변경 — testing / adopted / rejected."""
+    from app.domain.factors.ic_engine import update_factor_status as _update
+    found = _update(factor_name, status)
+    if not found:
+        from fastapi import HTTPException
+        raise HTTPException(404, f"요소 '{factor_name}' 없음")
+    return {"factor_name": factor_name, "status": status}
 
 
 @router.post("/ic/baseline")
