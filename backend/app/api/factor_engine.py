@@ -215,8 +215,7 @@ async def _run_disclosure_ic():
     tickers = [r[0] for r in rows]
 
     scores_by_year: dict[int, dict[str, float]] = {y: {} for y in _TRAIN_YEARS + _TEST_YEARS}
-    # DART API 동시 5개 요청으로 병렬화 (순차 대비 ~5x 빠름)
-    sem = asyncio.Semaphore(5)
+    sem = asyncio.Semaphore(3)  # DART API 동시 3개 (rate limit 여유)
 
     async def _fetch_ticker(ticker: str):
         async with sem:
@@ -228,11 +227,18 @@ async def _run_disclosure_ic():
                 if result:
                     scores_by_year[base_year][ticker] = result["disclosure_score"]
 
-    await asyncio.gather(*[_fetch_ticker(t) for t in tickers])
-
-    train_scores = {t: s for y in _TRAIN_YEARS for t, s in scores_by_year[y].items()}
-    test_scores  = {t: s for y in _TEST_YEARS  for t, s in scores_by_year[y].items()}
-    train_result = factor_ic(train_scores, train_years=_TRAIN_YEARS)
-    test_result  = factor_ic(test_scores,  train_years=_TEST_YEARS)
-    save_factor_ic("disclosure_activity", train_result.get("ic"), test_result.get("ic"),
-                   train_result.get("n", 0), test_result.get("n", 0))
+    try:
+        # return_exceptions=True: 개별 ticker 실패가 전체 중단 방지
+        await asyncio.gather(*[_fetch_ticker(t) for t in tickers], return_exceptions=True)
+    except Exception as e:
+        print(f"[disclosure_ic] gather 오류: {e}")
+    finally:
+        # CancelledError/SIGTERM 포함 어떤 상황에서도 지금까지 수집된 결과 저장
+        train_scores = {t: s for y in _TRAIN_YEARS for t, s in scores_by_year[y].items()}
+        test_scores  = {t: s for y in _TEST_YEARS  for t, s in scores_by_year[y].items()}
+        train_result = factor_ic(train_scores, train_years=_TRAIN_YEARS)
+        test_result  = factor_ic(test_scores,  train_years=_TEST_YEARS)
+        n_collected = len(train_scores) + len(test_scores)
+        print(f"[disclosure_ic] 저장: train={train_result.get('n',0)} test={test_result.get('n',0)} 수집={n_collected}")
+        save_factor_ic("disclosure_activity", train_result.get("ic"), test_result.get("ic"),
+                       train_result.get("n", 0), test_result.get("n", 0))
