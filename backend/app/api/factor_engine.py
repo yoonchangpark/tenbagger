@@ -10,13 +10,30 @@ POST /api/v2/factors/ic/disclosure        — 공시 활동 요소 IC 측정 (DA
 """
 from datetime import date
 from fastapi import APIRouter, Query, BackgroundTasks
+from sqlalchemy import text
+from app.core.database import SessionLocal
 
 router = APIRouter(prefix="/api/v2/factors", tags=["factors"])
 
-# train/test 기간 분리 (walk-forward)
-# train 5년(2015~2019) → 요소 선별, test 2년(2020~2021) → 과적합 검증
+# walk-forward 목표 기간 — 실제 계산은 backfill 데이터 있는 연도만 사용
 _TRAIN_YEARS = [2015, 2016, 2017, 2018, 2019]
 _TEST_YEARS  = [2020, 2021]
+
+
+def _active_years() -> tuple[list[int], list[int]]:
+    """backfill_results에 실제 데이터가 있는 연도만 반환.
+
+    API 콜을 데이터 없는 연도에 낭비하지 않도록 동적으로 필터링.
+    """
+    with SessionLocal() as s:
+        rows = s.execute(text("""
+            SELECT DISTINCT base_year FROM backfill_results
+            WHERE return_pct IS NOT NULL ORDER BY base_year
+        """)).fetchall()
+    available = {r[0] for r in rows}
+    train = [y for y in _TRAIN_YEARS if y in available]
+    test  = [y for y in _TEST_YEARS  if y in available]
+    return train, test
 
 
 @router.get("/ic")
@@ -90,28 +107,29 @@ async def _run_search_volume_ic():
             WHERE b.return_pct IS NOT NULL
         """)).fetchall()
 
-    # base_year별로 검색량 점수 수집
-    scores_by_year: dict[int, dict[str, float]] = {y: {} for y in _TRAIN_YEARS + _TEST_YEARS}
+    # backfill 데이터가 있는 연도만 사용 (없는 연도 API 콜 낭비 방지)
+    active_train, active_test = _active_years()
+    active_all = active_train + active_test
+    scores_by_year: dict[int, dict[str, float]] = {y: {} for y in active_all}
 
     for ticker, name in rows:
         label = name or ticker
-        for base_year in _TRAIN_YEARS + _TEST_YEARS:
+        for base_year in active_all:
             result = get_search_trend(label, date(base_year, 12, 31))
             if result:
                 scores_by_year[base_year][ticker] = result["trend_score"]
         await asyncio.sleep(0.2)
 
-    # train/test IC 측정
     train_scores: dict[str, float] = {}
-    for y in _TRAIN_YEARS:
+    for y in active_train:
         train_scores.update(scores_by_year[y])
 
     test_scores: dict[str, float] = {}
-    for y in _TEST_YEARS:
+    for y in active_test:
         test_scores.update(scores_by_year[y])
 
-    train_result = factor_ic(train_scores, train_years=_TRAIN_YEARS)
-    test_result  = factor_ic(test_scores,  train_years=_TEST_YEARS)
+    train_result = factor_ic(train_scores, train_years=active_train)
+    test_result  = factor_ic(test_scores,  train_years=active_test)
 
     save_factor_ic(
         factor_name="search_volume_naver",
@@ -142,18 +160,20 @@ async def _run_momentum_ic():
         """)).fetchall()
     tickers = [r[0] for r in rows]
 
-    scores_by_year: dict[int, dict[str, float]] = {y: {} for y in _TRAIN_YEARS + _TEST_YEARS}
+    active_train, active_test = _active_years()
+    active_all = active_train + active_test
+    scores_by_year: dict[int, dict[str, float]] = {y: {} for y in active_all}
     for ticker in tickers:
-        for base_year in _TRAIN_YEARS + _TEST_YEARS:
+        for base_year in active_all:
             result = get_momentum_score(ticker, date(base_year, 12, 31))
             if result:
                 scores_by_year[base_year][ticker] = result["momentum_score"]
         await asyncio.sleep(0.1)
 
-    train_scores = {t: s for y in _TRAIN_YEARS for t, s in scores_by_year[y].items()}
-    test_scores  = {t: s for y in _TEST_YEARS  for t, s in scores_by_year[y].items()}
-    train_result = factor_ic(train_scores, train_years=_TRAIN_YEARS)
-    test_result  = factor_ic(test_scores,  train_years=_TEST_YEARS)
+    train_scores = {t: s for y in active_train for t, s in scores_by_year[y].items()}
+    test_scores  = {t: s for y in active_test  for t, s in scores_by_year[y].items()}
+    train_result = factor_ic(train_scores, train_years=active_train)
+    test_result  = factor_ic(test_scores,  train_years=active_test)
     save_factor_ic("price_momentum_6m", train_result.get("ic"), test_result.get("ic"),
                    train_result.get("n", 0), test_result.get("n", 0))
 
@@ -178,18 +198,20 @@ async def _run_value_ic():
         """)).fetchall()
     tickers = [r[0] for r in rows]
 
-    scores_by_year: dict[int, dict[str, float]] = {y: {} for y in _TRAIN_YEARS + _TEST_YEARS}
+    active_train, active_test = _active_years()
+    active_all = active_train + active_test
+    scores_by_year: dict[int, dict[str, float]] = {y: {} for y in active_all}
     for ticker in tickers:
-        for base_year in _TRAIN_YEARS + _TEST_YEARS:
+        for base_year in active_all:
             result = get_value_score(ticker, base_year)
             if result:
                 scores_by_year[base_year][ticker] = result["value_score"]
         await asyncio.sleep(0)
 
-    train_scores = {t: s for y in _TRAIN_YEARS for t, s in scores_by_year[y].items()}
-    test_scores  = {t: s for y in _TEST_YEARS  for t, s in scores_by_year[y].items()}
-    train_result = factor_ic(train_scores, train_years=_TRAIN_YEARS)
-    test_result  = factor_ic(test_scores,  train_years=_TEST_YEARS)
+    train_scores = {t: s for y in active_train for t, s in scores_by_year[y].items()}
+    test_scores  = {t: s for y in active_test  for t, s in scores_by_year[y].items()}
+    train_result = factor_ic(train_scores, train_years=active_train)
+    test_result  = factor_ic(test_scores,  train_years=active_test)
     save_factor_ic("value_pbr_per", train_result.get("ic"), test_result.get("ic"),
                    train_result.get("n", 0), test_result.get("n", 0))
 
@@ -214,7 +236,9 @@ async def _run_disclosure_ic():
         """)).fetchall()
     tickers = [r[0] for r in rows]
 
-    scores_by_year: dict[int, dict[str, float]] = {y: {} for y in _TRAIN_YEARS + _TEST_YEARS}
+    active_train, active_test = _active_years()
+    active_all = active_train + active_test
+    scores_by_year: dict[int, dict[str, float]] = {y: {} for y in active_all}
     sem = asyncio.Semaphore(3)  # DART API 동시 3개 (rate limit 여유)
 
     async def _fetch_ticker(ticker: str):
@@ -222,22 +246,20 @@ async def _run_disclosure_ic():
             corp_code = await asyncio.to_thread(get_corp_code, ticker)
             if not corp_code:
                 return
-            for base_year in _TRAIN_YEARS + _TEST_YEARS:
+            for base_year in active_all:
                 result = await asyncio.to_thread(get_disclosure_score, corp_code, base_year)
                 if result:
                     scores_by_year[base_year][ticker] = result["disclosure_score"]
 
     try:
-        # return_exceptions=True: 개별 ticker 실패가 전체 중단 방지
         await asyncio.gather(*[_fetch_ticker(t) for t in tickers], return_exceptions=True)
     except Exception as e:
         print(f"[disclosure_ic] gather 오류: {e}")
     finally:
-        # CancelledError/SIGTERM 포함 어떤 상황에서도 지금까지 수집된 결과 저장
-        train_scores = {t: s for y in _TRAIN_YEARS for t, s in scores_by_year[y].items()}
-        test_scores  = {t: s for y in _TEST_YEARS  for t, s in scores_by_year[y].items()}
-        train_result = factor_ic(train_scores, train_years=_TRAIN_YEARS)
-        test_result  = factor_ic(test_scores,  train_years=_TEST_YEARS)
+        train_scores = {t: s for y in active_train for t, s in scores_by_year[y].items()}
+        test_scores  = {t: s for y in active_test  for t, s in scores_by_year[y].items()}
+        train_result = factor_ic(train_scores, train_years=active_train)
+        test_result  = factor_ic(test_scores,  train_years=active_test)
         n_collected = len(train_scores) + len(test_scores)
         print(f"[disclosure_ic] 저장: train={train_result.get('n',0)} test={test_result.get('n',0)} 수집={n_collected}")
         save_factor_ic("disclosure_activity", train_result.get("ic"), test_result.get("ic"),
