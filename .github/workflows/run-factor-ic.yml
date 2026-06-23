@@ -89,7 +89,7 @@ jobs:
           print(len(d.get('leaderboard', [])))
           " 2>/dev/null)
             echo "[$i/60] 등록된 요소 수: $count"
-            if [ "$count" -ge "5" ] 2>/dev/null; then
+            if [ "$count" -ge "4" ] 2>/dev/null; then
               echo ""
               echo "=== IC 리더보드 ==="
               echo "$result" | python3 -c "
