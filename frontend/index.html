@@ -216,6 +216,30 @@
     .risk-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06);}
     .risk-chip{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:5px 12px;font-size:11px;color:var(--muted);}
     .risk-chip .rc-val{font-weight:700;color:var(--text);margin-left:2px;}
+    /* ── 랜딩 페이지 ── */
+    .landing-wrap{max-width:480px;margin:0 auto;padding:0 20px 80px;}
+    .landing-hero{padding:40px 0 28px;text-align:center;}
+    .landing-hero h1{font-size:28px;font-weight:800;line-height:1.35;margin-bottom:12px;}
+    .landing-hero h1 span{background:linear-gradient(135deg,#10b981,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .landing-hero p{font-size:14px;color:var(--muted);line-height:1.65;}
+    .landing-cta{display:block;width:100%;padding:16px;background:linear-gradient(135deg,#10b981,#059669);border-radius:14px;text-align:center;font-size:17px;font-weight:800;color:#fff;text-decoration:none;margin:24px 0;letter-spacing:.01em;transition:opacity .15s;}
+    .landing-cta:hover{opacity:.88;}
+    .landing-section-title{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin:28px 0 14px;}
+    .video-card-grid{display:flex;flex-direction:column;gap:14px;}
+    .vc{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;text-decoration:none;color:var(--text);display:block;transition:border-color .15s;}
+    .vc:hover{border-color:rgba(239,68,68,.5);}
+    .vc-thumb{width:100%;height:180px;background:linear-gradient(135deg,#1a2630 0%,#0d1520 100%);display:flex;align-items:center;justify-content:center;position:relative;}
+    .vc-thumb .yt-icon{font-size:48px;opacity:.85;}
+    .vc-thumb .vc-dur{position:absolute;bottom:8px;right:10px;background:rgba(0,0,0,.75);font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600;}
+    .vc-thumb .vc-badge{position:absolute;top:10px;left:10px;background:rgba(16,185,129,.2);border:1px solid rgba(16,185,129,.4);color:#10b981;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;}
+    .vc-info{padding:14px 16px;}
+    .vc-info .vc-title{font-size:14px;font-weight:700;margin-bottom:6px;line-height:1.4;}
+    .vc-info .vc-meta{font-size:11px;color:var(--muted);display:flex;gap:10px;}
+    .landing-features{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:28px;}
+    .lf-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 16px;text-align:center;}
+    .lf-icon{font-size:28px;margin-bottom:10px;}
+    .lf-title{font-size:13px;font-weight:700;margin-bottom:4px;}
+    .lf-desc{font-size:11px;color:var(--muted);line-height:1.5;}
     /* Sticky 결과 요약 배너 */
     #stickySummary{display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:40px;padding:10px 22px;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:150;backdrop-filter:blur(12px);align-items:center;gap:14px;font-size:13px;white-space:nowrap;cursor:pointer;transition:opacity .2s;}
     #stickySummary.visible{display:flex;}
@@ -235,11 +259,8 @@
     </div>
     <div class="nav-links">
       <a class="nav-link" href="screener.html">📊 스크리너</a>
-      <a class="nav-link" href="backtest.html">🧪 백테스트</a>
-      <a class="nav-link" href="trackrecord.html" style="border-color:rgba(245,197,24,.35);color:#f5c518;">📋 예측 기록</a>
-      <a class="nav-link" href="dashboard.html">📡 대시보드</a>
-      <a class="nav-link" href="guide.html">📚 가이드</a>
-      <a class="nav-link" href="pricing.html" style="border-color:rgba(139,92,246,.4);color:#c4b5fd;">💎 구독</a>
+      <a class="nav-link" href="dashboard.html#dividend">💰 배당</a>
+      <a class="nav-link" href="trackrecord.html" style="border-color:rgba(245,197,24,.35);color:#f5c518;">📋 트랙레코드</a>
       <!-- 인증 버튼: JS로 토큰 여부 판단 후 교체 -->
       <a class="nav-link" id="authBtn" href="login.html" style="border-color:rgba(59,130,246,.4);color:#60a5fa;">로그인</a>
     </div>
@@ -310,7 +331,7 @@
     })();
   </script>
 
-  <div class="search-wrap" id="searchWrap">
+  <div class="search-wrap" id="searchWrap" style="display:none;">
     <div class="search-box">
       <span style="font-size:18px;opacity:.4;display:flex;align-items:center;">🔍</span>
       <input id="tickerInput" placeholder="기업명 또는 종목코드 (예: 삼성전자, 005930)" maxlength="30" autocomplete="off" />
@@ -337,6 +358,69 @@
   </div>
 
   <div class="error-box" id="errorBox"></div>
+
+  <!-- ── 랜딩 페이지 (URL 파람 없을 때 표시) ── -->
+  <div id="landingWrap" class="landing-wrap" style="display:none;">
+    <div class="landing-hero">
+      <h1>재무 데이터로<br><span>텐배거 종목</span>을<br>찾아드립니다</h1>
+      <p>ROE · FCF · 성장성 기반으로<br>5~10년 10배 가능 종목을 자동 발굴</p>
+    </div>
+
+    <a href="screener.html" class="landing-cta">지금 바로 종목 찾기 →</a>
+
+    <div class="landing-section-title">🎬 최신 종목 분석 영상</div>
+
+    <div class="video-card-grid">
+      <!-- 영상 카드 1 (실제 영상 URL로 교체 예정) -->
+      <a href="https://youtube.com/@tenbagger" class="vc" target="_blank" rel="noopener">
+        <div class="vc-thumb">
+          <span class="yt-icon">▶️</span>
+          <span class="vc-badge">TENBAGGER</span>
+          <span class="vc-dur">--:--</span>
+        </div>
+        <div class="vc-info">
+          <div class="vc-title">삼성전자, 지금 사도 될까? — 재무 심층 분석</div>
+          <div class="vc-meta"><span>텐배거 헌터</span><span>·</span><span>조회 준비 중</span></div>
+        </div>
+      </a>
+      <!-- 영상 카드 2 -->
+      <a href="https://youtube.com/@tenbagger" class="vc" target="_blank" rel="noopener">
+        <div class="vc-thumb">
+          <span class="yt-icon">▶️</span>
+          <span class="vc-badge">COMPOUNDER</span>
+          <span class="vc-dur">--:--</span>
+        </div>
+        <div class="vc-info">
+          <div class="vc-title">코스피 고배당주 TOP10 — 배당 성장성 분석</div>
+          <div class="vc-meta"><span>텐배거 헌터</span><span>·</span><span>조회 준비 중</span></div>
+        </div>
+      </a>
+    </div>
+
+    <div class="landing-section-title">주요 기능</div>
+    <div class="landing-features">
+      <div class="lf-card">
+        <div class="lf-icon">📊</div>
+        <div class="lf-title">스크리너</div>
+        <div class="lf-desc">KOSPI/KOSDAQ 전종목 점수순 필터링</div>
+      </div>
+      <div class="lf-card">
+        <div class="lf-icon">💰</div>
+        <div class="lf-title">배당 시뮬레이터</div>
+        <div class="lf-desc">월 목표 배당금까지 필요 투자금 계산</div>
+      </div>
+      <div class="lf-card">
+        <div class="lf-icon">📋</div>
+        <div class="lf-title">트랙레코드</div>
+        <div class="lf-desc">AI 예측 종목의 실제 수익률 추적</div>
+      </div>
+      <div class="lf-card">
+        <div class="lf-icon">🔍</div>
+        <div class="lf-title">종목 분석</div>
+        <div class="lf-desc">DART 재무데이터로 텐배거 점수 산출</div>
+      </div>
+    </div>
+  </div>
   <div class="loading" id="loading">
     <div class="spinner"></div>
     <div style="color:#a5b4fc;font-weight:600;margin-bottom:4px;">DART 재무데이터 수집 중...</div>
@@ -346,7 +430,7 @@
   <div class="result" id="result"></div>
 
   <nav class="mobile-tab-bar">
-    <a href="index.html" class="active"><span class="t-icon">🏠</span>종목분석</a>
+    <a href="index.html" class="active"><span class="t-icon">🏠</span>홈</a>
     <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
     <a href="dashboard.html#dividend"><span class="t-icon">💰</span>배당</a>
     <a href="trackrecord.html"><span class="t-icon">📊</span>트랙레코드</a>
@@ -355,6 +439,26 @@
   <script>
     const API = "";
     const HISTORY_KEY = "tenbagger_history";
+
+    // ── 랜딩 vs 분석 모드 ──
+    (function initMode(){
+      const params = new URLSearchParams(location.search);
+      const q = params.get("q") || params.get("ticker");
+      const landing = document.getElementById("landingWrap");
+      const searchWrap = document.getElementById("searchWrap");
+      const freeBanner = document.getElementById("freeBanner");
+      if(q){
+        // 분석 모드: 랜딩 숨기고 검색창 표시
+        landing.style.display = "none";
+        searchWrap.style.display = "block";
+        if(freeBanner) freeBanner.style.display = "block";
+      } else {
+        // 랜딩 모드: 검색창 숨기고 랜딩 표시
+        landing.style.display = "block";
+        searchWrap.style.display = "none";
+        if(freeBanner) freeBanner.style.display = "none";
+      }
+    })();
 
     // ── 히스토리 ──
     function getHistory(){try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]");}catch{return[];}}
@@ -1471,7 +1575,9 @@
     // ── 초기화 ──
     renderHistory();
     window.addEventListener("load",()=>{
-      const t=new URLSearchParams(location.search).get("ticker");
+      // ?q= 또는 ?ticker= 파라미터로 자동 분석
+      const params=new URLSearchParams(location.search);
+      const t=params.get("q")||params.get("ticker");
       if(t){inp.value=t;analyze();}
     });
   </script>
