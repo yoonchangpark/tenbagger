@@ -1265,7 +1265,7 @@
     if (id === 'feed') {
       if (!switchTab._discLoaded) { switchTab._discLoaded = true; loadDisclosures(); }
     }
-    if (id === 'dividend') loadDividendTopStocks();
+    if (id === 'dividend') { loadDividendTopStocks(); setTimeout(renderDcaChart, 100); }
   }
 
   // ── 공시·뉴스 서브탭 전환 ──────────────────────────────────────
