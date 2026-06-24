@@ -5471,15 +5471,15 @@
     });
   }
 
-  // 페이지 로드 시 기본 차트 렌더링 (배당 탭이 활성화될 때)
+  // 페이지 로드 시 해시(#dividend)로 배당 탭 자동 전환
   document.addEventListener('DOMContentLoaded', () => {
+    if (location.hash === '#dividend') {
+      const divBtn = document.querySelector('[onclick*="dividend"]');
+      if (divBtn) { switchTab('dividend', divBtn); setTimeout(renderDcaChart, 100); }
+    }
     const divTab = document.querySelector('[onclick*="dividend"]');
     if (divTab) {
       divTab.addEventListener('click', () => setTimeout(renderDcaChart, 50));
-    }
-    // 배당 탭이 URL 파라미터로 열릴 경우 대비
-    if (document.getElementById('tab-dividend') && document.getElementById('tab-dividend').classList.contains('active')) {
-      renderDcaChart();
     }
   });
 </script>
