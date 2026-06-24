@@ -1104,6 +1104,43 @@
       <div class="spinner" style="margin:0 auto 12px;"></div>계산 중...
     </div>
     <div id="divResult"></div>
+
+    <!-- DCA 복리 성장 차트 -->
+    <div style="margin-top:40px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div class="section-title">📈 DCA 복리 성장 시뮬레이터</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;">월 정기 투자 + 연 수익률(배당+주가상승)로 자산이 얼마나 불어나는지 확인합니다</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:20px;">
+        <div style="flex:1;min-width:120px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">월 투자금 (만원)</label>
+          <input id="dcaMonthly" type="number" value="50" min="1"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"
+            onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"
+            oninput="renderDcaChart()" />
+        </div>
+        <div style="flex:1;min-width:120px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">투자 기간 (년)</label>
+          <input id="dcaYears" type="number" value="10" min="1" max="40"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"
+            onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"
+            oninput="renderDcaChart()" />
+        </div>
+        <div style="flex:1;min-width:120px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">연 수익률 (%)</label>
+          <input id="dcaCagr" type="number" value="8" min="0" max="50" step="0.5"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"
+            onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"
+            oninput="renderDcaChart()" />
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;">
+        <canvas id="dcaGrowthChart" style="max-height:280px;"></canvas>
+        <div id="dcaSummary" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;justify-content:center;"></div>
+      </div>
+    </div>
   </div>
 
 </div><!-- /content -->
@@ -5351,12 +5388,101 @@
 </footer>
 
 <nav class="mobile-tab-bar">
-  <a href="#" onclick="event.preventDefault(); switchTab('ranking', document.querySelector('[onclick*=ranking]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');" class="active"><span class="t-icon">🏆</span>추천</a>
-  <a href="#" onclick="event.preventDefault(); switchTab('watchlist', document.querySelector('[onclick*=watchlist]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">⭐</span>관심</a>
-  <a href="#" onclick="event.preventDefault(); switchTab('mystock', document.querySelector('[onclick*=mystock]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">💼</span>내주식</a>
-  <a href="#" onclick="event.preventDefault(); switchTab('dividend', document.querySelector('[onclick*=dividend]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">💰</span>배당</a>
-  <a href="#" onclick="event.preventDefault(); switchTab('feed', document.querySelector('[onclick*=feed]')); this.closest('nav').querySelectorAll('a').forEach(a=>a.classList.remove('active')); this.classList.add('active');"><span class="t-icon">📡</span>공시·뉴스</a>
+  <a href="index.html"><span class="t-icon">🏠</span>종목분석</a>
+  <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
+  <a href="dashboard.html" class="active"><span class="t-icon">💰</span>배당</a>
+  <a href="trackrecord.html"><span class="t-icon">📊</span>트랙레코드</a>
 </nav>
+<script>
+  // ── DCA 복리 성장 차트 ──────────────────────────────────────────────
+  let _dcaChart = null;
+
+  function renderDcaChart() {
+    const monthlyAmt = parseFloat(document.getElementById('dcaMonthly').value) || 50;
+    const years = Math.min(parseInt(document.getElementById('dcaYears').value) || 10, 40);
+    const cagr = parseFloat(document.getElementById('dcaCagr').value) || 8;
+
+    const labels = [];
+    const totalData = [];
+    const investedData = [];
+    let total = 0;
+
+    for (let y = 1; y <= years; y++) {
+      total = total * (1 + cagr / 100) + monthlyAmt * 12;
+      labels.push(y + '년');
+      totalData.push(Math.round(total / 10000)); // 만원 단위
+      investedData.push(Math.round((monthlyAmt * 12 * y) / 10000));
+    }
+
+    const finalTotal = totalData[totalData.length - 1];
+    const finalInvested = investedData[investedData.length - 1];
+    const profit = finalTotal - finalInvested;
+
+    // 요약 카드
+    const summaryEl = document.getElementById('dcaSummary');
+    summaryEl.innerHTML = [
+      { label: '총 투자원금', val: finalInvested.toLocaleString() + '만원', color: '#9ca3af' },
+      { label: '최종 자산', val: finalTotal.toLocaleString() + '만원', color: '#34d399' },
+      { label: '수익 (복리 효과)', val: '+' + profit.toLocaleString() + '만원', color: '#60a5fa' },
+    ].map(item => `
+      <div style="text-align:center;padding:8px 16px;background:var(--surface2);border-radius:10px;flex:1;min-width:120px;">
+        <div style="font-size:10px;color:${item.color};font-weight:600;margin-bottom:4px;">${item.label}</div>
+        <div style="font-size:16px;font-weight:800;color:var(--text);">${item.val}</div>
+      </div>`).join('');
+
+    const ctx = document.getElementById('dcaGrowthChart').getContext('2d');
+    if (_dcaChart) _dcaChart.destroy();
+    _dcaChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: '투자 원금 (만원)',
+            data: investedData,
+            backgroundColor: 'rgba(107,114,128,0.5)',
+            borderRadius: 4,
+          },
+          {
+            label: '복리 수익 (만원)',
+            data: totalData.map((v, i) => v - investedData[i]),
+            backgroundColor: 'rgba(52,211,153,0.75)',
+            borderRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { labels: { color: '#9ca3af', font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString() + '만원',
+              footer: items => '합계: ' + totalData[items[0].dataIndex].toLocaleString() + '만원',
+            },
+          },
+        },
+        scales: {
+          x: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(55,65,81,0.5)' } },
+          y: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 }, callback: v => v.toLocaleString() + '만' }, grid: { color: 'rgba(55,65,81,0.5)' } },
+        },
+      },
+    });
+  }
+
+  // 페이지 로드 시 기본 차트 렌더링 (배당 탭이 활성화될 때)
+  document.addEventListener('DOMContentLoaded', () => {
+    const divTab = document.querySelector('[onclick*="dividend"]');
+    if (divTab) {
+      divTab.addEventListener('click', () => setTimeout(renderDcaChart, 50));
+    }
+    // 배당 탭이 URL 파라미터로 열릴 경우 대비
+    if (document.getElementById('tab-dividend') && document.getElementById('tab-dividend').classList.contains('active')) {
+      renderDcaChart();
+    }
+  });
+</script>
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});

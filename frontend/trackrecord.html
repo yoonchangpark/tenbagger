@@ -108,6 +108,16 @@
 
     /* 면책 */
     .disclaimer { font-size: 11px; color: #4b5563; text-align: center; margin-top: 32px; line-height: 1.8; }
+
+    /* 바텀 네비게이션 */
+    .mobile-tab-bar { display: none; }
+    @media(max-width:768px) {
+      .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: rgba(17,24,39,.97); border-top: 1px solid var(--border); z-index: 200; backdrop-filter: blur(10px); padding-bottom: env(safe-area-inset-bottom,0px); }
+      .mobile-tab-bar a { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 4px 8px; color: var(--muted); text-decoration: none; font-size: 10px; font-weight: 600; gap: 3px; transition: color .15s; }
+      .mobile-tab-bar a.active { color: #60a5fa; }
+      .mobile-tab-bar a .t-icon { font-size: 18px; line-height: 1; }
+      .main { padding-bottom: 72px; }
+    }
   </style>
 </head>
 <body>
@@ -324,5 +334,12 @@ async function loadTrackRecord() {
 loadAccuracy();
 loadTrackRecord();
 </script>
+
+<nav class="mobile-tab-bar">
+  <a href="index.html"><span class="t-icon">🏠</span>종목분석</a>
+  <a href="screener.html"><span class="t-icon">📊</span>스크리너</a>
+  <a href="dashboard.html"><span class="t-icon">💰</span>배당</a>
+  <a href="trackrecord.html" class="active"><span class="t-icon">📊</span>트랙레코드</a>
+</nav>
 </body>
 </html>
