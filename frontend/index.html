@@ -436,6 +436,21 @@
       <div class="top5-row" style="pointer-events:none;"><span class="sk" style="width:14px;height:14px;"></span><div class="top5-info"><span class="sk" style="width:95px;height:15px;margin-bottom:5px;"></span><span class="sk" style="width:55px;height:11px;"></span></div><span class="sk" style="width:30px;height:20px;"></span></div>
     </div>
 
+    <!-- 종목 검색 + 스크리너 CTA (top5 바로 아래) -->
+    <div style="margin-bottom:24px;">
+      <div style="display:flex;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:8px 8px 8px 16px;transition:border-color .2s;" onfocusin="this.style.borderColor='#3b82f6'" onfocusout="this.style.borderColor=''">
+        <input id="landingSearch" placeholder="기업명 또는 종목코드 검색…" style="flex:1;background:none;border:none;color:var(--text);font-size:15px;outline:none;" maxlength="30" autocomplete="off" onkeydown="if(event.key==='Enter')doLandingSearch()" />
+        <button onclick="doLandingSearch()" style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:10px;padding:9px 18px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;">분석</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+        <span class="chip" onclick="doLandingSearchTicker('005930')">삼성전자</span>
+        <span class="chip" onclick="doLandingSearchTicker('000660')">SK하이닉스</span>
+        <span class="chip" onclick="doLandingSearchTicker('005490')">POSCO홀딩스</span>
+        <span class="chip" onclick="doLandingSearchTicker('068270')">셀트리온</span>
+        <a href="screener.html" style="margin-left:auto;font-size:13px;color:#60a5fa;text-decoration:none;font-weight:600;white-space:nowrap;">전체 스크리너 →</a>
+      </div>
+    </div>
+
     <!-- 트랙레코드 (실시간) -->
     <div class="landing-section-title">📋 예측 정확도</div>
     <div class="tr-banner" id="trBanner">
@@ -448,24 +463,6 @@
       </div>
       <a href="trackrecord.html" style="display:inline-block;margin-top:12px;font-size:12px;color:var(--muted);text-decoration:none;">전체 기록 보기 →</a>
     </div>
-
-    <!-- 직접 검색 -->
-    <div class="landing-section-title">🔍 직접 종목 검색</div>
-    <div style="margin-bottom:24px;">
-      <div style="display:flex;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 10px 10px 18px;transition:border-color .2s;" onfocusin="this.style.borderColor='#3b82f6'" onfocusout="this.style.borderColor=''">
-        <input id="landingSearch" placeholder="기업명 또는 종목코드 (예: SK하이닉스, 000660)" style="flex:1;background:none;border:none;color:var(--text);font-size:15px;outline:none;" maxlength="30" autocomplete="off" onkeydown="if(event.key==='Enter')doLandingSearch()" />
-        <button onclick="doLandingSearch()" style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:10px;padding:10px 20px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;">분석</button>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-        <span class="chip" onclick="doLandingSearchTicker('005930')">삼성전자</span>
-        <span class="chip" onclick="doLandingSearchTicker('000660')">SK하이닉스</span>
-        <span class="chip" onclick="doLandingSearchTicker('005490')">POSCO홀딩스</span>
-        <span class="chip" onclick="doLandingSearchTicker('068270')">셀트리온</span>
-      </div>
-    </div>
-
-    <!-- 전체 스크리너 CTA -->
-    <a href="screener.html" class="landing-cta">전체 스크리너 보기 →</a>
 
     <!-- 배당 계산기 (맨 아래) -->
     <div class="landing-section-title" style="margin-top:8px;">💰 배당 계산기</div>
