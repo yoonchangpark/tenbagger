@@ -1056,47 +1056,29 @@
   <!-- ── TAB: 배당 시나리오 ── -->
   <div class="tab-panel" id="tab-dividend">
     <div style="margin-bottom:20px;">
-      <div class="section-title">💰 배당 시나리오 분석</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px;">한라산불곰 스타일 L1+L2 분석 — 이익수익률·배당수익률·안전마진을 현재가 기준으로 계산합니다.</div>
+      <div class="section-title">💰 고배당 종목 추천</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">스크리너 기반 배당수익률 상위 종목 — 클릭하면 배당 분석 + DCA 시뮬레이션이 자동으로 채워집니다</div>
     </div>
 
-    <!-- 사용 안내 배너 -->
-    <div style="display:flex;gap:14px;align-items:flex-start;background:linear-gradient(135deg,rgba(251,191,36,.07),rgba(16,185,129,.06));border:1px solid rgba(251,191,36,.25);border-radius:14px;padding:16px 20px;margin-bottom:24px;flex-wrap:wrap;">
-      <div style="font-size:28px;line-height:1;">💡</div>
-      <div style="flex:1;min-width:200px;">
-        <div style="font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:6px;">배당 투자자용 도구입니다</div>
-        <div style="font-size:12px;color:#d1d5db;line-height:1.7;">
-          <b style="color:#fbbf24;">이익수익률</b>(EPS/현재가) · <b style="color:#34d399;">배당수익률</b>(DPS/현재가) · <b style="color:#a78bfa;">안전마진</b>(비관 시나리오 DPS -50%에도 배당수익률 ≥ 3%)을 한눈에 확인합니다.<br>
-          삼성전자처럼 배당수익률이 낮은 성장주보다 <b style="color:#fbbf24;">KT&amp;G · 맥쿼리인프라 · 금융주</b> 같은 고배당주에 적합합니다.
-        </div>
-      </div>
+    <!-- 고배당 종목 카드 그리드 -->
+    <div id="divTopStocks" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:24px;">
+      <div class="spinner" style="width:18px;height:18px;border-width:2px;margin:4px;grid-column:1/-1;"></div>
     </div>
 
-    <!-- 배당 상위 종목 빠른 선택 -->
-    <div style="margin-bottom:20px;">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;">📌 배당수익률 상위 종목 — 클릭하면 바로 분석</div>
-      <div id="divTopStocks" style="display:flex;gap:8px;flex-wrap:wrap;">
-        <div class="spinner" style="width:18px;height:18px;border-width:2px;margin:4px;"></div>
-      </div>
-    </div>
-
-    <!-- 입력 폼 -->
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:24px;">
-      <div style="flex:1;min-width:180px;">
-        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">종목코드 또는 종목명</label>
-        <input id="divTicker" type="text" placeholder="예: KT&G, 033780, 맥쿼리인프라"
-          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:14px;outline:none;"
+    <!-- 직접 입력 -->
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:24px;background:var(--surface2);border-radius:12px;padding:12px 14px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:160px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">또는 직접 종목코드 입력</label>
+        <input id="divTicker" type="text" placeholder="예: KT&G, 033780"
+          style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"
           onkeydown="if(event.key==='Enter')loadDividendScenario()"
           onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"/>
       </div>
-      <div style="min-width:150px;">
-        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">현재가 직접 입력 (선택)</label>
-        <input id="divPrice" type="number" placeholder="DB 자동 조회"
-          style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:14px;outline:none;"
-          onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"/>
-      </div>
+      <input id="divPrice" type="number" placeholder="현재가 (선택)"
+        style="width:120px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"
+        onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"/>
       <button onclick="loadDividendScenario()"
-        style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:8px;padding:9px 20px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;">
+        style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:8px;padding:9px 18px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;">
         📊 분석
       </button>
     </div>
@@ -5214,31 +5196,45 @@
       const data = await res.json();
       const items = (data.companies || []).filter(s => s.dividend_yield > 0);
       if (!items.length) {
-        el.innerHTML = '<span style="font-size:12px;color:var(--muted);">ETL 실행 후 배당 데이터가 표시됩니다.</span>';
+        el.innerHTML = '<span style="font-size:12px;color:var(--muted);grid-column:1/-1;">ETL 실행 후 배당 데이터가 표시됩니다.</span>';
         return;
       }
+      const GRADE_COLOR = { TENBAGGER:'#f59e0b', COMPOUNDER:'#10b981', WATCHLIST:'#3b82f6', AVOID:'#ef4444' };
       el.innerHTML = items.map(s => {
         const dy = parseFloat(s.dividend_yield).toFixed(1);
-        const gc = { TENBAGGER:'#f59e0b', COMPOUNDER:'#10b981', WATCHLIST:'#3b82f6', AVOID:'#ef4444' }[s.grade] || '#9ca3af';
+        const gc = GRADE_COLOR[s.grade] || '#9ca3af';
+        const score = s.total_score != null ? s.total_score.toFixed(1) : '-';
         return `<button onclick="divQuickPick('${escHtml(s.ticker)}','${escHtml(s.name)}')"
-          style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:6px 14px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px;"
-          onmouseover="this.style.borderColor='${gc}';this.style.background='${gc}18'"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 12px;cursor:pointer;transition:all .15s;text-align:left;"
+          onmouseover="this.style.borderColor='${gc}';this.style.background='${gc}0e'"
           onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface)'">
-          <span style="font-size:12px;font-weight:700;color:${gc};">${dy}%</span>
-          <span style="font-size:12px;color:var(--text);">${escHtml(s.name)}</span>
-          <span style="font-size:10px;color:var(--muted);">${s.ticker}</span>
+          <div style="font-size:22px;font-weight:900;color:#fbbf24;line-height:1;margin-bottom:5px;">${dy}%</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px;">${escHtml(s.name)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">${s.ticker} · ${s.market||''}</div>
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+            <span style="font-size:9px;font-weight:700;color:${gc};background:${gc}18;border:1px solid ${gc}40;border-radius:5px;padding:1px 6px;">${s.grade||''}</span>
+            <span style="font-size:10px;color:var(--muted);">점수 ${score}</span>
+          </div>
         </button>`;
       }).join('');
       _divTopLoaded = true;
     } catch {
-      el.innerHTML = '<span style="font-size:12px;color:var(--muted);">배당 종목 로드 실패</span>';
+      el.innerHTML = '<span style="font-size:12px;color:var(--muted);grid-column:1/-1;">배당 종목 로드 실패</span>';
     }
   }
 
   function divQuickPick(ticker, name) {
     document.getElementById('divTicker').value = name || ticker;
     document.getElementById('divPrice').value = '';
+    // DCA에도 동시 연결
+    const dcaTickerEl = document.getElementById('dcaTicker');
+    if (dcaTickerEl) { dcaTickerEl.value = ticker; loadDcaFromTicker(); }
     loadDividendScenario();
+    // 분석 결과로 스크롤
+    setTimeout(() => {
+      const r = document.getElementById('divResult');
+      if (r) r.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
   }
 
   async function loadDividendScenario() {
