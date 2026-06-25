@@ -235,11 +235,45 @@
     .vc-info{padding:14px 16px;}
     .vc-info .vc-title{font-size:14px;font-weight:700;margin-bottom:6px;line-height:1.4;}
     .vc-info .vc-meta{font-size:11px;color:var(--muted);display:flex;gap:10px;}
-    .landing-features{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:28px;}
-    .lf-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 16px;text-align:center;}
-    .lf-icon{font-size:28px;margin-bottom:10px;}
-    .lf-title{font-size:13px;font-weight:700;margin-bottom:4px;}
-    .lf-desc{font-size:11px;color:var(--muted);line-height:1.5;}
+    /* Featured 종목 카드 */
+    .feat-card{background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(59,130,246,.07));border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:22px;margin-bottom:16px;cursor:pointer;transition:border-color .15s;}
+    .feat-card:hover{border-color:rgba(16,185,129,.6);}
+    .feat-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;}
+    .feat-name{font-size:20px;font-weight:800;}
+    .feat-ticker{font-size:12px;color:var(--muted);margin-top:2px;}
+    .feat-score{font-size:48px;font-weight:800;color:#10b981;line-height:1;}
+    .feat-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .feat-metric{background:rgba(0,0,0,.2);border-radius:10px;padding:10px 12px;}
+    .feat-metric .fm-val{font-size:18px;font-weight:800;color:#10b981;}
+    .feat-metric .fm-lbl{font-size:10px;color:var(--muted);margin-top:2px;}
+    /* Top5 리스트 */
+    .top5-row{display:flex;align-items:center;padding:13px 0;border-bottom:1px solid var(--border);gap:12px;cursor:pointer;transition:background .1s;}
+    .top5-row:last-child{border-bottom:none;}
+    .top5-row:hover{background:rgba(255,255,255,.02);}
+    .top5-rank{font-size:13px;color:var(--muted);width:18px;flex-shrink:0;}
+    .top5-info{flex:1;}
+    .top5-name{font-size:15px;font-weight:700;}
+    .top5-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+    .top5-score-col{text-align:right;}
+    .top5-score{font-size:20px;font-weight:800;color:#10b981;}
+    /* 트랙레코드 배너 */
+    .tr-banner{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:24px;}
+    .tr-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:12px;}
+    .tr-stat{text-align:center;}
+    .tr-stat .ts-val{font-size:20px;font-weight:800;color:#10b981;}
+    .tr-stat .ts-lbl{font-size:10px;color:var(--muted);margin-top:2px;}
+    /* 배당 계산기 */
+    .div-calc{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:24px;}
+    .div-calc h3{font-size:15px;font-weight:700;margin-bottom:14px;}
+    .div-input-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+    .div-input{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:14px;width:100%;outline:none;}
+    .div-input:focus{border-color:var(--green);}
+    .div-result{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:12px;padding:16px;text-align:center;}
+    .div-result .dr-val{font-size:28px;font-weight:800;color:#10b981;}
+    .div-result .dr-lbl{font-size:12px;color:var(--muted);margin-top:4px;}
+    /* 스켈레톤 */
+    .sk{background:linear-gradient(90deg,var(--surface2) 25%,var(--border) 50%,var(--surface2) 75%);background-size:200% 100%;animation:skshimmer 1.5s infinite;border-radius:8px;display:block;}
+    @keyframes skshimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
     /* Sticky 결과 요약 배너 */
     #stickySummary{display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:40px;padding:10px 22px;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:150;backdrop-filter:blur(12px);align-items:center;gap:14px;font-size:13px;white-space:nowrap;cursor:pointer;transition:opacity .2s;}
     #stickySummary.visible{display:flex;}
@@ -363,62 +397,87 @@
   <div id="landingWrap" class="landing-wrap" style="display:none;">
     <div class="landing-hero">
       <h1>재무 데이터로<br><span>텐배거 종목</span>을<br>찾아드립니다</h1>
-      <p>ROE · FCF · 성장성 기반으로<br>5~10년 10배 가능 종목을 자동 발굴</p>
+      <p>ROE · FCF · 성장성 기반으로 5~10년 10배 가능 종목을 자동 발굴</p>
     </div>
 
-    <a href="screener.html" class="landing-cta">지금 바로 종목 찾기 →</a>
-
-    <div class="landing-section-title">🎬 최신 종목 분석 영상</div>
-
-    <div class="video-card-grid">
-      <!-- 영상 카드 1 (실제 영상 URL로 교체 예정) -->
-      <a href="https://youtube.com/@tenbagger" class="vc" target="_blank" rel="noopener">
-        <div class="vc-thumb">
-          <span class="yt-icon">▶️</span>
-          <span class="vc-badge">TENBAGGER</span>
-          <span class="vc-dur">--:--</span>
+    <!-- 오늘의 텐배거 후보 (실시간) -->
+    <div class="landing-section-title">🏆 오늘의 텐배거 후보</div>
+    <div id="featCard">
+      <div class="feat-card" style="pointer-events:none;">
+        <div class="feat-header">
+          <div>
+            <span class="sk" style="width:110px;height:22px;margin-bottom:8px;"></span>
+            <span class="sk" style="width:70px;height:14px;"></span>
+          </div>
+          <span class="sk" style="width:64px;height:52px;border-radius:10px;"></span>
         </div>
-        <div class="vc-info">
-          <div class="vc-title">삼성전자, 지금 사도 될까? — 재무 심층 분석</div>
-          <div class="vc-meta"><span>텐배거 헌터</span><span>·</span><span>조회 준비 중</span></div>
+        <div class="feat-metrics">
+          <div class="feat-metric"><span class="sk" style="height:18px;margin-bottom:6px;"></span><span class="sk" style="width:60%;height:12px;"></span></div>
+          <div class="feat-metric"><span class="sk" style="height:18px;margin-bottom:6px;"></span><span class="sk" style="width:60%;height:12px;"></span></div>
         </div>
-      </a>
-      <!-- 영상 카드 2 -->
-      <a href="https://youtube.com/@tenbagger" class="vc" target="_blank" rel="noopener">
-        <div class="vc-thumb">
-          <span class="yt-icon">▶️</span>
-          <span class="vc-badge">COMPOUNDER</span>
-          <span class="vc-dur">--:--</span>
-        </div>
-        <div class="vc-info">
-          <div class="vc-title">코스피 고배당주 TOP10 — 배당 성장성 분석</div>
-          <div class="vc-meta"><span>텐배거 헌터</span><span>·</span><span>조회 준비 중</span></div>
-        </div>
-      </a>
+      </div>
     </div>
 
-    <div class="landing-section-title">주요 기능</div>
-    <div class="landing-features">
-      <div class="lf-card">
-        <div class="lf-icon">📊</div>
-        <div class="lf-title">스크리너</div>
-        <div class="lf-desc">KOSPI/KOSDAQ 전종목 점수순 필터링</div>
+    <!-- TENBAGGER 상위 5종목 (실시간) -->
+    <div class="landing-section-title">📊 TENBAGGER 상위 종목</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:4px 16px;margin-bottom:24px;" id="top5List">
+      <div class="top5-row" style="pointer-events:none;"><span class="sk" style="width:14px;height:14px;"></span><div class="top5-info"><span class="sk" style="width:90px;height:15px;margin-bottom:5px;"></span><span class="sk" style="width:55px;height:11px;"></span></div><span class="sk" style="width:30px;height:20px;"></span></div>
+      <div class="top5-row" style="pointer-events:none;"><span class="sk" style="width:14px;height:14px;"></span><div class="top5-info"><span class="sk" style="width:110px;height:15px;margin-bottom:5px;"></span><span class="sk" style="width:55px;height:11px;"></span></div><span class="sk" style="width:30px;height:20px;"></span></div>
+      <div class="top5-row" style="pointer-events:none;"><span class="sk" style="width:14px;height:14px;"></span><div class="top5-info"><span class="sk" style="width:80px;height:15px;margin-bottom:5px;"></span><span class="sk" style="width:55px;height:11px;"></span></div><span class="sk" style="width:30px;height:20px;"></span></div>
+      <div class="top5-row" style="pointer-events:none;"><span class="sk" style="width:14px;height:14px;"></span><div class="top5-info"><span class="sk" style="width:100px;height:15px;margin-bottom:5px;"></span><span class="sk" style="width:55px;height:11px;"></span></div><span class="sk" style="width:30px;height:20px;"></span></div>
+      <div class="top5-row" style="pointer-events:none;"><span class="sk" style="width:14px;height:14px;"></span><div class="top5-info"><span class="sk" style="width:95px;height:15px;margin-bottom:5px;"></span><span class="sk" style="width:55px;height:11px;"></span></div><span class="sk" style="width:30px;height:20px;"></span></div>
+    </div>
+
+    <!-- 트랙레코드 (실시간) -->
+    <div class="landing-section-title">📋 예측 정확도</div>
+    <div class="tr-banner" id="trBanner">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">텐배거 등급 종목의 실제 수익률 추적</div>
+      <div style="font-size:11px;color:var(--muted);">과거 예측 종목이 실제로 얼마나 올랐는지 검증합니다</div>
+      <div class="tr-stats" id="trStats">
+        <div class="tr-stat"><span class="sk" style="height:22px;margin-bottom:5px;"></span><span class="sk" style="height:12px;width:70%;margin:0 auto;"></span></div>
+        <div class="tr-stat"><span class="sk" style="height:22px;margin-bottom:5px;"></span><span class="sk" style="height:12px;width:70%;margin:0 auto;"></span></div>
+        <div class="tr-stat"><span class="sk" style="height:22px;margin-bottom:5px;"></span><span class="sk" style="height:12px;width:70%;margin:0 auto;"></span></div>
       </div>
-      <div class="lf-card">
-        <div class="lf-icon">💰</div>
-        <div class="lf-title">배당 시뮬레이터</div>
-        <div class="lf-desc">월 목표 배당금까지 필요 투자금 계산</div>
+      <a href="trackrecord.html" style="display:inline-block;margin-top:12px;font-size:12px;color:var(--muted);text-decoration:none;">전체 기록 보기 →</a>
+    </div>
+
+    <!-- 직접 검색 -->
+    <div class="landing-section-title">🔍 직접 종목 검색</div>
+    <div style="margin-bottom:24px;">
+      <div style="display:flex;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 10px 10px 18px;transition:border-color .2s;" onfocusin="this.style.borderColor='#3b82f6'" onfocusout="this.style.borderColor=''">
+        <input id="landingSearch" placeholder="기업명 또는 종목코드 (예: SK하이닉스, 000660)" style="flex:1;background:none;border:none;color:var(--text);font-size:15px;outline:none;" maxlength="30" autocomplete="off" onkeydown="if(event.key==='Enter')doLandingSearch()" />
+        <button onclick="doLandingSearch()" style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:10px;padding:10px 20px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;">분석</button>
       </div>
-      <div class="lf-card">
-        <div class="lf-icon">📋</div>
-        <div class="lf-title">트랙레코드</div>
-        <div class="lf-desc">AI 예측 종목의 실제 수익률 추적</div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <span class="chip" onclick="doLandingSearchTicker('005930')">삼성전자</span>
+        <span class="chip" onclick="doLandingSearchTicker('000660')">SK하이닉스</span>
+        <span class="chip" onclick="doLandingSearchTicker('005490')">POSCO홀딩스</span>
+        <span class="chip" onclick="doLandingSearchTicker('068270')">셀트리온</span>
       </div>
-      <div class="lf-card">
-        <div class="lf-icon">🔍</div>
-        <div class="lf-title">종목 분석</div>
-        <div class="lf-desc">DART 재무데이터로 텐배거 점수 산출</div>
+    </div>
+
+    <!-- 전체 스크리너 CTA -->
+    <a href="screener.html" class="landing-cta">전체 스크리너 보기 →</a>
+
+    <!-- 배당 계산기 (맨 아래) -->
+    <div class="landing-section-title" style="margin-top:8px;">💰 배당 계산기</div>
+    <div class="div-calc">
+      <h3>월 배당금 목표 시뮬레이션</h3>
+      <div class="div-input-row">
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">월 목표 배당금 (만원)</label>
+          <input type="number" class="div-input" id="divTarget" value="100" min="1" oninput="calcDiv()" />
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">평균 배당수익률 (%)</label>
+          <input type="number" class="div-input" id="divYield" value="3" step="0.1" min="0.1" oninput="calcDiv()" />
+        </div>
       </div>
+      <div class="div-result">
+        <div class="dr-val" id="divResult">4억</div>
+        <div class="dr-lbl">월 <span id="divTargetLabel">100</span>만원 배당받으려면 필요한 투자금</div>
+      </div>
+      <a href="dashboard.html#dividend" style="display:block;margin-top:12px;text-align:center;font-size:12px;color:var(--muted);text-decoration:none;">상세 배당 시뮬레이터 보기 →</a>
     </div>
   </div>
   <div class="loading" id="loading">
@@ -448,15 +507,14 @@
       const searchWrap = document.getElementById("searchWrap");
       const freeBanner = document.getElementById("freeBanner");
       if(q){
-        // 분석 모드: 랜딩 숨기고 검색창 표시
         landing.style.display = "none";
         searchWrap.style.display = "block";
         if(freeBanner) freeBanner.style.display = "block";
       } else {
-        // 랜딩 모드: 검색창 숨기고 랜딩 표시
         landing.style.display = "block";
         searchWrap.style.display = "none";
         if(freeBanner) freeBanner.style.display = "none";
+        window._isLandingMode = true;
       }
     })();
 
@@ -1572,13 +1630,108 @@
       setTimeout(() => t.remove(), 4000);
     }
 
+    // ── 랜딩 데이터 로드 ──
+    function loadLandingData(){
+      function gradeBadge(g){
+        const c={TENBAGGER:'#10b981',COMPOUNDER:'#60a5fa',WATCHLIST:'#fbbf24',AVOID:'#f87171'};
+        const col=c[g]||'#9ca3af';
+        return `<span style="font-size:11px;font-weight:700;color:${col};background:${col}18;border:1px solid ${col}40;border-radius:6px;padding:2px 8px;">${g}</span>`;
+      }
+      function fmtP(v){return v!=null?(v>0?'+':'')+v.toFixed(1)+'%':'-';}
+
+      fetch(API+'/api/screener?grade=TENBAGGER&limit=6')
+        .then(r=>r.ok?r.json():null)
+        .then(data=>{
+          const list=(data?.companies||data||[]).slice(0,6);
+          if(!list.length)return;
+          const top=list[0];
+          document.getElementById('featCard').innerHTML=`
+            <div class="feat-card" onclick="doLandingSearchTicker('${top.ticker}')">
+              <div class="feat-header">
+                <div>
+                  <div class="feat-name">${top.name}</div>
+                  <div class="feat-ticker">${top.ticker} · ${top.market||'KOSPI'}</div>
+                  <div style="margin-top:8px;">${gradeBadge(top.grade)}</div>
+                </div>
+                <div style="text-align:right;">
+                  <div class="feat-score">${(top.total_score||0).toFixed(1)}</div>
+                  <div style="font-size:11px;color:var(--muted);">/ 10점</div>
+                </div>
+              </div>
+              <div class="feat-metrics">
+                <div class="feat-metric">
+                  <div class="fm-val">${fmtP(top.revenue_cagr_5y)}</div>
+                  <div class="fm-lbl">매출 CAGR (5Y)</div>
+                </div>
+                <div class="feat-metric">
+                  <div class="fm-val">${top.avg_roe_5y!=null?top.avg_roe_5y.toFixed(1)+'%':'-'}</div>
+                  <div class="fm-lbl">평균 ROE</div>
+                </div>
+              </div>
+            </div>`;
+          const rest=list.slice(1);
+          document.getElementById('top5List').innerHTML=rest.map((c,i)=>`
+            <div class="top5-row" onclick="doLandingSearchTicker('${c.ticker}')">
+              <div class="top5-rank">${i+2}</div>
+              <div class="top5-info">
+                <div class="top5-name">${c.name}</div>
+                <div class="top5-sub">${c.ticker} · ${c.sector||'기타'}</div>
+              </div>
+              <div class="top5-score">${(c.total_score||0).toFixed(1)}</div>
+            </div>`).join('');
+        }).catch(()=>{});
+
+      // 트랙레코드 통계
+      fetch(API+'/api/v2/accuracy/backfill')
+        .then(r=>r.ok?r.json():Promise.reject())
+        .catch(()=>fetch(API+'/api/v2/accuracy/results').then(r=>r.ok?r.json():null))
+        .then(data=>{
+          if(!data)return;
+          const tb=(data.summary||{}).TENBAGGER;
+          if(!tb)return;
+          document.getElementById('trStats').innerHTML=`
+            <div class="tr-stat">
+              <div class="ts-val">${tb.median_pct!=null?(tb.median_pct>0?'+':'')+tb.median_pct.toFixed(0)+'%':'-'}</div>
+              <div class="ts-lbl">TENBAGGER 중간 수익률</div>
+            </div>
+            <div class="tr-stat">
+              <div class="ts-val">${tb.hit_rate!=null?tb.hit_rate.toFixed(0)+'%':'-'}</div>
+              <div class="ts-lbl">+50% 달성률</div>
+            </div>
+            <div class="tr-stat">
+              <div class="ts-val">${tb.count_priced||'-'}</div>
+              <div class="ts-lbl">검증 표본</div>
+            </div>`;
+        }).catch(()=>{});
+    }
+
+    function calcDiv(){
+      const target=parseFloat(document.getElementById('divTarget')?.value)||0;
+      const yld=parseFloat(document.getElementById('divYield')?.value)||3;
+      const needed=(target*12*10000)/(yld/100);
+      const label=document.getElementById('divTargetLabel');
+      const result=document.getElementById('divResult');
+      if(label)label.textContent=target.toLocaleString();
+      if(result)result.textContent=needed>=1e8?(needed/1e8).toFixed(1)+'억':(needed/1e4).toFixed(0)+'만';
+    }
+
+    function doLandingSearch(){
+      const val=(document.getElementById('landingSearch')?.value||'').trim();
+      if(!val)return;
+      location.href='index.html?q='+encodeURIComponent(val);
+    }
+
+    function doLandingSearchTicker(ticker){
+      location.href='index.html?ticker='+encodeURIComponent(ticker);
+    }
+
     // ── 초기화 ──
     renderHistory();
     window.addEventListener("load",()=>{
-      // ?q= 또는 ?ticker= 파라미터로 자동 분석
       const params=new URLSearchParams(location.search);
       const t=params.get("q")||params.get("ticker");
       if(t){inp.value=t;analyze();}
+      else{loadLandingData();calcDiv();}
     });
   </script>
 
