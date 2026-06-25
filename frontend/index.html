@@ -236,16 +236,20 @@
     .vc-info .vc-title{font-size:14px;font-weight:700;margin-bottom:6px;line-height:1.4;}
     .vc-info .vc-meta{font-size:11px;color:var(--muted);display:flex;gap:10px;}
     /* Featured 종목 카드 */
-    .feat-card{background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(59,130,246,.07));border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:22px;margin-bottom:16px;cursor:pointer;transition:border-color .15s;}
+    .feat-card{background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(59,130,246,.07));border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:20px;margin-bottom:16px;cursor:pointer;transition:border-color .15s;}
     .feat-card:hover{border-color:rgba(16,185,129,.6);}
     .feat-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;}
     .feat-name{font-size:20px;font-weight:800;}
     .feat-ticker{font-size:12px;color:var(--muted);margin-top:2px;}
+    .feat-price{font-size:13px;color:#f9fafb;font-weight:600;margin-top:4px;}
     .feat-score{font-size:48px;font-weight:800;color:#10b981;line-height:1;}
-    .feat-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .feat-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
     .feat-metric{background:rgba(0,0,0,.2);border-radius:10px;padding:10px 12px;}
     .feat-metric .fm-val{font-size:18px;font-weight:800;color:#10b981;}
     .feat-metric .fm-lbl{font-size:10px;color:var(--muted);margin-top:2px;}
+    .feat-metric .fm-sub{font-size:9px;color:#6b7280;margin-top:2px;}
+    .feat-why{background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;}
+    .feat-why-item{font-size:12px;color:#d1fae5;line-height:1.4;}
     /* Top5 리스트 */
     .top5-row{display:flex;align-items:center;padding:13px 0;border-bottom:1px solid var(--border);gap:12px;cursor:pointer;transition:background .1s;}
     .top5-row:last-child{border-bottom:none;}
@@ -406,15 +410,22 @@
       <div class="feat-card" style="pointer-events:none;">
         <div class="feat-header">
           <div>
-            <span class="sk" style="width:110px;height:22px;margin-bottom:8px;"></span>
-            <span class="sk" style="width:70px;height:14px;"></span>
+            <span class="sk" style="width:120px;height:22px;display:block;margin-bottom:6px;"></span>
+            <span class="sk" style="width:80px;height:13px;display:block;margin-bottom:5px;"></span>
+            <span class="sk" style="width:70px;height:13px;display:block;"></span>
           </div>
-          <span class="sk" style="width:64px;height:52px;border-radius:10px;"></span>
+          <div style="text-align:right;">
+            <span class="sk" style="width:56px;height:52px;display:block;border-radius:10px;margin-bottom:4px;"></span>
+            <span class="sk" style="width:44px;height:11px;display:block;margin-left:auto;"></span>
+          </div>
         </div>
         <div class="feat-metrics">
-          <div class="feat-metric"><span class="sk" style="height:18px;margin-bottom:6px;"></span><span class="sk" style="width:60%;height:12px;"></span></div>
-          <div class="feat-metric"><span class="sk" style="height:18px;margin-bottom:6px;"></span><span class="sk" style="width:60%;height:12px;"></span></div>
+          <div class="feat-metric"><span class="sk" style="height:18px;display:block;margin-bottom:5px;"></span><span class="sk" style="width:60%;height:10px;display:block;"></span></div>
+          <div class="feat-metric"><span class="sk" style="height:18px;display:block;margin-bottom:5px;"></span><span class="sk" style="width:60%;height:10px;display:block;"></span></div>
+          <div class="feat-metric"><span class="sk" style="height:18px;display:block;margin-bottom:5px;"></span><span class="sk" style="width:60%;height:10px;display:block;"></span></div>
+          <div class="feat-metric"><span class="sk" style="height:18px;display:block;margin-bottom:5px;"></span><span class="sk" style="width:60%;height:10px;display:block;"></span></div>
         </div>
+        <div class="feat-why"><span class="sk" style="height:12px;display:block;"></span><span class="sk" style="height:12px;display:block;"></span></div>
       </div>
     </div>
 
@@ -1681,30 +1692,18 @@
           const list=(data?.companies||data||[]).slice(0,6);
           if(!list.length)return;
           const top=list[0];
-          document.getElementById('featCard').innerHTML=`
-            <div class="feat-card" onclick="doLandingSearchTicker('${top.ticker}')">
-              <div class="feat-header">
-                <div>
-                  <div class="feat-name">${top.name}</div>
-                  <div class="feat-ticker">${top.ticker} · ${top.market||'KOSPI'}</div>
-                  <div style="margin-top:8px;">${gradeBadge(top.grade)}</div>
-                </div>
-                <div style="text-align:right;">
-                  <div class="feat-score">${(top.total_score||0).toFixed(1)}</div>
-                  <div style="font-size:11px;color:var(--muted);">/ 10점</div>
-                </div>
+
+          // top5 바로 렌더 (스켈레톤 교체)
+          const rest=list.slice(1);
+          document.getElementById('top5List').innerHTML=rest.map((c,i)=>`
+            <div class="top5-row" onclick="doLandingSearchTicker('${c.ticker}')">
+              <div class="top5-rank">${i+2}</div>
+              <div class="top5-info">
+                <div class="top5-name">${c.name}</div>
+                <div class="top5-sub">${c.ticker} · ${c.sector||'기타'}</div>
               </div>
-              <div class="feat-metrics">
-                <div class="feat-metric">
-                  <div class="fm-val">${fmtP(top.revenue_cagr_5y)}</div>
-                  <div class="fm-lbl">매출 CAGR (5Y)</div>
-                </div>
-                <div class="feat-metric">
-                  <div class="fm-val">${top.avg_roe_5y!=null?top.avg_roe_5y.toFixed(1)+'%':'-'}</div>
-                  <div class="fm-lbl">평균 ROE</div>
-                </div>
-              </div>
-            </div>`;
+              <div class="top5-score">${(c.total_score||0).toFixed(1)}</div>
+            </div>`).join('');
 
           // 피처드 종목 분석 영상 (있으면)
           const featVideo = VIDEOS[top.ticker];
@@ -1722,16 +1721,72 @@
             latestTitle.style.display='';
             latestSec.innerHTML = latestVids.map(v=>renderVideoCard(v,false)).join('');
           }
-          const rest=list.slice(1);
-          document.getElementById('top5List').innerHTML=rest.map((c,i)=>`
-            <div class="top5-row" onclick="doLandingSearchTicker('${c.ticker}')">
-              <div class="top5-rank">${i+2}</div>
-              <div class="top5-info">
-                <div class="top5-name">${c.name}</div>
-                <div class="top5-sub">${c.ticker} · ${c.sector||'기타'}</div>
-              </div>
-              <div class="top5-score">${(c.total_score||0).toFixed(1)}</div>
-            </div>`).join('');
+
+          // 피처드 카드: company API로 FCF+부채비율 추가 조회
+          fetch(API+'/api/company/'+encodeURIComponent(top.ticker))
+            .then(r=>r.ok?r.json():null)
+            .catch(()=>null)
+            .then(detail=>{
+              const sc = detail?.score || {};
+              const cagr = sc.revenue_cagr_5y ?? top.revenue_cagr_5y;
+              const roe  = sc.avg_roe_5y ?? top.avg_roe_5y;
+              const fcf  = sc.avg_fcf_margin ?? null;
+              const debt = sc.debt_ratio ?? null;
+              const close = detail?.close ?? null;
+              const scoreVal = (sc.total_score ?? top.total_score ?? 0).toFixed(1);
+
+              const fcfColor = fcf == null ? '#9ca3af' : fcf > 15 ? '#10b981' : fcf > 5 ? '#fbbf24' : '#ef4444';
+              const debtColor = debt == null ? '#9ca3af' : debt < 100 ? '#10b981' : debt < 200 ? '#fbbf24' : '#ef4444';
+
+              const bullets = [];
+              if(cagr != null && cagr > 10) bullets.push(`매출 CAGR ${cagr.toFixed(1)}% — 꾸준한 사업 확장`);
+              if(roe  != null && roe  > 15) bullets.push(`ROE ${roe.toFixed(1)}% — 자본 효율성 우수`);
+              if(fcf  != null && fcf  > 10) bullets.push(`FCF 마진 ${fcf.toFixed(1)}% — 현금 창출력 탁월`);
+              if(debt != null && debt < 100) bullets.push(`부채비율 ${debt.toFixed(1)}% — 재무 안정성 양호`);
+              const why3 = bullets.slice(0,3);
+
+              document.getElementById('featCard').innerHTML=`
+                <div class="feat-card" onclick="doLandingSearchTicker('${top.ticker}')">
+                  <div class="feat-header">
+                    <div>
+                      <div class="feat-name">${top.name}</div>
+                      <div class="feat-ticker">${top.ticker} · ${top.market||'KOSPI'}</div>
+                      ${close ? `<div class="feat-price">₩${close.toLocaleString()}</div>` : ''}
+                      <div style="margin-top:8px;">${gradeBadge(top.grade)}</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div class="feat-score">${scoreVal}</div>
+                      <div style="font-size:11px;color:var(--muted);">/ 10점 · 상위 3%</div>
+                    </div>
+                  </div>
+                  <div class="feat-metrics">
+                    <div class="feat-metric">
+                      <div class="fm-val">${cagr!=null?cagr.toFixed(1)+'%':'-'}</div>
+                      <div class="fm-lbl">매출 CAGR (5Y)</div>
+                      <div class="fm-sub">꾸준한 성장</div>
+                    </div>
+                    <div class="feat-metric">
+                      <div class="fm-val">${roe!=null?roe.toFixed(1)+'%':'-'}</div>
+                      <div class="fm-lbl">평균 ROE</div>
+                      <div class="fm-sub">자본 효율 우수</div>
+                    </div>
+                    <div class="feat-metric">
+                      <div class="fm-val" style="color:${fcfColor}">${fcf!=null?fcf.toFixed(1)+'%':'-'}</div>
+                      <div class="fm-lbl">FCF 마진</div>
+                      <div class="fm-sub">현금 창출력</div>
+                    </div>
+                    <div class="feat-metric">
+                      <div class="fm-val" style="color:${debtColor}">${debt!=null?debt.toFixed(1)+'%':'-'}</div>
+                      <div class="fm-lbl">부채비율</div>
+                      <div class="fm-sub">재무 안정성</div>
+                    </div>
+                  </div>
+                  ${why3.length ? `<div class="feat-why">${why3.map(b=>`<div class="feat-why-item">✅ ${b}</div>`).join('')}</div>` : ''}
+                  <div style="margin-top:14px;display:flex;justify-content:flex-end;">
+                    <span style="font-size:13px;color:#60a5fa;font-weight:600;">전체 분석 보기 →</span>
+                  </div>
+                </div>`;
+            });
         }).catch(()=>{});
 
       // 트랙레코드 통계
