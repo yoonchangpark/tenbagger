@@ -1709,13 +1709,9 @@
       setTimeout(() => t.remove(), 4000);
     }
 
-    // ── 영상 데이터 (실제 URL로 교체 예정) ──
-    const VIDEOS = {
-      "000660": { url: "https://youtube.com/@tenbagger", title: "SK하이닉스, 왜 텐배거 후보인가? 재무 3분 요약", duration: "0:58", views: "12.4만", shorts: true, grade: "TENBAGGER", ticker: "000660", name: "SK하이닉스" },
-      "009420": { url: "https://youtube.com/@tenbagger", title: "알팍스, 무명 중소기업이 텐배거가 될 수 있는 이유", duration: "1:02", views: "8.1만", shorts: true, grade: "TENBAGGER", ticker: "009420", name: "알팍스" },
-      "005930": { url: "https://youtube.com/@tenbagger", title: "삼성전자, 지금 사도 될까? 재무 심층 분석", duration: "2:15", views: "21.3만", shorts: false, grade: "COMPOUNDER", ticker: "005930", name: "삼성전자" },
-      "001440": { url: "https://youtube.com/@tenbagger", title: "대한전선, 전력인프라 수혜주 분석", duration: "0:58", views: "6.7만", shorts: true, grade: "TENBAGGER", ticker: "001440", name: "대한전선" },
-    };
+    // ── 영상 데이터 — 실제 업로드 후 여기에 추가 ──
+    // 형식: "ticker": { url: "https://youtu.be/VIDEO_ID", title: "...", duration: "0:58", views: "12.4만", thumbnail: "https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg", shorts: true, grade: "TENBAGGER", ticker: "000660", name: "종목명" }
+    const VIDEOS = {};
     const VIDEO_LIST = Object.values(VIDEOS);
 
     function renderVideoCard(v, featured) {
