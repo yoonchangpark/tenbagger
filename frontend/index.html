@@ -493,7 +493,7 @@
       <div style="display:flex;gap:6px;flex-wrap:wrap;" id="top5FilterTabs">
         <button class="top5-tab active" onclick="switchTop5Tab(this,'TENBAGGER')">✨ TENBAGGER</button>
         <button class="top5-tab" onclick="switchTop5Tab(this,'dividend')">💰 고배당</button>
-        <button class="top5-tab" onclick="switchTop5Tab(this,'video')" id="youtubeTab" style="display:none;">▶ YouTube</button>
+        <button class="top5-tab" onclick="switchTop5Tab(this,'video')">▶ YouTube</button>
       </div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:4px 16px;margin-bottom:24px;" id="top5List">
@@ -1718,7 +1718,6 @@
     // 형식: "ticker": { url: "https://youtu.be/VIDEO_ID", title: "...", duration: "0:58", views: "12.4만", thumbnail: "https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg", shorts: true, grade: "TENBAGGER", ticker: "000660", name: "종목명" }
     const VIDEOS = {};
     const VIDEO_LIST = Object.values(VIDEOS);
-    if(VIDEO_LIST.length){ const t=document.getElementById('youtubeTab'); if(t) t.style.display=''; }
 
     function renderVideoCard(v, featured) {
       const gradeBadge = `<span style="font-size:10px;font-weight:800;color:#10b981;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.35);border-radius:5px;padding:1px 7px;">${v.grade}</span>`;
