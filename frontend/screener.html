@@ -383,7 +383,14 @@
 
     <div class="results-header">
       <div class="results-count">검색 결과: <strong id="resultCount">-</strong> 종목</div>
-      <div style="font-size:11px;color:#4b5563">종목 클릭 → 세부 분석</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="videFilterBtn" class="toggle-btn" onclick="toggleVideoFilter()"
+          style="display:inline-flex;align-items:center;gap:4px;font-size:11px;">
+          <svg width="11" height="8" viewBox="0 0 11 8"><rect width="11" height="8" rx="1.5" fill="#ff0000"/><path d="M4.5 2L8 4L4.5 6V2Z" fill="white"/></svg>
+          영상있음
+        </button>
+        <span style="font-size:11px;color:#4b5563">종목 클릭 → 세부 분석</span>
+      </div>
     </div>
 
     <div id="tableArea">
@@ -407,11 +414,21 @@
 <script>
   const API = "";
 
-  // 필터 상태
+  // ── 영상 데이터 (ticker → YouTube 정보) ──
+  const VIDEOS = {
+    "000660": { url: "https://youtube.com/@tenbagger", title: "SK하이닉스, 왜 텐배거 후보인가? 재무 3분 요약", duration: "0:58", shorts: true, grade: "TENBAGGER" },
+    "009420": { url: "https://youtube.com/@tenbagger", title: "알팍스, 무명 중소기업이 텐배거가 될 수 있는 이유", duration: "1:02", shorts: true, grade: "TENBAGGER" },
+    "005930": { url: "https://youtube.com/@tenbagger", title: "삼성전자, 지금 사도 될까? 재무 심층 분석", duration: "2:15", shorts: false, grade: "COMPOUNDER" },
+    "001440": { url: "https://youtube.com/@tenbagger", title: "대한전선, 전력인프라 수혜주 분석", duration: "0:58", shorts: true, grade: "TENBAGGER" },
+    "006400": { url: "https://youtube.com/@tenbagger", title: "삼성SDI, 2차전지 대장주 텐배거 분석", duration: "1:02", shorts: true, grade: "TENBAGGER" },
+  };
+
+  // ── 필터 상태 ──
   let selectedGrades = new Set(["TENBAGGER", "COMPOUNDER", "WATCHLIST"]);
   let selectedMarket = "전체";
   let selectedSort = "total_score";
   let selectedSector = "전체";
+  let selectedVideoOnly = false;
   let _debounceTimer = null;
   let _lastResults = [];
   let macroState = { rate: 0, dollar: 0, economy: 0, liquidity: 0, geo: 0 };
@@ -585,6 +602,42 @@
     banner.classList.add("visible");
   }
 
+  // ── 스파크라인 SVG (결정적 — 종목코드 기반) ──
+  function miniSparkline(ticker, cagr, stability) {
+    const w = 64, h = 26, pts = 7;
+    const seed = ticker.split('').reduce((s, c, i) => s + c.charCodeAt(0) * (i + 1), 0);
+    const slope = (cagr || 0) * 0.004 * h;
+    const jitter = Math.max(0.5, (10 - (stability || 5)) * 0.7);
+    const ys = [];
+    let y = h * 0.65;
+    for (let i = 0; i < pts; i++) {
+      const noise = ((seed * (i * 17 + 31)) % 200 / 100 - 1) * jitter;
+      y = Math.max(2, Math.min(h - 2, y - slope / pts + noise));
+      ys.push(y);
+    }
+    const path = ys.map((y, i) => `${i===0?'M':'L'}${(i*w/(pts-1)).toFixed(1)},${y.toFixed(1)}`).join(' ');
+    const col = (cagr || 0) >= 0 ? '#10b981' : '#ef4444';
+    return `<svg width="${w}" height="${h}" style="flex-shrink:0;vertical-align:middle;"><path d="${path}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+
+  // ── YouTube 뱃지 ──
+  function ytBadge(ticker) {
+    const v = VIDEOS[ticker];
+    if (!v) return '';
+    return `<a href="${v.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+      style="display:inline-flex;align-items:center;gap:3px;margin-left:5px;background:rgba(255,0,0,.15);border:1px solid rgba(255,0,0,.35);border-radius:5px;padding:1px 6px;font-size:10px;font-weight:700;color:#ff4444;text-decoration:none;vertical-align:middle;white-space:nowrap;"
+      title="${v.title}">
+      <svg width="11" height="8" viewBox="0 0 11 8" style="flex-shrink:0"><rect width="11" height="8" rx="1.5" fill="#ff0000"/><path d="M4.5 2L8 4L4.5 6V2Z" fill="white"/></svg>
+      영상</a>`;
+  }
+
+  function toggleVideoFilter() {
+    selectedVideoOnly = !selectedVideoOnly;
+    const btn = document.getElementById('videFilterBtn');
+    if (btn) btn.classList.toggle('active', selectedVideoOnly);
+    applyFiltersAndRender();
+  }
+
   function applyFiltersAndRender() {
     if (!_lastResults.length) return;
 
@@ -597,6 +650,11 @@
       filtered = filtered.filter(c => c.growth_tag === "사이클주");
     } else if (selectedSector !== "전체") {
       filtered = filtered.filter(c => c.sector === selectedSector);
+    }
+
+    // 영상있음 필터
+    if (selectedVideoOnly) {
+      filtered = filtered.filter(c => VIDEOS[c.ticker]);
     }
 
     // 매크로 부스트 적용 시 재정렬
@@ -773,11 +831,17 @@
       const boostBadge = macroOn && boost > 0.3
         ? `<span class="macro-boost-badge">📡 +${boost.toFixed(1)}</span>` : "";
 
+      const spark = miniSparkline(c.ticker, c.revenue_cagr_5y, c.stability_score);
+      const yt = ytBadge(c.ticker);
+
       return `
         <tr data-ticker="${c.ticker}" onclick="location.href='index.html?ticker=${encodeURIComponent(c.ticker)}'" title="${c.name} 세부 분석 보기">
           <td>
-            <div style="font-weight:700;margin-bottom:2px;">${c.name} ${boostBadge}<span class="event-icons" id="ev-${c.ticker}"></span></div>
-            <div style="font-size:11px;color:#6b7280">${c.ticker} · ${c.market || ""}</div>
+            <div style="font-weight:700;margin-bottom:2px;">${c.name}${yt} ${boostBadge}<span class="event-icons" id="ev-${c.ticker}"></span></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
+              <span style="font-size:11px;color:#6b7280;white-space:nowrap;">${c.ticker} · ${c.market || ""}</span>
+              ${spark}
+            </div>
           </td>
           <td>
             <div class="score-bar-wrap">

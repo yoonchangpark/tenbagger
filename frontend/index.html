@@ -418,6 +418,14 @@
       </div>
     </div>
 
+    <!-- 피처드 종목 분석 영상 (실시간 주입) -->
+    <div class="landing-section-title" id="videoSectionTitle" style="display:none;">🎬 이 종목 분석 영상</div>
+    <div class="video-card-grid" id="videoSection" style="margin-bottom:24px;"></div>
+
+    <!-- 최신 종목 분석 영상 -->
+    <div class="landing-section-title" id="latestVideoTitle" style="display:none;">📺 최신 종목 분석 영상</div>
+    <div class="video-card-grid" id="latestVideos" style="margin-bottom:24px;"></div>
+
     <!-- TENBAGGER 상위 5종목 (실시간) -->
     <div class="landing-section-title">📊 TENBAGGER 상위 종목</div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:4px 16px;margin-bottom:24px;" id="top5List">
@@ -1630,6 +1638,37 @@
       setTimeout(() => t.remove(), 4000);
     }
 
+    // ── 영상 데이터 (실제 URL로 교체 예정) ──
+    const VIDEOS = {
+      "000660": { url: "https://youtube.com/@tenbagger", title: "SK하이닉스, 왜 텐배거 후보인가? 재무 3분 요약", duration: "0:58", shorts: true, grade: "TENBAGGER", ticker: "000660", name: "SK하이닉스" },
+      "009420": { url: "https://youtube.com/@tenbagger", title: "알팍스, 무명 중소기업이 텐배거가 될 수 있는 이유", duration: "1:02", shorts: true, grade: "TENBAGGER", ticker: "009420", name: "알팍스" },
+      "005930": { url: "https://youtube.com/@tenbagger", title: "삼성전자, 지금 사도 될까? 재무 심층 분석", duration: "2:15", shorts: false, grade: "COMPOUNDER", ticker: "005930", name: "삼성전자" },
+      "001440": { url: "https://youtube.com/@tenbagger", title: "대한전선, 전력인프라 수혜주 분석", duration: "0:58", shorts: true, grade: "TENBAGGER", ticker: "001440", name: "대한전선" },
+    };
+    const VIDEO_LIST = Object.values(VIDEOS);
+
+    function renderVideoCard(v, featured) {
+      const gradeBadge = `<span style="font-size:10px;font-weight:800;color:#10b981;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.35);border-radius:5px;padding:1px 7px;">${v.grade}</span>`;
+      const shortsBadge = v.shorts ? `<span style="font-size:10px;font-weight:800;color:#fff;background:#ff0000;border-radius:5px;padding:1px 6px;margin-left:4px;">▶ SHORTS</span>` : '';
+      return `
+        <a href="${v.url}" target="_blank" rel="noopener" class="vc"${featured ? ' style="border-color:rgba(16,185,129,.45);"' : ''}>
+          <div class="vc-thumb" style="background:linear-gradient(135deg,#0d1f1a 0%,#0a1520 100%);">
+            <span style="font-size:44px;opacity:.75;">▶️</span>
+            <div style="position:absolute;top:10px;left:10px;display:flex;gap:5px;align-items:center;">
+              ${gradeBadge}${shortsBadge}
+            </div>
+            <span class="vc-dur">${v.duration}</span>
+          </div>
+          <div class="vc-info">
+            <div class="vc-title">${v.title}</div>
+            <div class="vc-meta">
+              <span>텐배거 헌터</span><span>·</span>
+              <span style="color:var(--green);cursor:pointer;" onclick="event.preventDefault();doLandingSearchTicker('${v.ticker}')">${v.name} 분석 →</span>
+            </div>
+          </div>
+        </a>`;
+    }
+
     // ── 랜딩 데이터 로드 ──
     function loadLandingData(){
       function gradeBadge(g){
@@ -1669,6 +1708,23 @@
                 </div>
               </div>
             </div>`;
+
+          // 피처드 종목 분석 영상 (있으면)
+          const featVideo = VIDEOS[top.ticker];
+          const videoSec = document.getElementById('videoSection');
+          if(featVideo && videoSec){
+            document.getElementById('videoSectionTitle').style.display='';
+            videoSec.innerHTML = renderVideoCard(featVideo, true);
+          }
+
+          // 최신 영상 (피처드 제외 최대 2개)
+          const latestVids = VIDEO_LIST.filter(v=>v.ticker!==top.ticker).slice(0,2);
+          const latestSec = document.getElementById('latestVideos');
+          const latestTitle = document.getElementById('latestVideoTitle');
+          if(latestVids.length && latestSec){
+            latestTitle.style.display='';
+            latestSec.innerHTML = latestVids.map(v=>renderVideoCard(v,false)).join('');
+          }
           const rest=list.slice(1);
           document.getElementById('top5List').innerHTML=rest.map((c,i)=>`
             <div class="top5-row" onclick="doLandingSearchTicker('${c.ticker}')">
