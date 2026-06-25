@@ -260,6 +260,8 @@
     .top5-sub{font-size:11px;color:var(--muted);margin-top:2px;}
     .top5-score-col{text-align:right;}
     .top5-score{font-size:20px;font-weight:800;color:#10b981;}
+    .top5-tab{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;}
+    .top5-tab.active{background:rgba(16,185,129,.12);border-color:#10b981;color:#10b981;}
     /* 트랙레코드 배너 */
     .tr-banner{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:24px;}
     .tr-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:12px;}
@@ -438,7 +440,14 @@
     <div class="video-card-grid" id="latestVideos" style="margin-bottom:24px;"></div>
 
     <!-- TENBAGGER 상위 5종목 (실시간) -->
-    <div class="landing-section-title">📊 TENBAGGER 상위 종목</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div class="landing-section-title" style="margin-bottom:0;">📊 상위 종목</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="top5FilterTabs">
+        <button class="top5-tab active" onclick="switchTop5Tab(this,'TENBAGGER')">✨ TENBAGGER</button>
+        <button class="top5-tab" onclick="switchTop5Tab(this,'dividend')">💰 고배당</button>
+        <button class="top5-tab" onclick="switchTop5Tab(this,'video')">▶ 영상있음</button>
+      </div>
+    </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:4px 16px;margin-bottom:24px;" id="top5List">
       <div class="top5-row" style="pointer-events:none;"><span class="sk" style="width:14px;height:14px;"></span><div class="top5-info"><span class="sk" style="width:90px;height:15px;margin-bottom:5px;"></span><span class="sk" style="width:55px;height:11px;"></span></div><span class="sk" style="width:30px;height:20px;"></span></div>
       <div class="top5-row" style="pointer-events:none;"><span class="sk" style="width:14px;height:14px;"></span><div class="top5-info"><span class="sk" style="width:110px;height:15px;margin-bottom:5px;"></span><span class="sk" style="width:55px;height:11px;"></span></div><span class="sk" style="width:30px;height:20px;"></span></div>
@@ -1677,6 +1686,53 @@
         </a>`;
     }
 
+    // ── Top5 필터 탭 ──
+    let _top5AllData = [];
+
+    function renderTop5Rows(list) {
+      const el = document.getElementById('top5List');
+      if (!el) return;
+      if (!list.length) { el.innerHTML = '<div style="text-align:center;padding:24px;font-size:13px;color:var(--muted);">데이터 없음</div>'; return; }
+      el.innerHTML = list.map((c, i) => {
+        const vid = VIDEOS[c.ticker];
+        const ytTag = vid ? `<a href="${vid.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+          style="display:inline-flex;align-items:center;gap:2px;margin-left:5px;background:rgba(255,0,0,.15);border:1px solid rgba(255,0,0,.35);border-radius:5px;padding:1px 5px;font-size:9px;font-weight:700;color:#ff4444;text-decoration:none;vertical-align:middle;"
+          title="${vid.title}">
+          <svg width="10" height="7" viewBox="0 0 11 8" style="flex-shrink:0"><rect width="11" height="8" rx="1.5" fill="#ff0000"/><path d="M4.5 2L8 4L4.5 6V2Z" fill="white"/></svg>영상</a>` : '';
+        const sub = c.dividend_yield != null && c.dividend_yield > 0
+          ? `${c.ticker} · 배당 ${parseFloat(c.dividend_yield).toFixed(1)}%`
+          : `${c.ticker} · ${c.sector || '기타'}`;
+        return `<div class="top5-row" onclick="doLandingSearchTicker('${c.ticker}')">
+          <div class="top5-rank">${i + 1}</div>
+          <div class="top5-info">
+            <div class="top5-name">${c.name}${ytTag}</div>
+            <div class="top5-sub">${sub}</div>
+          </div>
+          <div class="top5-score">${(c.total_score || 0).toFixed(1)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    async function switchTop5Tab(btn, mode) {
+      document.querySelectorAll('.top5-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (mode === 'TENBAGGER') {
+        renderTop5Rows(_top5AllData.filter(c => c.grade === 'TENBAGGER').slice(0, 5));
+      } else if (mode === 'dividend') {
+        const sorted = [..._top5AllData].filter(c => c.dividend_yield > 0)
+          .sort((a, b) => b.dividend_yield - a.dividend_yield).slice(0, 5);
+        if (sorted.length) { renderTop5Rows(sorted); return; }
+        // API fallback
+        try {
+          const r = await fetch(API + '/api/screener?sort=dividend_yield&min_dividend_yield=2&limit=5');
+          const d = await r.json();
+          renderTop5Rows((d.companies || []).slice(0, 5));
+        } catch { renderTop5Rows([]); }
+      } else if (mode === 'video') {
+        renderTop5Rows(_top5AllData.filter(c => VIDEOS[c.ticker]).slice(0, 5));
+      }
+    }
+
     // ── 랜딩 데이터 로드 ──
     function loadLandingData(){
       function gradeBadge(g){
@@ -1693,23 +1749,9 @@
           if(!list.length)return;
           const top=list[0];
 
-          // top5 바로 렌더 (스켈레톤 교체)
-          const rest=list.slice(1);
-          document.getElementById('top5List').innerHTML=rest.map((c,i)=>{
-            const vid = VIDEOS[c.ticker];
-            const ytTag = vid ? `<a href="${vid.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-              style="display:inline-flex;align-items:center;gap:2px;margin-left:5px;background:rgba(255,0,0,.15);border:1px solid rgba(255,0,0,.35);border-radius:5px;padding:1px 5px;font-size:9px;font-weight:700;color:#ff4444;text-decoration:none;vertical-align:middle;"
-              title="${vid.title}">
-              <svg width="10" height="7" viewBox="0 0 11 8" style="flex-shrink:0"><rect width="11" height="8" rx="1.5" fill="#ff0000"/><path d="M4.5 2L8 4L4.5 6V2Z" fill="white"/></svg>영상</a>` : '';
-            return `<div class="top5-row" onclick="doLandingSearchTicker('${c.ticker}')">
-              <div class="top5-rank">${i+2}</div>
-              <div class="top5-info">
-                <div class="top5-name">${c.name}${ytTag}</div>
-                <div class="top5-sub">${c.ticker} · ${c.sector||'기타'}</div>
-              </div>
-              <div class="top5-score">${(c.total_score||0).toFixed(1)}</div>
-            </div>`;
-          }).join('');
+          // 전체 데이터 저장 후 TENBAGGER 기본 렌더
+          _top5AllData = list.slice(1);
+          renderTop5Rows(_top5AllData.filter(c=>c.grade==='TENBAGGER').slice(0,5));
 
           // 피처드 종목 분석 영상 (있으면)
           const featVideo = VIDEOS[top.ticker];
