@@ -1107,28 +1107,44 @@
 
     <!-- DCA 복리 성장 차트 -->
     <div style="margin-top:40px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div class="section-title">📈 DCA 복리 성장 시뮬레이터</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:4px;">월 정기 투자 + 연 수익률(배당+주가상승)로 자산이 얼마나 불어나는지 확인합니다</div>
-        </div>
+      <div style="margin-bottom:16px;">
+        <div class="section-title">📈 DCA 복리 성장 시뮬레이터</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">월 정기 투자 + 연 수익률로 자산이 얼마나 불어나는지 시뮬레이션합니다</div>
       </div>
+
+      <!-- 종목 CAGR 자동 입력 -->
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:16px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:12px 14px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:160px;">
+          <label style="font-size:11px;color:#93c5fd;display:block;margin-bottom:5px;">종목코드로 연수익률 자동 입력</label>
+          <input id="dcaTicker" placeholder="예: 000660 (SK하이닉스)"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"
+            onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"
+            onkeydown="if(event.key==='Enter')loadDcaFromTicker()" />
+        </div>
+        <button onclick="loadDcaFromTicker()"
+          style="background:linear-gradient(135deg,#1d4ed8,#6d28d9);border:none;border-radius:8px;padding:9px 18px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">
+          자동 입력
+        </button>
+        <div id="dcaTickerInfo" style="width:100%;font-size:12px;color:#93c5fd;display:none;padding-top:4px;"></div>
+      </div>
+
+      <!-- 입력값 -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:20px;">
-        <div style="flex:1;min-width:120px;">
+        <div style="flex:1;min-width:110px;">
           <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">월 투자금 (만원)</label>
           <input id="dcaMonthly" type="number" value="50" min="1"
             style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"
             onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"
             oninput="renderDcaChart()" />
         </div>
-        <div style="flex:1;min-width:120px;">
+        <div style="flex:1;min-width:110px;">
           <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">투자 기간 (년)</label>
           <input id="dcaYears" type="number" value="10" min="1" max="40"
             style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"
             onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"
             oninput="renderDcaChart()" />
         </div>
-        <div style="flex:1;min-width:120px;">
+        <div style="flex:1;min-width:110px;">
           <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">연 수익률 (%)</label>
           <input id="dcaCagr" type="number" value="8" min="0" max="50" step="0.5"
             style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;outline:none;"
@@ -1136,9 +1152,17 @@
             oninput="renderDcaChart()" />
         </div>
       </div>
+
+      <!-- 차트 + 마일스톤 -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;">
-        <canvas id="dcaGrowthChart" style="max-height:280px;"></canvas>
-        <div id="dcaSummary" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;justify-content:center;"></div>
+        <div id="dcaChartTitle" style="font-size:12px;color:var(--muted);margin-bottom:12px;text-align:center;"></div>
+        <div style="display:flex;gap:16px;align-items:flex-start;">
+          <div style="flex:1;min-width:0;">
+            <canvas id="dcaGrowthChart" style="max-height:260px;"></canvas>
+          </div>
+          <div id="dcaMilestones" style="min-width:110px;display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+        <div id="dcaSummary" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px;justify-content:center;"></div>
       </div>
     </div>
   </div>
@@ -5396,6 +5420,45 @@
 <script>
   // ── DCA 복리 성장 차트 ──────────────────────────────────────────────
   let _dcaChart = null;
+  let _dcaTickerName = '';
+
+  function fmtWan(v) {
+    if (v >= 10000) return (v / 10000).toFixed(1) + '억';
+    return v.toLocaleString() + '만';
+  }
+
+  async function loadDcaFromTicker() {
+    const raw = (document.getElementById('dcaTicker').value || '').trim();
+    if (!raw) return;
+    const ticker = raw.replace(/\D/g, '').padStart(6, '0');
+    const infoEl = document.getElementById('dcaTickerInfo');
+    infoEl.style.display = 'block';
+    infoEl.textContent = '조회 중...';
+    try {
+      const r = await fetch(`${API}/api/company/${encodeURIComponent(ticker)}`);
+      if (!r.ok) throw new Error('조회 실패');
+      const d = await r.json();
+      const name = d.company?.name || d.name || ticker;
+      const cagr = d.financials?.revenue_cagr_5y ?? d.revenue_cagr_5y ?? null;
+      const roe  = d.financials?.avg_roe_5y    ?? d.avg_roe_5y    ?? null;
+      // 추정 수익률: 매출 CAGR과 ROE 평균의 보수적 추정 (할인 적용)
+      let estimated = null;
+      if (cagr != null && roe != null) estimated = Math.round((cagr * 0.5 + roe * 0.3) * 10) / 10;
+      else if (cagr != null) estimated = Math.round(cagr * 0.6 * 10) / 10;
+      else if (roe  != null) estimated = Math.round(roe  * 0.5 * 10) / 10;
+
+      _dcaTickerName = name;
+      if (estimated != null) {
+        document.getElementById('dcaCagr').value = Math.min(Math.max(estimated, 0), 40);
+        infoEl.textContent = `${name} · 매출CAGR ${cagr!=null?cagr.toFixed(1)+'%':'N/A'}, ROE ${roe!=null?roe.toFixed(1)+'%':'N/A'} → 추정 수익률 ${estimated}%`;
+      } else {
+        infoEl.textContent = `${name} · 재무 데이터 부족 — 수익률을 직접 입력해주세요`;
+      }
+      renderDcaChart();
+    } catch (e) {
+      infoEl.textContent = '조회 실패: 종목코드를 확인해주세요';
+    }
+  }
 
   function renderDcaChart() {
     const monthlyAmt = parseFloat(document.getElementById('dcaMonthly').value) || 50;
@@ -5410,62 +5473,126 @@
     for (let y = 1; y <= years; y++) {
       total = total * (1 + cagr / 100) + monthlyAmt * 12;
       labels.push(y + '년');
-      totalData.push(Math.round(total / 10000)); // 만원 단위
+      totalData.push(Math.round(total / 10000));
       investedData.push(Math.round((monthlyAmt * 12 * y) / 10000));
     }
 
-    const finalTotal = totalData[totalData.length - 1];
+    const finalTotal    = totalData[totalData.length - 1];
     const finalInvested = investedData[investedData.length - 1];
-    const profit = finalTotal - finalInvested;
+    const returnRate    = finalInvested > 0 ? ((finalTotal - finalInvested) / finalInvested * 100).toFixed(0) : 0;
+
+    // 차트 제목
+    const titleEl = document.getElementById('dcaChartTitle');
+    if (titleEl) {
+      const subj = _dcaTickerName ? `${_dcaTickerName} ` : '';
+      titleEl.textContent = `${subj}매월 ${monthlyAmt.toLocaleString()}만원 · ${years}년 · 연 ${cagr}% 복리 시뮬레이션`;
+    }
+
+    // 마일스톤 패널
+    const milestones = [];
+    [Math.round(years * 0.25), Math.round(years * 0.5), Math.round(years * 0.75), years].forEach(y => {
+      if (y > 0 && y <= years) {
+        const idx = y - 1;
+        const growth = finalInvested > 0 ? ((totalData[idx] - investedData[idx]) / investedData[idx] * 100).toFixed(0) : 0;
+        milestones.push({ label: `${y}년`, val: fmtWan(totalData[idx]), growth });
+      }
+    });
+    // Remove duplicates by label
+    const seen = new Set();
+    const uniqueMs = milestones.filter(m => { if (seen.has(m.label)) return false; seen.add(m.label); return true; });
+
+    const msEl = document.getElementById('dcaMilestones');
+    if (msEl) {
+      msEl.innerHTML = uniqueMs.map((m, i) => {
+        const isLast = i === uniqueMs.length - 1;
+        const bg = isLast ? 'rgba(16,185,129,.15)' : 'var(--surface2)';
+        const border = isLast ? '1px solid rgba(16,185,129,.4)' : '1px solid var(--border)';
+        const valColor = isLast ? '#10b981' : '#f9fafb';
+        return `<div style="background:${bg};border:${border};border-radius:10px;padding:10px 12px;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">${m.label}</div>
+          <div style="font-size:15px;font-weight:800;color:${valColor};">${m.val}</div>
+          <div style="font-size:10px;color:#10b981;margin-top:2px;">+${m.growth}%</div>
+        </div>`;
+      }).join('');
+    }
 
     // 요약 카드
     const summaryEl = document.getElementById('dcaSummary');
     summaryEl.innerHTML = [
-      { label: '총 투자원금', val: finalInvested.toLocaleString() + '만원', color: '#9ca3af' },
-      { label: '최종 자산', val: finalTotal.toLocaleString() + '만원', color: '#34d399' },
-      { label: '수익 (복리 효과)', val: '+' + profit.toLocaleString() + '만원', color: '#60a5fa' },
+      { label: '총 투자원금', val: fmtWan(finalInvested), color: '#9ca3af' },
+      { label: '최종 자산', val: fmtWan(finalTotal), color: '#34d399' },
+      { label: '수익률', val: '+' + returnRate + '%', color: '#60a5fa' },
+      { label: 'CAGR', val: cagr + '%', color: '#a78bfa' },
     ].map(item => `
-      <div style="text-align:center;padding:8px 16px;background:var(--surface2);border-radius:10px;flex:1;min-width:120px;">
+      <div style="text-align:center;padding:8px 14px;background:var(--surface2);border-radius:10px;flex:1;min-width:90px;">
         <div style="font-size:10px;color:${item.color};font-weight:600;margin-bottom:4px;">${item.label}</div>
-        <div style="font-size:16px;font-weight:800;color:var(--text);">${item.val}</div>
+        <div style="font-size:15px;font-weight:800;color:var(--text);">${item.val}</div>
       </div>`).join('');
+
+    // 바 색상: 연도가 올라갈수록 점점 진한 녹색
+    const barColors = totalData.map((_, i) => {
+      const ratio = i / (totalData.length - 1 || 1);
+      const alpha = 0.4 + ratio * 0.55;
+      return `rgba(16,185,129,${alpha.toFixed(2)})`;
+    });
+
+    // 인라인 값 레이블 플러그인
+    const topLabelsPlugin = {
+      id: 'topLabels',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+        meta.data.forEach((bar, i) => {
+          if (i % Math.max(1, Math.floor(years / 8)) !== 0 && i !== years - 1) return;
+          const label = fmtWan(totalData[i]);
+          ctx.save();
+          ctx.fillStyle = '#d1d5db';
+          ctx.font = 'bold 8.5px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(label, bar.x, bar.y - 4);
+          ctx.restore();
+        });
+      },
+    };
 
     const ctx = document.getElementById('dcaGrowthChart').getContext('2d');
     if (_dcaChart) _dcaChart.destroy();
     _dcaChart = new Chart(ctx, {
       type: 'bar',
+      plugins: [topLabelsPlugin],
       data: {
         labels,
         datasets: [
           {
             label: '투자 원금 (만원)',
             data: investedData,
-            backgroundColor: 'rgba(107,114,128,0.5)',
-            borderRadius: 4,
+            backgroundColor: 'rgba(107,114,128,0.45)',
+            borderRadius: 3,
           },
           {
             label: '복리 수익 (만원)',
             data: totalData.map((v, i) => v - investedData[i]),
-            backgroundColor: 'rgba(52,211,153,0.75)',
-            borderRadius: 4,
+            backgroundColor: barColors,
+            borderRadius: 3,
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
+        layout: { padding: { top: 18 } },
         plugins: {
-          legend: { labels: { color: '#9ca3af', font: { size: 11 } } },
+          legend: { labels: { color: '#9ca3af', font: { size: 10 } } },
           tooltip: {
             callbacks: {
-              label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString() + '만원',
-              footer: items => '합계: ' + totalData[items[0].dataIndex].toLocaleString() + '만원',
+              label: c => c.dataset.label + ': ' + fmtWan(c.parsed.y),
+              footer: items => '합계: ' + fmtWan(totalData[items[0].dataIndex]),
             },
           },
         },
         scales: {
-          x: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(55,65,81,0.5)' } },
-          y: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 }, callback: v => v.toLocaleString() + '만' }, grid: { color: 'rgba(55,65,81,0.5)' } },
+          x: { stacked: true, ticks: { color: '#6b7280', font: { size: 9 }, maxRotation: 0 }, grid: { color: 'rgba(55,65,81,0.4)' } },
+          y: { stacked: true, ticks: { color: '#6b7280', font: { size: 9 }, callback: v => fmtWan(v) }, grid: { color: 'rgba(55,65,81,0.4)' } },
         },
       },
     });
