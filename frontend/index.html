@@ -10,6 +10,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="텐배거">
   <link rel="apple-touch-icon" href="/icon.svg">
+  <meta property="og:title" content="시장은 삼전·하이닉스만 봅니다. 나머지가 기회입니다" />
+  <meta property="og:description" content="DART 법정공시 재무데이터로 저평가 성장주를 직접 발굴하세요. ROE·FCF·CAGR 정량 스코어링." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary" />
   <!-- GA4: 아래 G-XXXXXXXXXX를 실제 GA4 측정 ID로 교체하세요 -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
   <script>
@@ -193,6 +197,9 @@
       .sim-scenarios{grid-template-columns:1fr;}
       .nav-links{display:none;}
       body{padding-bottom:64px;}
+      .landing-hero{padding:18px 0 10px;}
+      .landing-hero h1{font-size:24px;}
+      .landing-hero p{display:none;}
     }
     @keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
     .mobile-tab-bar{display:none;}
@@ -425,10 +432,8 @@
       <h1>시장은 삼전·하이닉스만 봅니다.<br><span>나머지가 기회입니다</span></h1>
       <p>DART 법정공시 재무데이터로 시장이 놓친 저평가 성장주를 직접 발굴하세요</p>
     </div>
-    <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;flex-direction:column;gap:5px;">
-      <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.05em;">📐 스코어링 방법론</div>
-      <div style="font-size:12px;color:var(--text);line-height:1.6;">ROE 5년 평균 · FCF 마진 · 매출 CAGR을 정량 스코어링 — 10점 만점으로 등급 산정</div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.6;">DART 법정공시 원본 재무제표만 사용 · 예측치 미반영 · 룩어헤드 없음</div>
+    <div id="trustBadge" style="display:none;text-align:center;margin-bottom:14px;">
+      <span id="trustBadgeText" style="display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:20px;padding:5px 14px;font-size:12px;color:#6ee7b7;font-weight:600;"></span>
     </div>
 
     <!-- 현재 최고점수 텐배거 후보 (실시간) -->
@@ -454,6 +459,13 @@
         </div>
         <div class="feat-why"><span class="sk" style="height:12px;display:block;"></span><span class="sk" style="height:12px;display:block;"></span></div>
       </div>
+    </div>
+
+    <!-- 스코어링 방법론 (피처드 카드 이후 노출) -->
+    <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;flex-direction:column;gap:5px;">
+      <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.05em;">📐 스코어링 방법론</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.6;">ROE 5년 평균 · FCF 마진 · 매출 CAGR을 정량 스코어링 — 10점 만점으로 등급 산정</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;">DART 법정공시 원본 재무제표만 사용 · 예측치 미반영 · 룩어헤드 없음</div>
     </div>
 
     <!-- 피처드 종목 분석 영상 (실시간 주입) -->
@@ -1778,6 +1790,21 @@
       }
       function fmtP(v){return v!=null?(v>0?'+':'')+v.toFixed(1)+'%':'-';}
 
+      fetch(API+'/api/screener/summary')
+        .then(r=>r.ok?r.json():null)
+        .then(sum=>{
+          if(!sum) return;
+          const tg=(sum.grades||[]).find(g=>g.grade==='TENBAGGER');
+          const cnt=tg?.count??0;
+          const total=sum.total_analyzed??0;
+          const badge=document.getElementById('trustBadge');
+          const badgeText=document.getElementById('trustBadgeText');
+          if(badge&&badgeText&&cnt>0){
+            badgeText.textContent=`📊 KOSPI·KOSDAQ ${total?total.toLocaleString()+'종목':'전종목'} 분석 · 현재 TENBAGGER 등급 ${cnt}종목`;
+            badge.style.display='';
+          }
+        }).catch(()=>{});
+
       fetch(API+'/api/screener?grade=TENBAGGER&limit=6')
         .then(r=>r.ok?r.json():null)
         .then(data=>{
@@ -1902,8 +1929,8 @@
                     </div>
                     <div style="font-size:11px;color:${valTag.color};line-height:1.5;">${valTag.reason}</div>
                   </div>` : ''}
-                  <div style="margin-top:14px;display:flex;justify-content:flex-end;">
-                    <span style="font-size:13px;color:#60a5fa;font-weight:600;">전체 분석 보기 →</span>
+                  <div style="margin-top:14px;">
+                    <span style="display:inline-block;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:13px;font-weight:700;padding:8px 20px;border-radius:10px;">전체 재무 분석 보기 →</span>
                   </div>
                 </div>`;
             });
