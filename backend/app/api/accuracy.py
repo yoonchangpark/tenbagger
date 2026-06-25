@@ -110,10 +110,11 @@ _backfill_progress: dict = {"status": "idle", "total": 0, "done": 0, "stored": 0
 
 
 @router.get("/backfill")
-def get_backfill():
-    """백필 집계 + 진행 상황 조회."""
+def get_backfill(hold_years: int = Query(None, ge=1, le=10,
+                 description="보유기간 필터 (없으면 전체 혼합 집계)")):
+    """백필 집계 + 진행 상황 조회. hold_years 지정 시 해당 보유기간만 집계."""
     from app.domain.backfill import get_backfill_summary
-    result = get_backfill_summary()
+    result = get_backfill_summary(hold_years=hold_years)
     result["progress"] = _backfill_progress
     return result
 
@@ -121,8 +122,8 @@ def get_backfill():
 @router.post("/backfill")
 async def run_backfill_endpoint(
     background_tasks: BackgroundTasks,
-    base_years: str = Query("2018,2019,2020", description="쉼표구분 연도 (예: 2018,2019,2020)"),
-    hold_years: int = Query(2, ge=1, le=6),
+    base_years: str = Query("2016", description="쉼표구분 연도 (기본 2016 → 하단 사례와 동일 창)"),
+    hold_years: int = Query(10, ge=1, le=10),
     limit: int = Query(200, ge=1, le=1000, description="상위 N종목 (점수순)"),
 ):
     """백필 실행 — (종목 × 연도) 점-인-타임 등급·수익률을 재구성해 저장. 백그라운드."""

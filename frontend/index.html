@@ -486,7 +486,7 @@
     <div class="landing-section-title">📋 예측 정확도</div>
     <div class="tr-banner" id="trBanner">
       <div style="font-size:13px;font-weight:600;margin-bottom:4px;">텐배거 등급 종목의 실제 수익률 추적</div>
-      <div style="font-size:11px;color:var(--muted);">과거 예측 종목이 실제로 얼마나 올랐는지 검증합니다</div>
+      <div style="font-size:11px;color:var(--muted);">시장 전수 종목을 10년 보유 기준으로 검증한 결과입니다 (아래 대표 사례와 별개의 전수 통계)</div>
       <div class="tr-stats" id="trStats">
         <div class="tr-stat"><span class="sk" style="height:22px;margin-bottom:5px;"></span><span class="sk" style="height:12px;width:70%;margin:0 auto;"></span></div>
         <div class="tr-stat"><span class="sk" style="height:22px;margin-bottom:5px;"></span><span class="sk" style="height:12px;width:70%;margin:0 auto;"></span></div>
@@ -1877,15 +1877,19 @@
             });
         }).catch(()=>{});
 
-      // 트랙레코드 통계
-      fetch(API+'/api/v2/accuracy/backfill')
-        .then(r=>r.ok?r.json():Promise.reject())
-        .catch(()=>fetch(API+'/api/v2/accuracy/results').then(r=>r.ok?r.json():null))
+      // 트랙레코드 통계 — 하단 10년 사례와 시간축을 맞추기 위해 10년 보유 백필만 집계
+      fetch(API+'/api/v2/accuracy/backfill?hold_years=10')
+        .then(r=>r.ok?r.json():null).catch(()=>null)
         .then(data=>{
-          if(!data)return;
-          const tb=(data.summary||{}).TENBAGGER;
-          if(!tb)return;
-          document.getElementById('trStats').innerHTML=`
+          const stats=document.getElementById('trStats');
+          if(!stats)return;
+          const tb=(data&&data.summary||{}).TENBAGGER;
+          if(!tb||!tb.count_priced){
+            // 10년 백필이 아직 없으면 2년 수치로 오인되지 않도록 정직하게 안내
+            stats.innerHTML=`<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--muted);padding:6px 0;">10년 전수 검증 집계 준비 중입니다.</div>`;
+            return;
+          }
+          stats.innerHTML=`
             <div class="tr-stat">
               <div class="ts-val">${tb.median_pct!=null?(tb.median_pct>0?'+':'')+tb.median_pct.toFixed(0)+'%':'-'}</div>
               <div class="ts-lbl">TENBAGGER 중간 수익률</div>
@@ -1896,7 +1900,7 @@
             </div>
             <div class="tr-stat">
               <div class="ts-val">${tb.count_priced||'-'}</div>
-              <div class="ts-lbl">검증 표본</div>
+              <div class="ts-lbl">10년 검증 표본</div>
             </div>`;
         }).catch(()=>{});
 

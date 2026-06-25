@@ -307,7 +307,7 @@ async function loadAccuracy() {
 
   // ② 실시간 추적이 비어 있으면 백필 v1(점-인-타임 재구성)으로 보완
   try {
-    const res = await fetch(`${API}/api/v2/accuracy/backfill`);
+    const res = await fetch(`${API}/api/v2/accuracy/backfill?hold_years=10`);
     if (res.ok) {
       const data = await res.json();
       const summary = data.summary || {};
