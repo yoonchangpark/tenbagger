@@ -80,6 +80,7 @@ async def get_track_record():
     from app.domain.backtest import run_backtest
 
     async def _safe_run(item: dict) -> dict:
+        static = item.get("_static", {})
         try:
             bt = await run_backtest(
                 ticker=item["ticker"],
@@ -89,7 +90,10 @@ async def get_track_record():
             if "error" in bt:
                 raise ValueError(bt["error"])
             score = bt.get("score_at_base_year") or {}
-            static = item.get("_static", {})
+            # 수익률: pykrx 조회 성공 시 실시간, None이면 static fallback
+            actual_return = bt.get("actual_return_pct")
+            if actual_return is None:
+                actual_return = static.get("actual_return_pct")
             return {
                 "name": item["name"],
                 "ticker": item["ticker"],
@@ -97,18 +101,19 @@ async def get_track_record():
                 "end_year": bt.get("end_year"),
                 "hold_years": item["hold_years"],
                 "note": item.get("note", ""),
-                "predicted_grade": score.get("grade") or static.get("predicted_grade"),
-                "total_score": score.get("total_score") or static.get("total_score"),
+                # 큐레이션 메타(등급·점수·예측결과)는 _static 우선 — DART 재계산값은 보조
+                "predicted_grade": static.get("predicted_grade") or score.get("grade"),
+                "total_score": static.get("total_score") or score.get("total_score"),
                 "growth_score": score.get("growth_score"),
                 "price_at_base_year": bt.get("price_at_base_year"),
                 "price_at_end_year": bt.get("price_at_end_year"),
-                "actual_return_pct": bt.get("actual_return_pct"),
-                "is_tenbagger_actual": bt.get("is_tenbagger_actual"),
-                "prediction_correct": bt.get("prediction_correct"),
+                "actual_return_pct": actual_return,
+                "is_tenbagger_actual": (actual_return or 0) >= 900,
+                "prediction_correct": static.get("prediction_correct"),
                 "status": "ok",
             }
         except Exception:
-            # pykrx 실패 시 정적 사전 계산 값으로 폴백
+            # pykrx/DART 완전 실패 시 정적 사전 계산 값으로 폴백
             if "_static" in item:
                 return _build_from_static(item)
             return {**item, "status": "error", "error": "조회 실패"}
