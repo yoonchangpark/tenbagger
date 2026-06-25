@@ -425,6 +425,11 @@
       <h1>시장은 삼전·하이닉스만 봅니다.<br><span>나머지가 기회입니다</span></h1>
       <p>DART 법정공시 재무데이터로 시장이 놓친 저평가 성장주를 직접 발굴하세요</p>
     </div>
+    <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;flex-direction:column;gap:5px;">
+      <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.05em;">📐 스코어링 방법론</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.6;">ROE 5년 평균 · FCF 마진 · 매출 CAGR을 정량 스코어링 — 10점 만점으로 등급 산정</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;">DART 법정공시 원본 재무제표만 사용 · 예측치 미반영 · 룩어헤드 없음</div>
+    </div>
 
     <!-- 현재 최고점수 텐배거 후보 (실시간) -->
     <div class="landing-section-title">🏆 현재 최고점수 텐배거 후보</div>
@@ -534,27 +539,7 @@
       <div class="teaser-disc">과거 실데이터 기반 시뮬레이션이며 특정 종목 매수를 권유하지 않습니다. 실제 미래 수익률을 보장하지 않습니다.</div>
     </div>
 
-    <!-- 배당 계산기 (목표 역산 유틸리티) -->
-    <div class="landing-section-title" style="margin-top:8px;">💰 배당 계산기</div>
-    <div style="font-size:11px;color:var(--muted);margin:-4px 0 10px;">원하는 월 배당금을 받으려면 자본이 얼마나 필요한지 거꾸로 계산합니다</div>
-    <div class="div-calc">
-      <h3>월 배당금 목표 시뮬레이션</h3>
-      <div class="div-input-row">
-        <div>
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">월 목표 배당금 (만원)</label>
-          <input type="number" class="div-input" id="divTarget" value="100" min="1" oninput="calcDiv()" />
-        </div>
-        <div>
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">평균 배당수익률 (%)</label>
-          <input type="number" class="div-input" id="divYield" value="3" step="0.1" min="0.1" oninput="calcDiv()" />
-        </div>
-      </div>
-      <div class="div-result">
-        <div class="dr-val" id="divResult">4억</div>
-        <div class="dr-lbl">월 <span id="divTargetLabel">100</span>만원 배당받으려면 필요한 투자금</div>
-      </div>
-      <a href="dashboard.html#dividend" style="display:block;margin-top:12px;text-align:center;font-size:12px;color:var(--muted);text-decoration:none;">목표 배당 시뮬레이터 열기 →</a>
-    </div>
+    <!-- 배당 계산기: 홈에서 제거 (dashboard.html#dividend 에서 제공) -->
   </div>
   <div class="loading" id="loading">
     <div class="spinner"></div>
@@ -1821,7 +1806,7 @@
             latestSec.innerHTML = latestVids.map(v=>renderVideoCard(v,false)).join('');
           }
 
-          // 피처드 카드: company API로 FCF+부채비율 추가 조회
+          // 피처드 카드: company API로 FCF+부채비율+PER/PBR 추가 조회
           fetch(API+'/api/company/'+encodeURIComponent(top.ticker))
             .then(r=>r.ok?r.json():null)
             .catch(()=>null)
@@ -1833,9 +1818,28 @@
               const debt = sc.debt_ratio ?? null;
               const close = detail?.close ?? null;
               const scoreVal = (sc.total_score ?? top.total_score ?? 0).toFixed(1);
+              const per = detail?.per ?? null;
+              const pbr = detail?.pbr ?? null;
 
               const fcfColor = fcf == null ? '#9ca3af' : fcf > 15 ? '#10b981' : fcf > 5 ? '#fbbf24' : '#ef4444';
               const debtColor = debt == null ? '#9ca3af' : debt < 100 ? '#10b981' : debt < 200 ? '#fbbf24' : '#ef4444';
+
+              // PER/PBR 저평가 종합 판정 (근거 포함)
+              let valTag = null;
+              if(per != null && pbr != null && per > 0) {
+                if(per < 12 && pbr < 2)
+                  valTag = {label:'저평가', color:'#10b981', bg:'rgba(16,185,129,.12)',
+                    reason:`PER ${per.toFixed(1)}x · PBR ${pbr.toFixed(2)}x — 이익·순자산 대비 낮은 시장 평가`};
+                else if(per < 20 && pbr < 3)
+                  valTag = {label:'적정 평가', color:'#fbbf24', bg:'rgba(251,191,36,.1)',
+                    reason:`PER ${per.toFixed(1)}x · PBR ${pbr.toFixed(2)}x — 현재 가격 합리적 수준`};
+                else
+                  valTag = {label:'고평가 주의', color:'#ef4444', bg:'rgba(239,68,68,.1)',
+                    reason:`PER ${per.toFixed(1)}x · PBR ${pbr.toFixed(2)}x — 성장 기대치 이미 반영`};
+              } else if(per != null && per <= 0) {
+                valTag = {label:'현재 적자', color:'#ef4444', bg:'rgba(239,68,68,.1)',
+                  reason:`PER N/A (영업 적자) · PBR ${pbr!=null?pbr.toFixed(2)+'x':'—'}`};
+              }
 
               const bullets = [];
               if(cagr != null && cagr > 10) bullets.push(`매출 CAGR ${cagr.toFixed(1)}% — 꾸준한 사업 확장`);
@@ -1891,6 +1895,13 @@
                     </div>
                   </div>
                   ${why3.length ? `<div class="feat-why">${why3.map(b=>`<div class="feat-why-item">✅ ${b}</div>`).join('')}</div>` : ''}
+                  ${valTag ? `<div style="margin-top:10px;padding:9px 13px;border-radius:10px;background:${valTag.bg};border:1px solid ${valTag.color}40;">
+                    <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">
+                      <span style="font-size:11px;font-weight:800;color:${valTag.color};background:${valTag.bg};border:1px solid ${valTag.color};border-radius:5px;padding:1px 8px;">${valTag.label}</span>
+                      <span style="font-size:11px;color:var(--muted);">현재가 기준 밸류에이션</span>
+                    </div>
+                    <div style="font-size:11px;color:${valTag.color};line-height:1.5;">${valTag.reason}</div>
+                  </div>` : ''}
                   <div style="margin-top:14px;display:flex;justify-content:flex-end;">
                     <span style="font-size:13px;color:#60a5fa;font-weight:600;">전체 분석 보기 →</span>
                   </div>
