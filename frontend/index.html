@@ -277,6 +277,16 @@
     .div-result{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:12px;padding:16px;text-align:center;}
     .div-result .dr-val{font-size:28px;font-weight:800;color:#10b981;}
     .div-result .dr-lbl{font-size:12px;color:var(--muted);margin-top:4px;}
+    /* DCA 시뮬레이션 티저 */
+    .teaser-card{background:linear-gradient(160deg,#0f1f1a,#111827);border:1px solid #1f3d33;border-radius:16px;padding:20px;margin-bottom:24px;}
+    .teaser-headline{font-size:17px;font-weight:800;line-height:1.4;margin-bottom:6px;}
+    .teaser-sub{font-size:11px;color:var(--muted);margin-bottom:16px;}
+    .teaser-figure{text-align:center;margin-bottom:6px;}
+    .teaser-figure-label{font-size:11px;color:var(--muted);margin-bottom:4px;}
+    .teaser-value{font-size:34px;font-weight:900;color:#10b981;line-height:1.1;}
+    .teaser-meta{font-size:12px;color:var(--muted);margin-top:6px;}
+    .teaser-cta{display:block;margin-top:14px;text-align:center;font-size:13px;color:#34d399;text-decoration:none;font-weight:700;}
+    .teaser-disc{font-size:10px;color:#4b5563;line-height:1.6;margin-top:14px;text-align:center;}
     /* 스켈레톤 */
     .sk{background:linear-gradient(90deg,var(--surface2) 25%,var(--border) 50%,var(--surface2) 75%);background-size:200% 100%;animation:skshimmer 1.5s infinite;border-radius:8px;display:block;}
     @keyframes skshimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
@@ -503,6 +513,23 @@
         <div class="dr-lbl">월 <span id="divTargetLabel">100</span>만원 배당받으려면 필요한 투자금</div>
       </div>
       <a href="dashboard.html#dividend" style="display:block;margin-top:12px;text-align:center;font-size:12px;color:var(--muted);text-decoration:none;">상세 배당 시뮬레이터 보기 →</a>
+    </div>
+
+    <!-- 종목별 DCA 시뮬레이션 티저 -->
+    <div class="landing-section-title" style="margin-top:8px;">🔥 실제로 투자했다면</div>
+    <div class="teaser-card">
+      <div class="teaser-headline" id="teaserHeadline">불러오는 중…</div>
+      <div class="teaser-sub" id="teaserSub"></div>
+      <div class="teaser-figure">
+        <div class="teaser-figure-label">지금 평가자산</div>
+        <div class="teaser-value" id="teaserValue">—</div>
+        <div class="teaser-meta" id="teaserMeta"></div>
+      </div>
+      <div style="position:relative;height:180px;margin-top:8px;">
+        <canvas id="teaserChart"></canvas>
+      </div>
+      <a href="dashboard.html#dividend" class="teaser-cta">대시보드에서 자세히 보기 →</a>
+      <div class="teaser-disc">과거 실데이터 기반 시뮬레이션이며 특정 종목 매수를 권유하지 않습니다. 실제 미래 수익률을 보장하지 않습니다.</div>
     </div>
   </div>
   <div class="loading" id="loading">
@@ -1871,6 +1898,51 @@
       if(result)result.textContent=needed>=1e8?(needed/1e8).toFixed(1)+'억':(needed/1e4).toFixed(0)+'만';
     }
 
+    // ── DCA 시뮬레이션 티저 ──
+    // ⚠️ mock 데이터: 실제로는 pykrx 종가 + DART 배당으로 배당 재투자 누적을 계산해야 함.
+    let _teaserChart=null;
+    function fmtEok(manwon){
+      return manwon>=10000 ? (manwon/10000).toFixed(1)+'억원' : Math.round(manwon).toLocaleString()+'만원';
+    }
+    function renderDcaTeaser(){
+      // TODO: "오늘의 텐배거 후보"와 연동 — 현재는 두산에너빌리티 고정
+      const T={name:'두산에너빌리티',ticker:'034020',monthly:50,months:120,r:0.018,start:'2016.06',end:'2026.06'};
+      const labels=['초기'],valArr=[0],invArr=[0];
+      let v=0;
+      for(let m=1;m<=T.months;m++){
+        v=(v+T.monthly)*(1+T.r);
+        valArr.push(Math.round(v));
+        invArr.push(T.monthly*m);
+        labels.push(m%12===0?(m/12)+'년':'');
+      }
+      const fv=valArr[valArr.length-1],fi=invArr[invArr.length-1];
+      const ret=Math.round((fv-fi)/fi*100);
+      const hl=document.getElementById('teaserHeadline');
+      if(hl)hl.textContent=`${T.name}에 ${T.months/12}년간 매달 ${T.monthly}만원씩 넣었다면?`;
+      const sub=document.getElementById('teaserSub');
+      if(sub)sub.textContent=`${T.ticker} · ${T.start} ~ ${T.end} 실데이터 · 배당 재투자 가정`;
+      const valEl=document.getElementById('teaserValue');if(valEl)valEl.textContent=fmtEok(fv);
+      const metaEl=document.getElementById('teaserMeta');
+      if(metaEl)metaEl.innerHTML=`총 납입 ${fmtEok(fi)} · <span style="color:#10b981;font-weight:800;">+${ret}%</span>`;
+      const cv=document.getElementById('teaserChart');
+      if(!cv||typeof Chart==='undefined')return;
+      if(_teaserChart)_teaserChart.destroy();
+      _teaserChart=new Chart(cv.getContext('2d'),{
+        type:'line',
+        data:{labels,datasets:[
+          {label:'평가자산',data:valArr,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.12)',fill:true,tension:.35,pointRadius:0,borderWidth:2},
+          {label:'납입원금',data:invArr,borderColor:'#6b7280',borderDash:[4,4],fill:false,tension:0,pointRadius:0,borderWidth:1.2},
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtEok(c.parsed.y)}}},
+          scales:{
+            x:{ticks:{color:'#6b7280',font:{size:9},autoSkip:false,maxRotation:0,callback:function(val){return this.getLabelForValue(val)||'';}},grid:{display:false}},
+            y:{ticks:{color:'#6b7280',font:{size:9},callback:v=>fmtEok(v)},grid:{color:'rgba(55,65,81,.3)'}}
+          }
+        }
+      });
+    }
+
     function doLandingSearch(){
       const val=(document.getElementById('landingSearch')?.value||'').trim();
       if(!val)return;
@@ -1887,7 +1959,7 @@
       const params=new URLSearchParams(location.search);
       const t=params.get("q")||params.get("ticker");
       if(t){inp.value=t;analyze();}
-      else{loadLandingData();calcDiv();}
+      else{loadLandingData();calcDiv();renderDcaTeaser();}
     });
   </script>
 
