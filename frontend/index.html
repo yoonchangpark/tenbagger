@@ -257,15 +257,21 @@
     .feat-metric .fm-sub{font-size:9px;color:#6b7280;margin-top:2px;}
     .feat-why{background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;}
     .feat-why-item{font-size:12px;color:#d1fae5;line-height:1.4;}
-    /* 피처드 카드 내 종목 유튜브 자리 */
-    .feat-yt{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:9px 13px;border-radius:12px;background:rgba(255,0,0,.08);border:1px solid rgba(255,0,0,.25);text-decoration:none;transition:border-color .15s;}
-    .feat-yt:hover{border-color:rgba(255,0,0,.55);}
-    .feat-yt .yt-ico{flex-shrink:0;width:30px;height:21px;background:#ff0000;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;}
-    .feat-yt .yt-txt{flex:1;min-width:0;font-size:12px;font-weight:600;color:#fecaca;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .feat-yt .yt-arrow{flex-shrink:0;font-size:11px;color:#fca5a5;}
-    .feat-yt-empty{background:rgba(255,255,255,.03);border:1px dashed var(--border);cursor:default;}
-    .feat-yt-empty .yt-ico{background:#475569;}
-    .feat-yt-empty .yt-txt{color:var(--muted);font-weight:500;}
+    /* 피처드 카드 내 종목 유튜브 썸네일 카드 */
+    .feat-yt-card{display:block;margin-bottom:14px;border-radius:14px;overflow:hidden;background:rgba(17,24,39,.8);border:1px solid rgba(255,0,0,.2);text-decoration:none;transition:border-color .15s,box-shadow .15s;}
+    .feat-yt-card:hover{border-color:rgba(255,0,0,.55);box-shadow:0 4px 20px rgba(255,0,0,.12);}
+    .feat-yt-card-label{font-size:11px;font-weight:700;color:#fca5a5;padding:9px 12px 7px;letter-spacing:.02em;}
+    .feat-yt-thumb-area{position:relative;width:100%;padding-top:56.25%;background:linear-gradient(135deg,#0d2818 0%,#0a1a14 40%,#111820 100%);}
+    .feat-yt-thumb-area img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.85;}
+    .feat-yt-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52px;height:52px;background:rgba(255,255,255,.93);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.4);}
+    .feat-yt-play::after{content:'';border-left:20px solid #ff0000;border-top:12px solid transparent;border-bottom:12px solid transparent;margin-left:5px;}
+    .feat-yt-info{padding:10px 12px 12px;}
+    .feat-yt-title{font-size:13px;font-weight:700;color:#f9fafb;line-height:1.4;margin-bottom:4px;}
+    .feat-yt-meta{font-size:11px;color:var(--muted);}
+    .feat-yt-card.feat-yt-empty{border-style:dashed;border-color:var(--border);cursor:default;}
+    .feat-yt-card.feat-yt-empty:hover{border-color:var(--border);box-shadow:none;}
+    .feat-yt-card.feat-yt-empty .feat-yt-card-label{color:var(--muted);}
+    .feat-yt-card.feat-yt-empty .feat-yt-title{color:var(--muted);}
     /* Top5 리스트 */
     .top5-row{display:flex;align-items:center;padding:13px 0;border-bottom:1px solid var(--border);gap:12px;cursor:pointer;transition:background .1s;}
     .top5-row:last-child{border-bottom:none;}
@@ -1705,10 +1711,10 @@
 
     // ── 영상 데이터 (실제 URL로 교체 예정) ──
     const VIDEOS = {
-      "000660": { url: "https://youtube.com/@tenbagger", title: "SK하이닉스, 왜 텐배거 후보인가? 재무 3분 요약", duration: "0:58", shorts: true, grade: "TENBAGGER", ticker: "000660", name: "SK하이닉스" },
-      "009420": { url: "https://youtube.com/@tenbagger", title: "알팍스, 무명 중소기업이 텐배거가 될 수 있는 이유", duration: "1:02", shorts: true, grade: "TENBAGGER", ticker: "009420", name: "알팍스" },
-      "005930": { url: "https://youtube.com/@tenbagger", title: "삼성전자, 지금 사도 될까? 재무 심층 분석", duration: "2:15", shorts: false, grade: "COMPOUNDER", ticker: "005930", name: "삼성전자" },
-      "001440": { url: "https://youtube.com/@tenbagger", title: "대한전선, 전력인프라 수혜주 분석", duration: "0:58", shorts: true, grade: "TENBAGGER", ticker: "001440", name: "대한전선" },
+      "000660": { url: "https://youtube.com/@tenbagger", title: "SK하이닉스, 왜 텐배거 후보인가? 재무 3분 요약", duration: "0:58", views: "12.4만", shorts: true, grade: "TENBAGGER", ticker: "000660", name: "SK하이닉스" },
+      "009420": { url: "https://youtube.com/@tenbagger", title: "알팍스, 무명 중소기업이 텐배거가 될 수 있는 이유", duration: "1:02", views: "8.1만", shorts: true, grade: "TENBAGGER", ticker: "009420", name: "알팍스" },
+      "005930": { url: "https://youtube.com/@tenbagger", title: "삼성전자, 지금 사도 될까? 재무 심층 분석", duration: "2:15", views: "21.3만", shorts: false, grade: "COMPOUNDER", ticker: "005930", name: "삼성전자" },
+      "001440": { url: "https://youtube.com/@tenbagger", title: "대한전선, 전력인프라 수혜주 분석", duration: "0:58", views: "6.7만", shorts: true, grade: "TENBAGGER", ticker: "001440", name: "대한전선" },
     };
     const VIDEO_LIST = Object.values(VIDEOS);
 
@@ -1890,14 +1896,25 @@
                     </div>
                   </div>
                   ${(()=>{ const v=VIDEOS[top.ticker]; return v
-                    ? `<a class="feat-yt" href="${v.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
-                         <span class="yt-ico">▶</span>
-                         <span class="yt-txt">${v.title}${v.duration?' · '+v.duration:''}</span>
-                         <span class="yt-arrow">바로보기 ↗</span>
+                    ? `<a class="feat-yt-card" href="${v.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+                         <div class="feat-yt-card-label">🎬 이 종목 분석 영상${v.duration?' ('+v.duration+')':''}</div>
+                         <div class="feat-yt-thumb-area">
+                           ${v.thumbnail?`<img src="${v.thumbnail}" alt="" loading="lazy" />`:''}
+                           <div class="feat-yt-play"></div>
+                         </div>
+                         <div class="feat-yt-info">
+                           <div class="feat-yt-title">${v.title}</div>
+                           <div class="feat-yt-meta">${v.views?'조회 '+v.views:''}${v.views&&v.duration?' · ':''}${v.duration||''}</div>
+                         </div>
                        </a>`
-                    : `<div class="feat-yt feat-yt-empty">
-                         <span class="yt-ico">▶</span>
-                         <span class="yt-txt">${top.name} 분석 영상 준비 중</span>
+                    : `<div class="feat-yt-card feat-yt-empty">
+                         <div class="feat-yt-card-label">🎬 이 종목 분석 영상</div>
+                         <div class="feat-yt-thumb-area">
+                           <div class="feat-yt-play" style="background:rgba(255,255,255,.15);box-shadow:none;"></div>
+                         </div>
+                         <div class="feat-yt-info">
+                           <div class="feat-yt-title">${top.name} 분석 영상 준비 중</div>
+                         </div>
                        </div>`; })()}
                   <div class="feat-metrics">
                     <div class="feat-metric">
