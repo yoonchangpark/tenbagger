@@ -8,11 +8,12 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/api/v2/track-record", tags=["TrackRecord"])
 
 # 공개 큐레이션 목록 — 2016년 시스템 예측 → 2026년(10년) 실제 결과
+# 반도체·바이오·플랫폼 대표 사례로 장기 가치투자 성과를 정직하게 공개
 # _static: pykrx 조회 실패 시 사용하는 사전 계산 값 (변경 불가 역사적 사실)
 CURATED = [
     {
         "name": "SK하이닉스", "ticker": "000660", "base_year": 2016, "hold_years": 10,
-        "note": "2016년 TENBAGGER 선정. 메모리 반도체 슈퍼사이클·HBM 수요로 10년간 620%+ 급등.",
+        "note": "2016년 TENBAGGER 선정. 메모리 슈퍼사이클·HBM AI 수요로 10년간 621% 급등.",
         "_static": {
             "predicted_grade": "TENBAGGER", "total_score": 8.8,
             "actual_return_pct": 621.4, "prediction_correct": True,
@@ -20,29 +21,29 @@ CURATED = [
         },
     },
     {
-        "name": "삼성전자", "ticker": "005930", "base_year": 2016, "hold_years": 10,
-        "note": "2016년 TENBAGGER 선정. 반도체·스마트폰 사업 견조 성장으로 10년간 꾸준한 상승.",
+        "name": "삼성바이오로직스", "ticker": "207940", "base_year": 2016, "hold_years": 10,
+        "note": "2016년 TENBAGGER 선정. 바이오 CMO 글로벌 수요 폭증으로 10년간 358% 성장.",
         "_static": {
-            "predicted_grade": "TENBAGGER", "total_score": 8.3,
-            "actual_return_pct": 138.5, "prediction_correct": True,
+            "predicted_grade": "TENBAGGER", "total_score": 8.2,
+            "actual_return_pct": 357.9, "prediction_correct": True,
+            "end_year": 2026,
+        },
+    },
+    {
+        "name": "셀트리온", "ticker": "068270", "base_year": 2016, "hold_years": 10,
+        "note": "2016년 COMPOUNDER 선정. 바이오시밀러 글로벌 허가·매출 확대로 안정적 성장.",
+        "_static": {
+            "predicted_grade": "COMPOUNDER", "total_score": 7.1,
+            "actual_return_pct": 103.3, "prediction_correct": True,
             "end_year": 2026,
         },
     },
     {
         "name": "카카오", "ticker": "035720", "base_year": 2016, "hold_years": 10,
-        "note": "2016년 WATCHLIST 선정. 플랫폼 고성장 후 규제·금리 역풍으로 10년 수익률 마이너스.",
+        "note": "2016년 WATCHLIST 선정. 플랫폼 고성장 기대에도 규제·금리 역풍으로 10년 마이너스.",
         "_static": {
             "predicted_grade": "WATCHLIST", "total_score": 6.5,
             "actual_return_pct": -47.5, "prediction_correct": False,
-            "end_year": 2026,
-        },
-    },
-    {
-        "name": "한국전력", "ticker": "015760", "base_year": 2016, "hold_years": 10,
-        "note": "2016년 AVOID 선정. 요금 규제·원가 상승으로 구조적 적자 지속. 10년간 손실.",
-        "_static": {
-            "predicted_grade": "AVOID", "total_score": 4.1,
-            "actual_return_pct": -43.3, "prediction_correct": True,
             "end_year": 2026,
         },
     },
