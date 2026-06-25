@@ -285,6 +285,7 @@
     .teaser-figure-label{font-size:11px;color:var(--muted);margin-bottom:4px;}
     .teaser-value{font-size:34px;font-weight:900;color:#10b981;line-height:1.1;}
     .teaser-meta{font-size:12px;color:var(--muted);margin-top:6px;}
+    .teaser-div{text-align:center;font-size:13px;color:#f5c518;font-weight:700;margin:10px 0 2px;}
     .teaser-cta{display:block;margin-top:14px;text-align:center;font-size:13px;color:#34d399;text-decoration:none;font-weight:700;}
     .teaser-disc{font-size:10px;color:#4b5563;line-height:1.6;margin-top:14px;text-align:center;}
     /* 스켈레톤 */
@@ -525,7 +526,8 @@
         <div class="teaser-value" id="teaserValue">—</div>
         <div class="teaser-meta" id="teaserMeta"></div>
       </div>
-      <div style="position:relative;height:180px;margin-top:8px;">
+      <div class="teaser-div" id="teaserDiv"></div>
+      <div style="position:relative;height:190px;margin-top:8px;">
         <canvas id="teaserChart"></canvas>
       </div>
       <a href="dashboard.html#dividend" class="teaser-cta">대시보드에서 자세히 보기 →</a>
@@ -1906,17 +1908,21 @@
     }
     function renderDcaTeaser(){
       // TODO: "오늘의 텐배거 후보"와 연동 — 현재는 두산에너빌리티 고정
-      const T={name:'두산에너빌리티',ticker:'034020',monthly:50,months:120,r:0.018,start:'2016.06',end:'2026.06'};
-      const labels=['초기'],valArr=[0],invArr=[0];
+      // divYield: 평가자산 대비 연 배당수익률 가정(mock). 실제론 DART 배당데이터로 계산.
+      const T={name:'두산에너빌리티',ticker:'034020',monthly:50,months:120,r:0.018,divYield:0.035,start:'2016.06',end:'2026.06'};
+      const labels=['초기'],valArr=[0],invArr=[0],divArr=[0];
       let v=0;
       for(let m=1;m<=T.months;m++){
         v=(v+T.monthly)*(1+T.r);
         valArr.push(Math.round(v));
         invArr.push(T.monthly*m);
+        divArr.push(Math.round(v*T.divYield)); // 그 시점 평가자산 기준 연 배당금
         labels.push(m%12===0?(m/12)+'년':'');
       }
       const fv=valArr[valArr.length-1],fi=invArr[invArr.length-1];
       const ret=Math.round((fv-fi)/fi*100);
+      const yearlyDiv=divArr[divArr.length-1];      // 10년 후 연 배당금
+      const monthlyDiv=Math.round(yearlyDiv/12);    // 월 환산
       const hl=document.getElementById('teaserHeadline');
       if(hl)hl.textContent=`${T.name}에 ${T.months/12}년간 매달 ${T.monthly}만원씩 넣었다면?`;
       const sub=document.getElementById('teaserSub');
@@ -1924,20 +1930,24 @@
       const valEl=document.getElementById('teaserValue');if(valEl)valEl.textContent=fmtEok(fv);
       const metaEl=document.getElementById('teaserMeta');
       if(metaEl)metaEl.innerHTML=`총 납입 ${fmtEok(fi)} · <span style="color:#10b981;font-weight:800;">+${ret}%</span>`;
+      const divEl=document.getElementById('teaserDiv');
+      if(divEl)divEl.innerHTML=`💰 10년 후 연 배당금 약 ${fmtEok(yearlyDiv)} <span style="color:var(--muted);font-weight:600;">· 월 약 ${fmtEok(monthlyDiv)}</span>`;
       const cv=document.getElementById('teaserChart');
       if(!cv||typeof Chart==='undefined')return;
       if(_teaserChart)_teaserChart.destroy();
       _teaserChart=new Chart(cv.getContext('2d'),{
         type:'line',
         data:{labels,datasets:[
-          {label:'평가자산',data:valArr,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.12)',fill:true,tension:.35,pointRadius:0,borderWidth:2},
-          {label:'납입원금',data:invArr,borderColor:'#6b7280',borderDash:[4,4],fill:false,tension:0,pointRadius:0,borderWidth:1.2},
+          {label:'평가자산',data:valArr,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.12)',fill:true,tension:.35,pointRadius:0,borderWidth:2,yAxisID:'y'},
+          {label:'납입원금',data:invArr,borderColor:'#6b7280',borderDash:[4,4],fill:false,tension:0,pointRadius:0,borderWidth:1.2,yAxisID:'y'},
+          {label:'연 배당금',data:divArr,borderColor:'#f5c518',backgroundColor:'rgba(245,197,24,.10)',fill:true,tension:.35,pointRadius:0,borderWidth:1.5,yAxisID:'y1'},
         ]},
         options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},
-          plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtEok(c.parsed.y)}}},
+          plugins:{legend:{display:true,labels:{color:'#9ca3af',font:{size:10},boxWidth:10,padding:8}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtEok(c.parsed.y)}}},
           scales:{
             x:{ticks:{color:'#6b7280',font:{size:9},autoSkip:false,maxRotation:0,callback:function(val){return this.getLabelForValue(val)||'';}},grid:{display:false}},
-            y:{ticks:{color:'#6b7280',font:{size:9},callback:v=>fmtEok(v)},grid:{color:'rgba(55,65,81,.3)'}}
+            y:{position:'left',ticks:{color:'#6b7280',font:{size:9},callback:v=>fmtEok(v)},grid:{color:'rgba(55,65,81,.3)'}},
+            y1:{position:'right',ticks:{color:'#caa700',font:{size:9},callback:v=>fmtEok(v)},grid:{display:false}}
           }
         }
       });
