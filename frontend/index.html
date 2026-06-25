@@ -250,6 +250,15 @@
     .feat-metric .fm-sub{font-size:9px;color:#6b7280;margin-top:2px;}
     .feat-why{background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;}
     .feat-why-item{font-size:12px;color:#d1fae5;line-height:1.4;}
+    /* 피처드 카드 내 종목 유튜브 자리 */
+    .feat-yt{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:9px 13px;border-radius:12px;background:rgba(255,0,0,.08);border:1px solid rgba(255,0,0,.25);text-decoration:none;transition:border-color .15s;}
+    .feat-yt:hover{border-color:rgba(255,0,0,.55);}
+    .feat-yt .yt-ico{flex-shrink:0;width:30px;height:21px;background:#ff0000;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;}
+    .feat-yt .yt-txt{flex:1;min-width:0;font-size:12px;font-weight:600;color:#fecaca;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .feat-yt .yt-arrow{flex-shrink:0;font-size:11px;color:#fca5a5;}
+    .feat-yt-empty{background:rgba(255,255,255,.03);border:1px dashed var(--border);cursor:default;}
+    .feat-yt-empty .yt-ico{background:#475569;}
+    .feat-yt-empty .yt-txt{color:var(--muted);font-weight:500;}
     /* Top5 리스트 */
     .top5-row{display:flex;align-items:center;padding:13px 0;border-bottom:1px solid var(--border);gap:12px;cursor:pointer;transition:background .1s;}
     .top5-row:last-child{border-bottom:none;}
@@ -1847,6 +1856,16 @@
                       <div style="font-size:11px;color:var(--muted);">/ 10점 · 상위 3%</div>
                     </div>
                   </div>
+                  ${(()=>{ const v=VIDEOS[top.ticker]; return v
+                    ? `<a class="feat-yt" href="${v.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+                         <span class="yt-ico">▶</span>
+                         <span class="yt-txt">${v.title}${v.duration?' · '+v.duration:''}</span>
+                         <span class="yt-arrow">바로보기 ↗</span>
+                       </a>`
+                    : `<div class="feat-yt feat-yt-empty">
+                         <span class="yt-ico">▶</span>
+                         <span class="yt-txt">${top.name} 분석 영상 준비 중</span>
+                       </div>`; })()}
                   <div class="feat-metrics">
                     <div class="feat-metric">
                       <div class="fm-val">${cagr!=null?cagr.toFixed(1)+'%':'-'}</div>
