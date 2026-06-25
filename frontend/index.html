@@ -399,9 +399,9 @@
     </div>
     <div class="autocomplete-dropdown" id="acDropdown"></div>
     <div class="examples">
-      <span class="chip" onclick="selectTicker('005930')">삼성전자 005930</span>
+      <span class="chip" onclick="selectTicker('483650')">달바글로벌</span>
       <span class="chip" onclick="selectTicker('005490')">POSCO홀딩스</span>
-      <span class="chip" onclick="selectTicker('068270')">셀트리온 068270</span>
+      <span class="chip" onclick="selectTicker('068270')">셀트리온</span>
       <span class="chip" onclick="selectTicker('034020')">두산에너빌리티</span>
     </div>
     <div id="historySection" style="display:none;">
@@ -422,12 +422,12 @@
   <!-- ── 랜딩 페이지 (URL 파람 없을 때 표시) ── -->
   <div id="landingWrap" class="landing-wrap" style="display:none;">
     <div class="landing-hero">
-      <h1>재무 데이터로<br><span>텐배거 종목</span>을<br>찾아드립니다</h1>
-      <p>ROE · FCF · 성장성 기반으로 5~10년 10배 가능 종목을 자동 발굴</p>
+      <h1>시장은 삼전·하이닉스만 봅니다.<br><span>나머지가 기회입니다</span></h1>
+      <p>DART 법정공시 재무데이터로 시장이 놓친 저평가 성장주를 직접 발굴하세요</p>
     </div>
 
-    <!-- 오늘의 텐배거 후보 (실시간) -->
-    <div class="landing-section-title">🏆 오늘의 텐배거 후보</div>
+    <!-- 현재 최고점수 텐배거 후보 (실시간) -->
+    <div class="landing-section-title">🏆 현재 최고점수 텐배거 후보</div>
     <div id="featCard">
       <div class="feat-card" style="pointer-events:none;">
         <div class="feat-header">
@@ -483,8 +483,8 @@
         <button onclick="doLandingSearch()" style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:10px;padding:9px 18px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;">분석</button>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center;">
-        <span class="chip" onclick="doLandingSearchTicker('005930')">삼성전자</span>
-        <span class="chip" onclick="doLandingSearchTicker('000660')">SK하이닉스</span>
+        <span class="chip" onclick="doLandingSearchTicker('483650')">달바글로벌</span>
+        <span class="chip" onclick="doLandingSearchTicker('034020')">두산에너빌리티</span>
         <span class="chip" onclick="doLandingSearchTicker('005490')">POSCO홀딩스</span>
         <span class="chip" onclick="doLandingSearchTicker('068270')">셀트리온</span>
         <a href="screener.html" style="margin-left:auto;font-size:13px;color:#60a5fa;text-decoration:none;font-weight:600;white-space:nowrap;">전체 스크리너 →</a>
