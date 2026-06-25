@@ -1695,15 +1695,21 @@
 
           // top5 바로 렌더 (스켈레톤 교체)
           const rest=list.slice(1);
-          document.getElementById('top5List').innerHTML=rest.map((c,i)=>`
-            <div class="top5-row" onclick="doLandingSearchTicker('${c.ticker}')">
+          document.getElementById('top5List').innerHTML=rest.map((c,i)=>{
+            const vid = VIDEOS[c.ticker];
+            const ytTag = vid ? `<a href="${vid.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+              style="display:inline-flex;align-items:center;gap:2px;margin-left:5px;background:rgba(255,0,0,.15);border:1px solid rgba(255,0,0,.35);border-radius:5px;padding:1px 5px;font-size:9px;font-weight:700;color:#ff4444;text-decoration:none;vertical-align:middle;"
+              title="${vid.title}">
+              <svg width="10" height="7" viewBox="0 0 11 8" style="flex-shrink:0"><rect width="11" height="8" rx="1.5" fill="#ff0000"/><path d="M4.5 2L8 4L4.5 6V2Z" fill="white"/></svg>영상</a>` : '';
+            return `<div class="top5-row" onclick="doLandingSearchTicker('${c.ticker}')">
               <div class="top5-rank">${i+2}</div>
               <div class="top5-info">
-                <div class="top5-name">${c.name}</div>
+                <div class="top5-name">${c.name}${ytTag}</div>
                 <div class="top5-sub">${c.ticker} · ${c.sector||'기타'}</div>
               </div>
               <div class="top5-score">${(c.total_score||0).toFixed(1)}</div>
-            </div>`).join('');
+            </div>`;
+          }).join('');
 
           // 피처드 종목 분석 영상 (있으면)
           const featVideo = VIDEOS[top.ticker];
