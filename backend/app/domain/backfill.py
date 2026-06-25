@@ -125,8 +125,14 @@ async def run_backfill(base_years: list[int], hold_years: int = 2,
     return get_backfill_summary()
 
 
-def get_backfill_summary() -> dict:
-    """저장된 백필 결과를 등급별로 집계 (중간값 중심, 정직한 표본 수 명시)."""
+def get_backfill_summary(hold_years: int | None = None) -> dict:
+    """저장된 백필 결과를 등급별로 집계 (중간값 중심, 정직한 표본 수 명시).
+
+    hold_years 지정 시 해당 보유기간 결과만 집계한다. 서로 다른 보유기간(예: 2년·10년)
+    결과가 한 테이블에 섞여 있을 때 중간값/적중률이 뒤섞이는 것을 막기 위함이다.
+    """
+    where = "" if hold_years is None else "WHERE hold_years = :hy"
+    params = {} if hold_years is None else {"hy": hold_years}
     with SessionLocal() as session:
         exists = session.execute(text("""
             SELECT EXISTS (SELECT 1 FROM information_schema.tables
@@ -136,7 +142,7 @@ def get_backfill_summary() -> dict:
             return {"summary": {}, "meta": {"available": False,
                     "note": "백필 미실행. POST /api/v2/accuracy/backfill 로 실행하세요."}}
 
-        rows = session.execute(text("""
+        rows = session.execute(text(f"""
             SELECT grade,
                    COUNT(*) AS n,
                    COUNT(return_pct) AS n_priced,
@@ -145,10 +151,12 @@ def get_backfill_summary() -> dict:
                    ROUND(100.0 * SUM(CASE WHEN hit_target THEN 1 ELSE 0 END)
                          / NULLIF(COUNT(hit_target), 0), 1) AS hit_rate,
                    MIN(base_year) AS from_year, MAX(base_year) AS to_year,
+                   MAX(hold_years) AS hold_years,
                    MAX(created_at) AS last_run
             FROM backfill_results
+            {where}
             GROUP BY grade
-        """)).fetchall()
+        """), params).fetchall()
 
     order = {"TENBAGGER": 0, "COMPOUNDER": 1, "WATCHLIST": 2, "AVOID": 3}
     summary = {}
@@ -164,6 +172,7 @@ def get_backfill_summary() -> dict:
             "target_pct": GRADE_TARGET_PCT.get(d["grade"]),
             "from_year": int(d["from_year"]) if d["from_year"] is not None else None,
             "to_year": int(d["to_year"]) if d["to_year"] is not None else None,
+            "hold_years": int(d["hold_years"]) if d["hold_years"] is not None else None,
         }
         if d["last_run"]:
             last_run = d["last_run"].isoformat()
@@ -173,6 +182,7 @@ def get_backfill_summary() -> dict:
         "meta": {
             "available": bool(summary),
             "method": "backfill_v1",
+            "requested_hold_years": hold_years,
             "last_run": last_run,
             "caveats": [
                 "현재 스코어 공식 1개를 검증한 기준선입니다(요소 발굴 엔진의 v1).",
