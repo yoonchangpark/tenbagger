@@ -153,11 +153,11 @@
     <div class="loading-wrap"><div class="spinner"></div><div class="loading-text">검증 데이터 불러오는 중...</div></div>
   </div>
 
-  <!-- ② 주요 분석 사례 (예시 — 편향 주의 라벨) -->
-  <div class="section-title" style="margin-top:40px;">주요 분석 사례 <span style="font-size:12px;color:var(--muted);font-weight:500;">(예시)</span></div>
+  <!-- ② 주요 분석 사례 -->
+  <div class="section-title" style="margin-top:40px;">2020년 예측 → 2022년 결과</div>
   <p style="font-size:12px;color:var(--muted);margin:-8px 0 16px;line-height:1.6;">
-    아래는 설명을 위해 선별한 대표 사례입니다. <b>전체 예측의 표본이 아니므로</b> 여기서 적중률을 집계하지 않습니다 —
-    위 '검증된 정확도'가 편향 없는 지표입니다. 각 사례의 수치는 해당 종목의 실제 DART 공시·주가 데이터입니다.
+    2020년 1월 시스템이 선정한 종목들의 2022년 실제 수익률입니다.
+    대표 사례이며 <b>전체 예측의 표본이 아닙니다</b> — 편향 없는 전수 정확도는 위 '검증된 정확도' 섹션을 확인하세요.
   </p>
 
   <div id="recordsWrap">
@@ -218,28 +218,46 @@ function fmtPrice(p) {
 }
 
 function renderCard(r) {
-  const errMsg = r.status === 'error' ? `<p style="color:var(--red);font-size:12px;margin-top:8px;">조회 실패: ${r.error}</p>` : '';
-  return `
-    <div class="record-card">
-      <div class="record-header">
+  const pct = r.actual_return_pct;
+  const isPos = pct != null && pct >= 0;
+  const isNeg = pct != null && pct < 0;
+  const pctStr = pct != null ? (isPos ? '+' : '') + pct.toFixed(1) + '%' : '—';
+  const pctColor = isPos ? 'var(--green)' : isNeg ? 'var(--red)' : 'var(--muted)';
+  const barW = pct != null ? Math.min(Math.abs(pct), 150) / 1.5 : 0;
+  const barColor = isPos ? 'var(--green)' : isNeg ? 'var(--red)' : 'var(--border)';
+  const scoreStr = r.total_score != null ? r.total_score.toFixed(1) : '—';
+  const dateStr = r.base_year + '.01';
+  const endYear = r.end_year || (r.base_year + r.hold_years);
+
+  if (r.status === 'error') {
+    return `<div class="record-card" style="opacity:.5;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
           <div class="record-name">${r.name}</div>
-          <div class="record-meta">${r.ticker} · ${r.base_year}년 예측 → ${r.end_year || r.base_year + r.hold_years}년 (${r.hold_years}년 보유)</div>
+          <div class="record-meta" style="color:var(--muted);font-size:11px;">예측 점수 — · ${dateStr} 선정</div>
         </div>
-        <div class="record-badges">
-          ${gradeBadge(r.predicted_grade)}
-          ${hitBadge(r.prediction_correct)}
+        <span style="color:var(--muted);font-size:13px;">조회 실패</span>
+      </div>
+    </div>`;
+  }
+
+  return `
+    <div class="record-card" style="padding:16px 18px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div>
+          <div style="font-size:16px;font-weight:800;margin-bottom:3px;">${r.name}</div>
+          <div style="font-size:11px;color:var(--muted);">예측 점수 ${scoreStr} · ${dateStr} 선정</div>
+          <div style="margin-top:5px;">${gradeBadge(r.predicted_grade)}${r.prediction_correct != null ? ' ' + hitBadge(r.prediction_correct) : ''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:28px;font-weight:900;color:${pctColor};line-height:1;">${pctStr}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${r.base_year} → ${endYear}년</div>
         </div>
       </div>
-      ${r.status !== 'error' ? `
-      <div class="record-metrics">
-        <div class="metric"><div class="ml">예측 시점 주가</div>${fmtPrice(r.price_at_base_year)}</div>
-        <div class="metric"><div class="ml">종료 시점 주가</div>${fmtPrice(r.price_at_end_year)}</div>
-        <div class="metric"><div class="ml">실제 수익률</div>${fmtReturn(r.actual_return_pct)}</div>
-        <div class="metric"><div class="ml">재무 점수</div><span class="mv mv-neu">${r.total_score != null ? r.total_score.toFixed(1) + ' / 10' : '—'}</span></div>
+      <div style="margin-top:12px;background:rgba(255,255,255,.06);border-radius:4px;height:4px;overflow:hidden;">
+        <div style="height:100%;width:${barW.toFixed(0)}%;background:${barColor};border-radius:4px;transition:width .6s ease;"></div>
       </div>
-      ` : errMsg}
-      <div class="note-text">${r.note || ''}</div>
+      ${r.note ? `<div class="note-text" style="margin-top:10px;">${r.note}</div>` : ''}
     </div>
   `;
 }

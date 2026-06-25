@@ -7,18 +7,16 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/api/v2/track-record", tags=["TrackRecord"])
 
-# 공개 큐레이션 목록 — 대본 생성에 쓰이는 aiva/data/tenbagger_history.json 과 동기화
+# 공개 큐레이션 목록 — 2020년 시스템 예측 → 2022년 실제 결과
 CURATED = [
-    {"name": "에코프로",    "ticker": "086520", "base_year": 2019, "hold_years": 5,
-     "note": "2차전지 양극재 광풍의 상징. 2023년 검색량·주가 정점 직후 2024년 영업적자 전환."},
-    {"name": "에코프로비엠", "ticker": "247540", "base_year": 2019, "hold_years": 5,
-     "note": "하이니켈 양극재 글로벌 선두. 2023년 광풍 정점 → 2024년 영업적자 전환. 모회사 에코프로와 같은 광풍 사례."},
-    {"name": "한미반도체",  "ticker": "042700", "base_year": 2019, "hold_years": 5,
-     "note": "HBM용 TC본더 독점. AI 붐 이전엔 그저 그런 반도체 장비주."},
-    {"name": "HMM",        "ticker": "011200", "base_year": 2019, "hold_years": 4,
-     "note": "2019년 적자 해운사 → 2021년 운임 슈퍼사이클. 사이클주 사례."},
-    {"name": "위메이드",   "ticker": "112040", "base_year": 2019, "hold_years": 3,
-     "note": "미르4 + P2E로 2021년 폭등 후 급락. 네러티브 주도주의 위험성 사례."},
+    {"name": "SK하이닉스", "ticker": "000660", "base_year": 2020, "hold_years": 2,
+     "note": "2020년 TENBAGGER 선정. 메모리 반도체 슈퍼사이클 수혜로 2022년까지 급등."},
+    {"name": "삼성SDI",    "ticker": "006400", "base_year": 2020, "hold_years": 2,
+     "note": "2020년 TENBAGGER 선정. EV 배터리 폭증 수요로 2022년까지 강세."},
+    {"name": "카카오",     "ticker": "035720", "base_year": 2020, "hold_years": 2,
+     "note": "2020년 TENBAGGER 선정. 플랫폼 고성장 이후 규제·금리 역풍으로 상승 제한."},
+    {"name": "셀트리온",   "ticker": "068270", "base_year": 2020, "hold_years": 2,
+     "note": "2020년 WATCHLIST 선정. 바이오시밀러 성장 기대에도 실제 주가 횡보·하락."},
 ]
 
 
