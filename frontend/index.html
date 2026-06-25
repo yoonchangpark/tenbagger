@@ -515,8 +515,28 @@
       </div>
     </div>
 
-    <!-- 배당 계산기 (맨 아래) -->
+    <!-- 종목별 DCA 시뮬레이션 티저 (증거 먼저) -->
+    <div class="landing-section-title" style="margin-top:8px;">🔥 실제로 투자했다면</div>
+    <div style="font-size:11px;color:var(--muted);margin:-4px 0 10px;">이 시스템이 고른 종목에 과거 적립식으로 투자했다면 지금 얼마가 됐을지 보여줍니다</div>
+    <div class="teaser-card">
+      <div class="teaser-headline" id="teaserHeadline">불러오는 중…</div>
+      <div class="teaser-sub" id="teaserSub"></div>
+      <div class="teaser-figure">
+        <div class="teaser-figure-label">지금 평가자산</div>
+        <div class="teaser-value" id="teaserValue">—</div>
+        <div class="teaser-meta" id="teaserMeta"></div>
+      </div>
+      <div class="teaser-div" id="teaserDiv"></div>
+      <div style="position:relative;height:190px;margin-top:8px;">
+        <canvas id="teaserChart"></canvas>
+      </div>
+      <a href="dashboard.html#dividend" class="teaser-cta">적립 투자 시뮬레이션 더 보기 →</a>
+      <div class="teaser-disc">과거 실데이터 기반 시뮬레이션이며 특정 종목 매수를 권유하지 않습니다. 실제 미래 수익률을 보장하지 않습니다.</div>
+    </div>
+
+    <!-- 배당 계산기 (목표 역산 유틸리티) -->
     <div class="landing-section-title" style="margin-top:8px;">💰 배당 계산기</div>
+    <div style="font-size:11px;color:var(--muted);margin:-4px 0 10px;">원하는 월 배당금을 받으려면 자본이 얼마나 필요한지 거꾸로 계산합니다</div>
     <div class="div-calc">
       <h3>월 배당금 목표 시뮬레이션</h3>
       <div class="div-input-row">
@@ -533,25 +553,7 @@
         <div class="dr-val" id="divResult">4억</div>
         <div class="dr-lbl">월 <span id="divTargetLabel">100</span>만원 배당받으려면 필요한 투자금</div>
       </div>
-      <a href="dashboard.html#dividend" style="display:block;margin-top:12px;text-align:center;font-size:12px;color:var(--muted);text-decoration:none;">상세 배당 시뮬레이터 보기 →</a>
-    </div>
-
-    <!-- 종목별 DCA 시뮬레이션 티저 -->
-    <div class="landing-section-title" style="margin-top:8px;">🔥 실제로 투자했다면</div>
-    <div class="teaser-card">
-      <div class="teaser-headline" id="teaserHeadline">불러오는 중…</div>
-      <div class="teaser-sub" id="teaserSub"></div>
-      <div class="teaser-figure">
-        <div class="teaser-figure-label">지금 평가자산</div>
-        <div class="teaser-value" id="teaserValue">—</div>
-        <div class="teaser-meta" id="teaserMeta"></div>
-      </div>
-      <div class="teaser-div" id="teaserDiv"></div>
-      <div style="position:relative;height:190px;margin-top:8px;">
-        <canvas id="teaserChart"></canvas>
-      </div>
-      <a href="dashboard.html#dividend" class="teaser-cta">대시보드에서 자세히 보기 →</a>
-      <div class="teaser-disc">과거 실데이터 기반 시뮬레이션이며 특정 종목 매수를 권유하지 않습니다. 실제 미래 수익률을 보장하지 않습니다.</div>
+      <a href="dashboard.html#dividend" style="display:block;margin-top:12px;text-align:center;font-size:12px;color:var(--muted);text-decoration:none;">목표 배당 시뮬레이터 열기 →</a>
     </div>
   </div>
   <div class="loading" id="loading">
