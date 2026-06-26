@@ -66,11 +66,26 @@ def classify_case_type(trajectory: list) -> dict:
 
 
 async def _get_price_at(ticker: str, year: int) -> Optional[int]:
-    """특정 연도 말 주가 조회 (FinanceDataReader 우선 → pykrx fallback)"""
+    """특정 연도 말 주가 조회 (FinanceDataReader 우선 → pykrx fallback)
+    현재 진행 중인 연도는 오늘 기준 최근 거래일 종가를 사용한다."""
+    today = datetime.date.today()
+    current_year = today.year
+    # 현재 연도이면 오늘~2주 전 구간으로 최근 종가 조회
+    if year >= current_year:
+        start_str = (today - datetime.timedelta(days=14)).strftime("%Y-%m-%d")
+        end_str = today.strftime("%Y-%m-%d")
+        start_krx = (today - datetime.timedelta(days=14)).strftime("%Y%m%d")
+        end_krx = today.strftime("%Y%m%d")
+    else:
+        start_str = f"{year}-12-01"
+        end_str = f"{year}-12-31"
+        start_krx = f"{year}1201"
+        end_krx = f"{year}1231"
+
     def _fdr_fetch() -> Optional[int]:
         try:
             import FinanceDataReader as fdr
-            df = fdr.DataReader(ticker, f"{year}-12-01", f"{year}-12-31")
+            df = fdr.DataReader(ticker, start_str, end_str)
             if df is not None and not df.empty:
                 closes = df["Close"].dropna()
                 if len(closes) > 0:
@@ -82,7 +97,7 @@ async def _get_price_at(ticker: str, year: int) -> Optional[int]:
     def _pykrx_fetch() -> Optional[int]:
         try:
             from pykrx import stock
-            df = stock.get_market_ohlcv(f"{year}1201", f"{year}1231", ticker)
+            df = stock.get_market_ohlcv(start_krx, end_krx, ticker)
             if df is not None and not df.empty:
                 return int(df["종가"].iloc[-1])
         except Exception as e:
@@ -115,8 +130,9 @@ async def run_backtest(
 
     if base_year >= current_year:
         return {"error": "base_year는 현재 연도보다 이전이어야 합니다."}
-    if base_year + hold_years > current_year:
-        return {"error": f"보유 기간({hold_years}년) 종료 시점({base_year + hold_years})이 아직 미래입니다."}
+    # 종료 시점이 미래여도 현재 연도까지는 허용 — _get_price_at이 최근 종가를 사용함
+    if base_year + hold_years > current_year + 1:
+        return {"error": f"보유 기간({hold_years}년) 종료 시점({base_year + hold_years})이 너무 먼 미래입니다."}
 
     # corp_code 조회
     corp_code, resolved_ticker = await get_corp_code(ticker)
