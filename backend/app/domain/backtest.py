@@ -6,7 +6,7 @@ import datetime
 import asyncio
 from typing import Optional
 from app.infra.clients.dart_client import get_corp_code, fetch_yearly_financials
-from app.domain.scoring import calculate_tenbagger_score
+from app.domain.scoring import calculate_tenbagger_score, calculate_discovery_score
 
 
 def classify_case_type(trajectory: list) -> dict:
@@ -149,6 +149,8 @@ async def run_backtest(
 
     # 당시 스코어 계산 (당시 밸류에이션 없으므로 per/pbr/dividend 생략)
     historical_score = calculate_tenbagger_score(historical_fins)
+    # 발굴 점수 v2 (병렬 — 기존 등급에 영향 없음)
+    discovery = calculate_discovery_score(historical_fins)
 
     # 보유기간(base_year~end_year) 재무 추세 수집 → 사례 유형 자동 판정
     end_year = base_year + hold_years
@@ -182,6 +184,8 @@ async def run_backtest(
         "end_year": base_year + hold_years,
         "historical_financials_count": len(historical_fins),
         "score_at_base_year": historical_score,
+        "discovery_at_base_year": discovery.get("discovery_score"),
+        "discovery_detail": discovery,
         "price_at_base_year": price_base,
         "price_at_end_year": price_end,
         "actual_return_pct": actual_return,
