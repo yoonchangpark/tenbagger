@@ -42,6 +42,10 @@ def _ensure_table(session):
             UNIQUE (ticker, base_year, hold_years)
         )
     """))
+    # 발굴 점수 v2 컬럼 (기존 테이블에도 안전하게 추가)
+    session.execute(text(
+        "ALTER TABLE backfill_results ADD COLUMN IF NOT EXISTS discovery_score NUMERIC(5,2)"
+    ))
     session.commit()
 
 
@@ -89,10 +93,11 @@ async def run_backfill(base_years: list[int], hold_years: int = 2,
 
     upsert = text("""
         INSERT INTO backfill_results
-            (ticker, base_year, hold_years, grade, total_score, return_pct, hit_target)
-        VALUES (:ticker, :base_year, :hold_years, :grade, :score, :ret, :hit)
+            (ticker, base_year, hold_years, grade, total_score, discovery_score, return_pct, hit_target)
+        VALUES (:ticker, :base_year, :hold_years, :grade, :score, :disc, :ret, :hit)
         ON CONFLICT (ticker, base_year, hold_years) DO UPDATE
         SET grade = EXCLUDED.grade, total_score = EXCLUDED.total_score,
+            discovery_score = EXCLUDED.discovery_score,
             return_pct = EXCLUDED.return_pct, hit_target = EXCLUDED.hit_target,
             created_at = NOW()
     """)
@@ -105,11 +110,12 @@ async def run_backfill(base_years: list[int], hold_years: int = 2,
                     grade = r.get("predicted_grade")
                     ret = r.get("actual_return_pct")
                     score = (r.get("score_at_base_year") or {}).get("total_score")
+                    disc = r.get("discovery_at_base_year")
                     hit = _is_hit(grade, ret)
                     with SessionLocal() as session:
                         session.execute(upsert, {
                             "ticker": ticker, "base_year": base_year, "hold_years": hold_years,
-                            "grade": grade, "score": score, "ret": ret, "hit": hit,
+                            "grade": grade, "score": score, "disc": disc, "ret": ret, "hit": hit,
                         })
                         session.commit()
                     stored += 1

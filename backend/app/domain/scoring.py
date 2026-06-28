@@ -395,6 +395,120 @@ def calculate_score_from_indices(idx_list: list) -> dict:
     }
 
 
+# ── 발굴 점수 v2 (Discovery Score) ───────────────────────────────────────────
+# 포스트모템(agent_prompts/scoring_postmortem.md) 결과: 기존 quality 점수는 실적
+# '정점'을 사고 '바닥'을 버려 실제 텐배거와 역상관이었다. 발굴 점수는 정반대 —
+# 미래 인플렉션 셋업(눌린 실적의 회복 여력·턴어라운드·재투자·소형주)을 보상한다.
+# 기존 등급/공식은 건드리지 않고 병렬로 계산·검증한다. 점-인-타임 재무만 사용.
+
+def _op_margins(sorted_f: list[dict]) -> list[float]:
+    out = []
+    for f in sorted_f:
+        rev, op = f.get("revenue"), f.get("operating_profit")
+        if rev and op is not None and rev > 0:
+            out.append(op / rev * 100)
+    return out
+
+
+def calculate_discovery_score(financials: list[dict]) -> dict:
+    """텐배거 발굴 점수 (0~10). 재무만으로 계산되는 1단계 팩터.
+    A 회복여력(트로프) / B 실적 인플렉션 / C 재투자 런웨이 / D 소형주 프록시 /
+    E 생존 가드레일 + 안티-피크 페널티.
+    밸류에이션·시총·희석(주가/주식수 필요)은 2단계에서 추가한다.
+    """
+    if not financials or len(financials) < 3:
+        return {"discovery_score": None, "reason": "재무 부족(3년 미만)"}
+
+    sf = sorted(financials, key=lambda x: x["year"])
+    latest = sf[-1]
+    revenues = [f.get("revenue") for f in sf if f.get("revenue")]
+    op_margins = _op_margins(sf)
+
+    # ── A. 회복 여력(트로프): 현재 마진이 자기 과거 peak 대비 눌렸고, 매출은 유지 ──
+    a = 0.0
+    a_room = None
+    if len(op_margins) >= 2:
+        peak_m, cur_m = max(op_margins), op_margins[-1]
+        if peak_m > 0:
+            a_room = max(0.0, min(1.0, (peak_m - cur_m) / peak_m))  # 0=정점, 1=완전붕괴
+        # 매출이 정점 근처로 유지되어야 '경기압축'(secular 쇠퇴 아님)
+        rev_intact = 0.0
+        if revenues:
+            rev_intact = max(0.0, min(1.0, (latest.get("revenue") or 0) / max(revenues)))
+        if a_room is not None:
+            a = (a_room * 10.0) * (0.4 + 0.6 * rev_intact)  # 매출 붕괴 시 감쇠
+
+    # ── B. 실적 인플렉션: 최근연도 영업이익/순이익이 직전 저점 대비 턴업 ──
+    b = 0.0
+    ops = [f.get("operating_profit") for f in sf if f.get("operating_profit") is not None]
+    if len(ops) >= 2:
+        prev, cur = ops[-2], ops[-1]
+        denom = abs(prev) if prev else 1.0
+        improve = (cur - prev) / denom
+        b += normalize(improve * 100, 0, 50) * 0.7  # +50% 개선 → 만점 기여
+    # 적자 → 흑자 전환 보너스
+    nis = [f.get("net_income") for f in sf if f.get("net_income") is not None]
+    if len(nis) >= 2 and nis[-2] is not None and nis[-1] is not None and nis[-2] < 0 <= nis[-1]:
+        b += 3.0
+    b = min(10.0, b)
+
+    # ── C. 재투자 런웨이: capex 강도 + 총자산 성장 ──
+    c = 0.0
+    capex_int = []
+    for f in sf:
+        cap, rev = f.get("capex"), f.get("revenue")
+        if cap and rev and rev > 0:
+            capex_int.append(abs(cap) / rev * 100)
+    if capex_int:
+        c += normalize(sum(capex_int) / len(capex_int), 2, 15) * 0.6  # capex/매출 2~15%
+    assets = [f.get("total_assets") for f in sf if f.get("total_assets")]
+    if len(assets) >= 2 and assets[0] > 0:
+        ag = cagr(assets[0], assets[-1], len(assets) - 1)
+        c += normalize(ag or 0, 0, 20) * 0.4
+    c = min(10.0, c)
+
+    # ── D. 소형주 프록시: 작은 자기자본 = 10배 여력 (진짜 시총은 2단계) ──
+    # 자기자본(억원 환산) 로그 버킷: ~100억 만점 → ~10조 0점
+    eq = latest.get("total_equity")
+    d = 5.0
+    if eq and eq > 0:
+        eq_eok = eq / 1e8  # 원 → 억
+        d = max(0.0, min(10.0, 10.0 - (math.log10(max(eq_eok, 1)) - 2) * 2.5))
+        # log10(100억)=2 →10점, log10(1조=10000억)=4 →5점, log10(10조)=6 →0점
+
+    # ── E. 생존 가드레일: 자본>0·부채비율·유동성 (낙하하는 칼 회피) ──
+    e = 0.0
+    debt_ratio = safe_div(latest.get("total_debt"), latest.get("total_equity"))
+    cur_ratio = safe_div(latest.get("current_assets"), latest.get("current_liab"))
+    if eq and eq > 0:
+        e += 4.0
+        if debt_ratio is not None:
+            dp = debt_ratio * 100
+            e += 3.0 if dp < 100 else 2.0 if dp < 200 else 0.0 if dp < 400 else -3.0
+        if cur_ratio is not None:
+            e += 3.0 if cur_ratio > 1.5 else 1.5 if cur_ratio > 1.0 else 0.0
+    e = max(0.0, min(10.0, e))
+
+    # ── 안티-피크 페널티: 매출·마진 둘 다 사상 최고치 근처면 감점 ──
+    penalty = 0.0
+    if revenues and (latest.get("revenue") or 0) >= max(revenues) * 0.98 and op_margins:
+        if op_margins[-1] >= max(op_margins) * 0.98:
+            penalty = 1.5
+
+    raw = a * 0.30 + b * 0.20 + c * 0.20 + d * 0.15 + e * 0.15 - penalty
+    score = round(max(0.0, min(10.0, raw)), 2)
+
+    return {
+        "discovery_score": score,
+        "recovery_room": round(a, 2),
+        "inflection": round(b, 2),
+        "reinvestment": round(c, 2),
+        "small_size": round(d, 2),
+        "survival": round(e, 2),
+        "peak_penalty": penalty,
+    }
+
+
 # ── 종합 스코어링 ─────────────────────────────────────────────────────────────
 
 def calculate_tenbagger_score(
