@@ -410,11 +410,12 @@ def _op_margins(sorted_f: list[dict]) -> list[float]:
     return out
 
 
-def calculate_discovery_score(financials: list[dict]) -> dict:
-    """텐배거 발굴 점수 (0~10). 재무만으로 계산되는 1단계 팩터.
-    A 회복여력(트로프) / B 실적 인플렉션 / C 재투자 런웨이 / D 소형주 프록시 /
-    E 생존 가드레일 + 안티-피크 페널티.
-    밸류에이션·시총·희석(주가/주식수 필요)은 2단계에서 추가한다.
+def calculate_discovery_score(financials: list[dict], market_cap: float = None) -> dict:
+    """텐배거 발굴 점수 (0~10).
+    1단계(재무만): A 회복여력(트로프) / B 실적 인플렉션 / C 재투자 런웨이 /
+        D 소형주 프록시 / E 생존 가드레일 + 안티-피크 페널티.
+    2단계(market_cap 주어지면): F 밸류에이션(PBR·PER·PSR) + 진짜 시총 사이즈로
+        D를 대체·보강. market_cap None이면 1단계 가중치로 폴백.
     """
     if not financials or len(financials) < 3:
         return {"discovery_score": None, "reason": "재무 부족(3년 미만)"}
@@ -495,16 +496,49 @@ def calculate_discovery_score(financials: list[dict]) -> dict:
         if op_margins[-1] >= max(op_margins) * 0.98:
             penalty = 1.5
 
-    raw = a * 0.30 + b * 0.20 + c * 0.20 + d * 0.15 + e * 0.15 - penalty
+    # ── F. 밸류에이션 + 진짜 시총 사이즈 (2단계 — market_cap 있을 때만) ──
+    f_val = None           # 밸류에이션 점수
+    d2 = None              # 진짜 시총 기반 사이즈
+    pbr = per = psr = None
+    if market_cap and market_cap > 0:
+        eq_v, rev_v, ni_v = latest.get("total_equity"), latest.get("revenue"), latest.get("net_income")
+        parts, weights = [], []
+        if eq_v and eq_v > 0:
+            pbr = market_cap / eq_v
+            parts.append(max(0.0, min(10.0, 10 - (pbr - 0.3) * 3))); weights.append(0.45)
+        if rev_v and rev_v > 0:
+            psr = market_cap / rev_v
+            parts.append(max(0.0, min(10.0, 10 - (psr - 0.3) * 2.5))); weights.append(0.35)
+        if ni_v and ni_v > 0:
+            per = market_cap / ni_v
+            parts.append(max(0.0, min(10.0, 10 - (per - 5) * 0.5))); weights.append(0.20)
+        if parts:
+            f_val = sum(p * w for p, w in zip(parts, weights)) / sum(weights)
+        # 진짜 시총 사이즈: 작을수록 높음 (500억→10, 1조→~6, 10조→~2)
+        d2 = max(0.0, min(10.0, 10 - (math.log10(market_cap) - 10.7) * 3.3))
+
+    if f_val is not None:
+        # 2단계 가중치: 밸류·진짜사이즈 포함, 프록시 사이즈(d) 대체
+        raw = (a * 0.22 + b * 0.15 + c * 0.13 + f_val * 0.25 + d2 * 0.10 + e * 0.15) - penalty
+        stage = 2
+    else:
+        # 1단계 폴백 (시총 없음)
+        raw = (a * 0.30 + b * 0.20 + c * 0.20 + d * 0.15 + e * 0.15) - penalty
+        stage = 1
     score = round(max(0.0, min(10.0, raw)), 2)
 
     return {
         "discovery_score": score,
+        "stage": stage,
         "recovery_room": round(a, 2),
         "inflection": round(b, 2),
         "reinvestment": round(c, 2),
-        "small_size": round(d, 2),
+        "small_size": round(d2 if d2 is not None else d, 2),
         "survival": round(e, 2),
+        "valuation": round(f_val, 2) if f_val is not None else None,
+        "pbr": round(pbr, 2) if pbr else None,
+        "per": round(per, 2) if per else None,
+        "psr": round(psr, 2) if psr else None,
         "peak_penalty": penalty,
     }
 

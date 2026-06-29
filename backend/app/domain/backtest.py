@@ -114,6 +114,32 @@ async def _get_price_at(ticker: str, year: int) -> Optional[int]:
     return await asyncio.to_thread(_pykrx_fetch)
 
 
+async def _get_market_cap_at(ticker: str, year: int) -> Optional[int]:
+    """특정 연도 말 시가총액(원) 조회 (pykrx). 밸류에이션·사이즈 팩터용.
+    실패 시 None → 발굴 점수는 밸류 없이 1단계 팩터로 폴백한다."""
+    today = datetime.date.today()
+    if year >= today.year:
+        start_krx = (today - datetime.timedelta(days=14)).strftime("%Y%m%d")
+        end_krx = today.strftime("%Y%m%d")
+    else:
+        start_krx = f"{year}1201"
+        end_krx = f"{year}1231"
+
+    def _fetch() -> Optional[int]:
+        try:
+            from pykrx import stock
+            df = stock.get_market_cap_by_date(start_krx, end_krx, ticker)
+            if df is not None and not df.empty:
+                val = df["시가총액"].dropna()
+                if len(val) > 0 and val.iloc[-1] > 0:
+                    return int(val.iloc[-1])
+        except Exception as e:
+            print(f"[Backtest] {ticker} {year}년 시총 조회 실패: {e}")
+        return None
+
+    return await asyncio.to_thread(_fetch)
+
+
 async def run_backtest(
     ticker: str,
     base_year: int,
@@ -149,8 +175,6 @@ async def run_backtest(
 
     # 당시 스코어 계산 (당시 밸류에이션 없으므로 per/pbr/dividend 생략)
     historical_score = calculate_tenbagger_score(historical_fins)
-    # 발굴 점수 v2 (병렬 — 기존 등급에 영향 없음)
-    discovery = calculate_discovery_score(historical_fins)
 
     # 보유기간(base_year~end_year) 재무 추세 수집 → 사례 유형 자동 판정
     end_year = base_year + hold_years
@@ -164,11 +188,15 @@ async def run_backtest(
     ]
     case = classify_case_type(trajectory)
 
-    # 주가 조회 (병렬)
-    price_base, price_end = await asyncio.gather(
+    # 주가·시총 조회 (병렬)
+    price_base, price_end, mcap_base = await asyncio.gather(
         _get_price_at(ticker, base_year),
         _get_price_at(ticker, base_year + hold_years),
+        _get_market_cap_at(ticker, base_year),
     )
+
+    # 발굴 점수 v2 — base_year 시총으로 밸류/사이즈 팩터 포함 (시총 None이면 1단계 폴백)
+    discovery = calculate_discovery_score(historical_fins, market_cap=mcap_base)
 
     # 수익률 계산
     actual_return = None
@@ -186,6 +214,7 @@ async def run_backtest(
         "score_at_base_year": historical_score,
         "discovery_at_base_year": discovery.get("discovery_score"),
         "discovery_detail": discovery,
+        "market_cap_at_base_year": mcap_base,
         "price_at_base_year": price_base,
         "price_at_end_year": price_end,
         "actual_return_pct": actual_return,
