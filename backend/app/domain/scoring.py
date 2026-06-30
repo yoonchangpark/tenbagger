@@ -543,6 +543,70 @@ def calculate_discovery_score(financials: list[dict], market_cap: float = None) 
     }
 
 
+# ── 모멘텀 점수 (펀더멘털 가속 — 트로프의 반대편) ─────────────────────────────
+# 탑다운 발굴의 '해자 검증' 가설: 독점성/가격결정력은 마진·이익의 위쪽 가속으로
+# 나타난다(제룡전기 18→38%, HD현대일렉트릭 6→20%). 트로프(평균회귀) 신호가
+# 백테스트에서 실패했으므로 정반대 끝을 별도 신호로 검증한다.
+
+def calculate_momentum_score(financials: list[dict]) -> dict:
+    """펀더멘털 모멘텀/품질 가속 점수 (0~10).
+    마진 확장(30) + 이익 가속(25) + ROE 상승·수준(25) + 매출 성장(20),
+    적자 기업은 대폭 감쇄(트로프와 구분). 점-인-타임 재무만 사용.
+    """
+    if not financials or len(financials) < 3:
+        return {"momentum_score": None, "reason": "재무 부족(3년 미만)"}
+
+    sf = sorted(financials, key=lambda x: x["year"])
+    latest = sf[-1]
+    op_margins = _op_margins(sf)
+
+    # 1. 마진 확장 (최근 vs 약 2~3년 전), %p
+    s_margin, margin_delta = 0.0, None
+    if len(op_margins) >= 3:
+        margin_delta = op_margins[-1] - op_margins[-3]
+        s_margin = normalize(margin_delta, 0, 12)   # +12%p → 만점
+
+    # 2. 이익 가속 (최근 순이익 성장률)
+    nis = [f.get("net_income") for f in sf if f.get("net_income") is not None]
+    s_earn, earn_g = 0.0, None
+    if len(nis) >= 2 and nis[-2] and nis[-2] > 0:
+        earn_g = (nis[-1] - nis[-2]) / abs(nis[-2]) * 100
+        s_earn = normalize(earn_g, 0, 60)            # +60% → 만점
+
+    # 3. ROE 수준 + 상승 여부
+    roes = []
+    for f in sf:
+        eq, ni = f.get("total_equity"), f.get("net_income")
+        if eq and eq > 0 and ni is not None:
+            roes.append(ni / eq * 100)
+    s_roe, cur_roe = 0.0, None
+    if roes:
+        cur_roe = roes[-1]
+        s_level = normalize(cur_roe, 5, 25)          # ROE 5~25%
+        rising = 3.0 if len(roes) >= 3 and roes[-1] > roes[-3] else 0.0
+        s_roe = min(10.0, s_level * 0.7 + rising)
+
+    # 4. 매출 성장 (최근 2년 CAGR)
+    revs = [f.get("revenue") for f in sf if f.get("revenue")]
+    s_rev = 0.0
+    if len(revs) >= 3 and revs[-3] and revs[-3] > 0:
+        rg = cagr(revs[-3], revs[-1], 2)
+        s_rev = normalize(rg or 0, 0, 25)
+
+    raw = s_margin * 0.30 + s_earn * 0.25 + s_roe * 0.25 + s_rev * 0.20
+    # 적자 게이트: 최근 적자면 '가속'이 아니므로 감쇄 (트로프-회복과 구분)
+    if not (latest.get("net_income") and latest["net_income"] > 0):
+        raw *= 0.4
+    score = round(max(0.0, min(10.0, raw)), 2)
+
+    return {
+        "momentum_score": score,
+        "margin_expansion_pp": round(margin_delta, 1) if margin_delta is not None else None,
+        "earnings_growth_pct": round(earn_g, 1) if earn_g is not None else None,
+        "roe": round(cur_roe, 1) if cur_roe is not None else None,
+    }
+
+
 # ── 종합 스코어링 ─────────────────────────────────────────────────────────────
 
 def calculate_tenbagger_score(

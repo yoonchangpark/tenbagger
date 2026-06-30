@@ -6,7 +6,7 @@ import datetime
 import asyncio
 from typing import Optional
 from app.infra.clients.dart_client import get_corp_code, fetch_yearly_financials
-from app.domain.scoring import calculate_tenbagger_score, calculate_discovery_score
+from app.domain.scoring import calculate_tenbagger_score, calculate_discovery_score, calculate_momentum_score
 
 
 def classify_case_type(trajectory: list) -> dict:
@@ -197,6 +197,8 @@ async def run_backtest(
 
     # 발굴 점수 v2 — base_year 시총으로 밸류/사이즈 팩터 포함 (시총 None이면 1단계 폴백)
     discovery = calculate_discovery_score(historical_fins, market_cap=mcap_base)
+    # 모멘텀 점수 — 펀더멘털 가속(트로프의 반대편) 검증용
+    momentum = calculate_momentum_score(historical_fins)
 
     # 수익률 계산
     actual_return = None
@@ -214,6 +216,8 @@ async def run_backtest(
         "score_at_base_year": historical_score,
         "discovery_at_base_year": discovery.get("discovery_score"),
         "discovery_detail": discovery,
+        "momentum_at_base_year": momentum.get("momentum_score"),
+        "momentum_detail": momentum,
         "market_cap_at_base_year": mcap_base,
         "price_at_base_year": price_base,
         "price_at_end_year": price_end,
