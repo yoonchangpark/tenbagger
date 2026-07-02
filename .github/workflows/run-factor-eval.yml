@@ -2,7 +2,11 @@ name: Run Backfill + Factor Eval
 
 # 자율 검증 파이프라인 — 백필 실행 → 완료까지 폴링 → 팩터 예측력(밴드×코호트×시장) 출력
 # GitHub 러너가 Railway API를 호출하므로 사람이 Railway Console을 안 거쳐도 됨.
-# 에이전트가 workflow_dispatch로 트리거하고 job 로그로 결과를 읽는다.
+#
+# 트리거 2가지:
+# 1. workflow_dispatch — 사람이 Actions 탭에서 수동 실행
+# 2. push of .github/trigger/factor-eval.json — 에이전트가 dispatch 권한(Actions:write)
+#    없이도 파일 push만으로 실행 가능. 파라미터는 그 JSON에서 읽는다.
 on:
   workflow_dispatch:
     inputs:
@@ -18,6 +22,9 @@ on:
         description: "상위 N종목"
         required: false
         default: "1000"
+  push:
+    paths:
+      - ".github/trigger/factor-eval.json"
 
 jobs:
   backfill-and-eval:
@@ -25,11 +32,35 @@ jobs:
     env:
       BASE: ${{ vars.TENBAGGER_API_BASE || 'https://tenbagger-production.up.railway.app' }}
     steps:
-      - name: Trigger Backfill
+      - name: Checkout (트리거 파일 읽기용)
+        uses: actions/checkout@v4
+
+      - name: Resolve params (dispatch inputs 또는 trigger JSON)
         env:
-          BASE_YEARS: ${{ inputs.base_years || '2014,2015,2016,2017,2018,2019,2020' }}
-          HOLD_YEARS: ${{ inputs.hold_years || '5' }}
-          LIMIT: ${{ inputs.limit || '1000' }}
+          IN_BASE_YEARS: ${{ inputs.base_years }}
+          IN_HOLD_YEARS: ${{ inputs.hold_years }}
+          IN_LIMIT: ${{ inputs.limit }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_ENV"
+          import json, os
+          p = {}
+          try:
+              with open('.github/trigger/factor-eval.json') as f:
+                  p = json.load(f)
+          except Exception:
+              pass
+          def pick(env_key, json_key, default):
+              v = os.environ.get(env_key) or p.get(json_key) or default
+              return str(v)
+          print("BASE_YEARS=" + pick('IN_BASE_YEARS', 'base_years', '2014,2015,2016,2017,2018,2019,2020'))
+          print("HOLD_YEARS=" + pick('IN_HOLD_YEARS', 'hold_years', '5'))
+          print("LIMIT=" + pick('IN_LIMIT', 'limit', '1000'))
+          print("SKIP_BACKFILL=" + str(p.get('skip_backfill', False)).lower())
+          EOF
+          echo "resolved: 아래 env 참조"
+
+      - name: Trigger Backfill
+        if: env.SKIP_BACKFILL != 'true'
         run: |
           echo "백필 트리거: $BASE (base_years=$BASE_YEARS hold=$HOLD_YEARS limit=$LIMIT)"
           enc=$(python3 -c "import urllib.parse,os; print(urllib.parse.quote(os.environ['BASE_YEARS']))")
@@ -39,11 +70,12 @@ jobs:
           [ "$code" = "200" ] || { echo "::error::백필 트리거 실패 (HTTP $code)"; exit 1; }
 
       - name: Poll until completed
+        if: env.SKIP_BACKFILL != 'true'
         run: |
           echo "완료까지 폴링 (최대 55분)..."
           for i in $(seq 1 110); do
             sleep 30
-            result=$(curl -s "$BASE/api/v2/accuracy/backfill?hold_years=${{ inputs.hold_years || '5' }}")
+            result=$(curl -s "$BASE/api/v2/accuracy/backfill?hold_years=$HOLD_YEARS")
             status=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('progress',{}).get('status','unknown'))" 2>/dev/null)
             done=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('progress',{}).get('done',0))" 2>/dev/null)
             total=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('progress',{}).get('total',0))" 2>/dev/null)
@@ -56,7 +88,7 @@ jobs:
       - name: Factor Eval (momentum / discovery / quality)
         if: always()
         run: |
-          HY=${{ inputs.hold_years || '5' }}
+          HY=${HOLD_YEARS:-5}
           for score in momentum discovery quality; do
             echo "======== FACTOR: $score (hold=$HY) ========"
             curl -s "$BASE/api/v2/accuracy/factor-eval?score=$score&hold_years=$HY" | python3 -c "
