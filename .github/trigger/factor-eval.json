@@ -1,8 +1,8 @@
 {
   "comment": "이 파일을 수정해 push하면 run-factor-eval.yml이 실행된다 (에이전트 자율 트리거용). skip_backfill=true면 백필 없이 평가만 수행.",
-  "base_years": "2019,2020",
+  "base_years": "2014,2015,2016,2017,2018,2019,2020",
   "hold_years": "5",
-  "limit": "150",
-  "skip_backfill": false,
-  "run_id": 7
+  "limit": "1000",
+  "skip_backfill": true,
+  "run_id": 1
 }
