@@ -149,3 +149,60 @@ async def run_backfill_endpoint(
     background_tasks.add_task(_job)
     return {"message": "백필 시작 (백그라운드)", "base_years": years,
             "hold_years": hold_years, "limit": limit}
+
+
+# ── 팩터 평가 (자율 검증용 — 밴드×코호트×시장) ──────────────────────────────
+_SCORE_COLS = {"momentum": "momentum_score", "discovery": "discovery_score", "quality": "total_score"}
+
+
+@router.get("/factor-eval")
+def factor_eval(
+    score: str = Query("momentum", description="momentum | discovery | quality"),
+    hold_years: int = Query(5, ge=1, le=10),
+    threshold: float = Query(7.0, description="상위 밴드 기준점"),
+):
+    """점수 팩터의 예측력을 밴드별·코호트별로 집계해 반환한다.
+    GitHub Actions 등 외부에서 curl로 검증 결과를 읽을 수 있게 하는 자율 검증 엔드포인트."""
+    col = _SCORE_COLS.get(score)
+    if not col:
+        return {"error": f"score는 {list(_SCORE_COLS)} 중 하나"}
+
+    with SessionLocal() as session:
+        # 밴드별 표본·중간수익률 (단조성 확인)
+        bands = session.execute(text(f"""
+            SELECT CASE WHEN {col} >= :th THEN 'top'
+                        WHEN {col} >= 5 THEN 'mid'
+                        WHEN {col} >= 3 THEN 'low' ELSE 'bottom' END AS band,
+                   COUNT(return_pct) AS n,
+                   ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY return_pct)::numeric, 1) AS median_pct
+            FROM backfill_results
+            WHERE hold_years = :hy AND {col} IS NOT NULL AND return_pct IS NOT NULL
+            GROUP BY 1
+        """), {"th": threshold, "hy": hold_years}).fetchall()
+
+        # 코호트별 상위밴드 vs 시장 (강세장 의존/알파 분리)
+        cohorts = session.execute(text(f"""
+            SELECT base_year,
+                   COUNT(*) FILTER (WHERE {col} >= :th AND return_pct IS NOT NULL) AS n_top,
+                   ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY return_pct)
+                         FILTER (WHERE {col} >= :th)::numeric, 1) AS top_median,
+                   ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY return_pct)::numeric, 1) AS market_median
+            FROM backfill_results
+            WHERE hold_years = :hy AND return_pct IS NOT NULL
+            GROUP BY base_year ORDER BY base_year
+        """), {"th": threshold, "hy": hold_years}).fetchall()
+
+    band_order = {"top": 0, "mid": 1, "low": 2, "bottom": 3}
+    return {
+        "score": score, "column": col, "hold_years": hold_years, "threshold": threshold,
+        "bands": [
+            {"band": r[0], "count": int(r[1]), "median_pct": float(r[2]) if r[2] is not None else None}
+            for r in sorted(bands, key=lambda x: band_order.get(x[0], 9))
+        ],
+        "cohorts": [
+            {"base_year": int(r[0]), "n_top": int(r[1]),
+             "top_median": float(r[2]) if r[2] is not None else None,
+             "market_median": float(r[3]) if r[3] is not None else None}
+            for r in cohorts
+        ],
+    }
