@@ -1,138 +1,67 @@
 """
-트랙 레코드 API — 과거 TENBAGGER 예측 vs 실제 수익률 공개
-GET /api/v2/track-record   전체 큐레이션 종목 일괄 백테스트
+텐배거 사례 API — 탑다운 발굴 방식의 실제 사례 공개
+GET /api/v2/track-record
+
+⚠️ 정직성 원칙:
+이 목록은 "우리 과거 점수가 예측했다"는 주장이 아니다. (백테스트 결과, 구
+스코어링은 이런 종목을 오히려 AVOID로 분류했다 — scoring_postmortem.md 참조.)
+대신 **"텐배거는 어떻게 나오는가"의 방법론 사례**다:
+  거시 흐름 → 필연 성장 산업 → 공급 독점 기업 → 실적 폭발(DART 실공시로 검증).
+모든 재무 배수는 DART 사업보고서 실공시(2026-07 조회) 기반의 사실이다.
 """
-import asyncio
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/api/v2/track-record", tags=["TrackRecord"])
 
-# 공개 큐레이션 목록 — 2016년 시스템 예측 → 2026년(10년) 실제 결과
-# 반도체·바이오·플랫폼 대표 사례로 장기 가치투자 성과를 정직하게 공개
-# _static: pykrx 조회 실패 시 사용하는 사전 계산 값 (변경 불가 역사적 사실)
-CURATED = [
+# 탑다운 사례 — 거시→산업→독점→실적. 재무 배수는 DART 사업보고서 실값.
+CASES = [
     {
-        "name": "SK하이닉스", "ticker": "000660", "base_year": 2016, "hold_years": 10,
-        "note": "2016년 TENBAGGER 선정. 메모리 슈퍼사이클·HBM AI 수요로 10년간 621% 급등.",
-        "_static": {
-            "predicted_grade": "TENBAGGER", "total_score": 8.8,
-            "actual_return_pct": 621.4, "prediction_correct": True,
-            "end_year": 2026,
-        },
+        "name": "한미반도체", "ticker": "042700", "sector": "AI 반도체 · HBM",
+        "thesis": "AI 데이터 폭증 → HBM 수요 → HBM 본딩 장비(TC본더) 사실상 독점",
+        "period": "2023 → 2024",
+        "metrics": [
+            {"label": "매출", "value": "3.5배"},
+            {"label": "영업이익", "value": "7.4배"},
+            {"label": "영업이익률", "value": "46%"},
+        ],
+        "detail": "매출 1,590억→5,589억, 영업이익 346억→2,554억",
     },
     {
-        "name": "삼성바이오로직스", "ticker": "207940", "base_year": 2016, "hold_years": 10,
-        "note": "2016년 TENBAGGER 선정. 바이오 CMO 글로벌 수요 폭증으로 10년간 358% 성장.",
-        "_static": {
-            "predicted_grade": "TENBAGGER", "total_score": 8.2,
-            "actual_return_pct": 357.9, "prediction_correct": True,
-            "end_year": 2026,
-        },
+        "name": "한화에어로스페이스", "ticker": "012450", "sector": "방산 · 지정학",
+        "thesis": "지정학 긴장 → 유럽 재무장 → K-방산(자주포·장갑차) 수출 과점",
+        "period": "2022 → 2024",
+        "metrics": [
+            {"label": "매출", "value": "1.6배"},
+            {"label": "영업이익", "value": "4.3배"},
+            {"label": "영업이익률", "value": "15%"},
+        ],
+        "detail": "매출 7.1조→11.2조, 영업이익 4,003억→1조7,319억",
     },
     {
-        "name": "셀트리온", "ticker": "068270", "base_year": 2016, "hold_years": 10,
-        "note": "2016년 COMPOUNDER 선정. 바이오시밀러 글로벌 허가·매출 확대로 안정적 성장.",
-        "_static": {
-            "predicted_grade": "COMPOUNDER", "total_score": 7.1,
-            "actual_return_pct": 103.3, "prediction_correct": True,
-            "end_year": 2026,
-        },
-    },
-    {
-        "name": "카카오", "ticker": "035720", "base_year": 2016, "hold_years": 10,
-        "note": "2016년 WATCHLIST 선정. 플랫폼 고성장 기대에도 규제·금리 역풍으로 10년 마이너스.",
-        "_static": {
-            "predicted_grade": "WATCHLIST", "total_score": 6.5,
-            "actual_return_pct": -47.5, "prediction_correct": False,
-            "end_year": 2026,
-        },
+        "name": "제룡전기", "ticker": "033100", "sector": "AI 전력 · 변압기",
+        "thesis": "AI 데이터센터 전력폭증 + 美 송전망 교체 → 변압기 공급부족 → 가격결정력",
+        "period": "2022 → 2024",
+        "metrics": [
+            {"label": "매출", "value": "3.0배"},
+            {"label": "순이익", "value": "6.4배"},
+            {"label": "영업이익률", "value": "37%"},
+        ],
+        "detail": "매출 861억→2,627억, 순이익 125억→799억",
     },
 ]
 
 
-def _build_from_static(item: dict) -> dict:
-    s = item["_static"]
-    return {
-        "name": item["name"],
-        "ticker": item["ticker"],
-        "base_year": item["base_year"],
-        "end_year": s.get("end_year", item["base_year"] + item["hold_years"]),
-        "hold_years": item["hold_years"],
-        "note": item.get("note", ""),
-        "predicted_grade": s.get("predicted_grade"),
-        "total_score": s.get("total_score"),
-        "growth_score": None,
-        "price_at_base_year": None,
-        "price_at_end_year": None,
-        "actual_return_pct": s.get("actual_return_pct"),
-        "is_tenbagger_actual": (s.get("actual_return_pct") or 0) >= 900,
-        "prediction_correct": s.get("prediction_correct"),
-        "status": "ok",
-    }
-
-
 @router.get("")
 async def get_track_record():
-    """
-    큐레이션 종목들의 백테스트 결과를 반환한다.
-    pykrx 조회 성공 시 실시간 계산 값을, 실패 시 사전 계산된 정적 값을 사용한다.
-    """
-    from app.domain.backtest import run_backtest
-
-    async def _safe_run(item: dict) -> dict:
-        static = item.get("_static", {})
-        try:
-            bt = await run_backtest(
-                ticker=item["ticker"],
-                base_year=item["base_year"],
-                hold_years=item["hold_years"],
-            )
-            if "error" in bt:
-                raise ValueError(bt["error"])
-            score = bt.get("score_at_base_year") or {}
-            # 수익률: pykrx 조회 성공 시 실시간, None이면 static fallback
-            actual_return = bt.get("actual_return_pct")
-            if actual_return is None:
-                actual_return = static.get("actual_return_pct")
-            return {
-                "name": item["name"],
-                "ticker": item["ticker"],
-                "base_year": item["base_year"],
-                "end_year": bt.get("end_year"),
-                "hold_years": item["hold_years"],
-                "note": item.get("note", ""),
-                # 큐레이션 메타(등급·점수·예측결과)는 _static 우선 — DART 재계산값은 보조
-                "predicted_grade": static.get("predicted_grade") or score.get("grade"),
-                "total_score": static.get("total_score") or score.get("total_score"),
-                "growth_score": score.get("growth_score"),
-                "price_at_base_year": bt.get("price_at_base_year"),
-                "price_at_end_year": bt.get("price_at_end_year"),
-                "actual_return_pct": actual_return,
-                "is_tenbagger_actual": (actual_return or 0) >= 900,
-                "prediction_correct": static.get("prediction_correct"),
-                "status": "ok",
-            }
-        except Exception:
-            # pykrx/DART 완전 실패 시 정적 사전 계산 값으로 폴백
-            if "_static" in item:
-                return _build_from_static(item)
-            return {**item, "status": "error", "error": "조회 실패"}
-
-    results = await asyncio.gather(*[_safe_run(item) for item in CURATED])
-    results = list(results)
-    ok = [r for r in results if r.get("status") == "ok"]
-
-    # ⚠️ 생존자 편향 주의: 아래 records는 '이미 텐배거가 된 것을 아는' 종목을 손으로 고른
-    # 큐레이션 사례다. 이걸로 '적중률/평균수익률'을 집계하면 승자만 본 편향된 수치가 된다.
-    # 따라서 여기서는 종합 적중률을 계산하지 않는다.
-    # 편향 없는 시스템 정확도는 /api/v2/accuracy/results (예측 시점 등급 기준 전수 추적)를 써라.
+    """탑다운 발굴 방식의 실제 사례 — DART 실공시 재무로 '해자'를 검증한 케이스."""
     return {
-        "records": results,
-        "summary": {
-            "total": len(CURATED),
-            "resolved": len(ok),
-            "is_curated_examples": True,
-            "note": ("이 목록은 설명을 위해 선별한 대표 사례입니다. 전체 예측의 표본이 아니므로 "
-                     "여기서 적중률을 집계하지 않습니다. 편향 없는 검증 정확도는 '검증된 정확도' 섹션을 보세요."),
+        "cases": CASES,
+        "meta": {
+            "is_method_showcase": True,
+            "title": "텐배거는 이렇게 나온다",
+            "subtitle": "거시 흐름 → 산업 독점 → 실적 폭발 (DART 실공시로 검증)",
+            "note": ("과거 예측 적중을 주장하는 목록이 아닙니다. 탑다운 발굴 방식"
+                     "(거시→산업→독점→실적)을 실제 사례로 보여주는 것이며, "
+                     "모든 재무 수치는 DART 사업보고서 실값입니다."),
         },
     }
