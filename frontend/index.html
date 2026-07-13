@@ -519,27 +519,20 @@
       </div>
     </div>
 
-    <!-- 트랙레코드 (실시간) -->
-    <div class="landing-section-title">📋 예측 정확도</div>
+    <!-- 텐배거 방정식 (탑다운 사례) -->
+    <div class="landing-section-title">🔭 텐배거는 이렇게 나온다</div>
     <div class="tr-banner" id="trBanner">
-      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">텐배거 등급 종목의 실제 수익률 추적</div>
-      <div style="font-size:11px;color:var(--muted);">시장 전수 종목을 10년 보유 기준으로 검증한 결과입니다 (아래 대표 사례와 별개의 전수 통계)</div>
-      <div class="tr-stats" id="trStats">
-        <div class="tr-stat"><span class="sk" style="height:22px;margin-bottom:5px;"></span><span class="sk" style="height:12px;width:70%;margin:0 auto;"></span></div>
-        <div class="tr-stat"><span class="sk" style="height:22px;margin-bottom:5px;"></span><span class="sk" style="height:12px;width:70%;margin:0 auto;"></span></div>
-        <div class="tr-stat"><span class="sk" style="height:22px;margin-bottom:5px;"></span><span class="sk" style="height:12px;width:70%;margin:0 auto;"></span></div>
-      </div>
-      <a href="trackrecord.html" style="display:inline-block;margin-top:12px;font-size:12px;color:var(--muted);text-decoration:none;">전체 기록 보기 →</a>
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px;">거시 흐름 → 산업 독점 → 실적 폭발</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.5;">시장이 놓친 산업의 <b>공급 독점 기업</b>을 찾아, DART 법정공시 실적으로 검증합니다. 아래는 실제 사례입니다.</div>
     </div>
 
-    <!-- 트랙레코드 종목 카드 미니 -->
-    <div style="font-size:11px;color:var(--muted);margin:-4px 0 10px;font-weight:600;">2016년 예측 → 2026년 결과 (10년)</div>
+    <!-- 사례 카드 -->
+    <div style="font-size:11px;color:var(--muted);margin:2px 0 10px;font-weight:600;">거시 → 산업 독점 → 실적 폭발 · DART 실공시</div>
     <div id="trRecordsWrap">
       <div style="display:flex;flex-direction:column;gap:7px;">
-        <div class="sk" style="height:54px;border-radius:12px;"></div>
-        <div class="sk" style="height:54px;border-radius:12px;"></div>
-        <div class="sk" style="height:54px;border-radius:12px;"></div>
-        <div class="sk" style="height:54px;border-radius:12px;"></div>
+        <div class="sk" style="height:96px;border-radius:12px;"></div>
+        <div class="sk" style="height:96px;border-radius:12px;"></div>
+        <div class="sk" style="height:96px;border-radius:12px;"></div>
       </div>
     </div>
 
@@ -1954,64 +1947,33 @@
             });
         }).catch(()=>{});
 
-      // 트랙레코드 통계 — 하단 10년 사례와 시간축을 맞추기 위해 10년 보유 백필만 집계
-      fetch(API+'/api/v2/accuracy/backfill?hold_years=10')
-        .then(r=>r.ok?r.json():null).catch(()=>null)
-        .then(data=>{
-          const stats=document.getElementById('trStats');
-          if(!stats)return;
-          const tb=(data&&data.summary||{}).TENBAGGER;
-          if(!tb||!tb.count_priced){
-            // 10년 백필이 아직 없으면 2년 수치로 오인되지 않도록 정직하게 안내
-            stats.innerHTML=`<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--muted);padding:6px 0;">10년 전수 검증 집계 준비 중입니다.</div>`;
-            return;
-          }
-          stats.innerHTML=`
-            <div class="tr-stat">
-              <div class="ts-val">${tb.median_pct!=null?(tb.median_pct>0?'+':'')+tb.median_pct.toFixed(0)+'%':'-'}</div>
-              <div class="ts-lbl">TENBAGGER 중간 수익률</div>
-            </div>
-            <div class="tr-stat">
-              <div class="ts-val">${tb.hit_rate!=null?tb.hit_rate.toFixed(0)+'%':'-'}</div>
-              <div class="ts-lbl">+50% 달성률</div>
-            </div>
-            <div class="tr-stat">
-              <div class="ts-val">${tb.count_priced||'-'}</div>
-              <div class="ts-lbl">10년 검증 표본</div>
-            </div>`;
-        }).catch(()=>{});
-
-      // 트랙레코드 종목 카드
+      // 텐배거 사례 카드 — 탑다운(거시→산업 독점→실적 폭발), DART 실공시
       fetch(API+'/api/v2/track-record')
         .then(r=>r.ok?r.json():null).catch(()=>null)
         .then(data=>{
           const wrap=document.getElementById('trRecordsWrap');
           if(!wrap)return;
-          const records=(data?.records||[]).filter(r=>r.status==='ok');
-          if(!records.length){wrap.style.display='none';return;}
-          wrap.innerHTML=records.map(r=>{
-            const pct=r.actual_return_pct;
-            const pos=pct!=null&&pct>=0,neg=pct!=null&&pct<0;
-            const pctStr=pct!=null?((pos?'+':'')+pct.toFixed(1)+'%'):'—';
-            const col=pos?'#10b981':neg?'#ef4444':'#9ca3af';
-            const barW=pct!=null?Math.min(Math.abs(pct),150)/1.5:0;
-            const scoreStr=r.total_score!=null?r.total_score.toFixed(1):'—';
-            const gradeMap={TENBAGGER:'⭐',COMPOUNDER:'✅',WATCHLIST:'👁',AVOID:'⛔'};
-            const gradeIcon=gradeMap[r.predicted_grade]||'';
+          const cases=data?.cases||[];
+          if(!cases.length){wrap.style.display='none';return;}
+          wrap.innerHTML=cases.map(c=>{
+            const metrics=(c.metrics||[]).map(m=>`
+              <div style="flex:1;text-align:center;">
+                <div style="font-size:17px;font-weight:900;color:#10b981;">${m.value}</div>
+                <div style="font-size:9px;color:var(--muted);margin-top:1px;">${m.label}</div>
+              </div>`).join('');
             return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                <div>
-                  <div style="font-size:14px;font-weight:800;">${r.name}</div>
-                  <div style="font-size:10px;color:var(--muted);margin-top:2px;">${gradeIcon} 예측 점수 ${scoreStr} · ${r.base_year}.01 선정</div>
-                </div>
-                <div style="font-size:22px;font-weight:900;color:${col};flex-shrink:0;">${pctStr}</div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+                <div style="font-size:14px;font-weight:800;">${c.name}</div>
+                <div style="font-size:10px;font-weight:700;color:#93c5fd;background:rgba(59,130,246,.12);border-radius:6px;padding:2px 7px;flex-shrink:0;">${c.sector||''}</div>
               </div>
-              <div style="margin-top:8px;background:rgba(255,255,255,.06);border-radius:3px;height:3px;overflow:hidden;">
-                <div style="height:100%;width:${barW.toFixed(0)}%;background:${col};border-radius:3px;"></div>
+              <div style="font-size:10.5px;color:var(--muted);margin:5px 0 9px;line-height:1.45;">${c.thesis||''}</div>
+              <div style="display:flex;gap:6px;align-items:center;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.18);border-radius:8px;padding:8px 6px;">
+                ${metrics}
               </div>
+              <div style="font-size:9px;color:var(--muted);margin-top:6px;text-align:right;">${c.period||''} · ${c.detail||''}</div>
             </div>`;
           }).join('');
-          wrap.innerHTML+=`<a href="trackrecord.html" style="display:block;text-align:right;font-size:12px;color:#60a5fa;text-decoration:none;margin-top:8px;">전체 기록 보기 →</a>`;
+          wrap.innerHTML+=`<div style="font-size:9.5px;color:var(--muted);margin-top:9px;line-height:1.5;">※ 과거 예측 적중을 주장하는 목록이 아닙니다. 텐배거가 나오는 방식(거시→산업 독점→실적)을 실제 사례로 보여주며, 모든 수치는 DART 사업보고서 실값입니다.</div>`;
         });
     }
 
