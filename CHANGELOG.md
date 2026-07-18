@@ -2,6 +2,24 @@
 
 ---
 
+## v6.1 — 숏츠 피드 API: AIVA 연동 데이터 계약 (2026-07)
+
+### 배경
+tenbagger(발굴·검증)와 aiva_server(영상 생성)를 연결하는 첫 단계.
+aiva의 `tenbagger_topic.py`가 이 API를 읽어 "거시→산업 독점→해자=숫자" 구조의
+숏츠 대본을 생성한다.
+
+### 추가
+- **`GET /api/v2/shorts-feed`** (`v2_shorts_feed.py`): mode 파라미터로 2단계 콘텐츠 전환.
+  - `mode=retrospective` (Phase 1): 과거 실측 승자 — backfill_results 수익률 상위에서
+    추출 (우리 과거 등급이 아니라 **결과** 기준 — 정직성). 큐레이션된 탑다운 내러티브·
+    B롤 키워드·DART 검증 facts 결합. `grade_then`(대부분 AVOID)이 그 자체로 스토리.
+  - `mode=candidate` (Phase 2): 현재 탑다운 후보 (제룡전기 등) — 미래 시나리오.
+- **정직성 계약**: 화면 자막은 `facts[]`(DART 검증분)만 허용, `approx_return_pct`는
+  백테스트 근사치라 자막 인용 금지 명시. `fact_check_required` 플래그로 미검증 종목 표시.
+
+---
+
 ## v6.0 — 홈 "예측 정확도" 정직화 → "텐배거 방정식" 사례 (2026-07)
 
 ### 배경
