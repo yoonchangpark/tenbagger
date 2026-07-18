@@ -29,6 +29,7 @@ from app.api.v2_swap import router as swap_router
 from app.api.v2_macro import router as macro_router
 from app.api.v2_etl import router as etl_router, run_scheduled_etl
 from app.api.v2_track_record import router as track_record_router
+from app.api.v2_shorts_feed import router as shorts_feed_router
 from app.api.factor_engine import router as factor_router
 from app.core.database import check_db, SessionLocal
 
@@ -305,6 +306,7 @@ app.include_router(swap_router)
 app.include_router(macro_router)
 app.include_router(etl_router)
 app.include_router(track_record_router)
+app.include_router(shorts_feed_router)
 app.include_router(factor_router)
 
 
