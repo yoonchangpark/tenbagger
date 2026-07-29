@@ -1,5 +1,7 @@
 requests
 apscheduler
 python-dotenv
+# 콘텐츠 자동 생성(content_generator.py)에 필요
+openai>=1.30.0
 # 콘텐츠 큐를 Supabase로 쓸 때만 필요
 # supabase

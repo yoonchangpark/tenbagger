@@ -12,6 +12,9 @@
 | `token_manager.py` | 토큰 자동 갱신 (단기→장기 교환, 장기 refresh) |
 | `content_queue.py` | 발행 콘텐츠 큐 (JSON 파일 / Supabase) |
 | `scheduler.py` | 최적 시간대 발행 로직 (APScheduler cron) |
+| `content_generator.py` | 텐배거 주제 → OpenAI로 Threads 게시물 생성 → 큐 적재 |
+
+관련 문서: 텐배거용 프롬프트는 [`prompt_pack.md`](prompt_pack.md), 실계정 연결·발행 검증은 [`SETUP.md`](SETUP.md).
 
 ## 설치
 
@@ -24,8 +27,14 @@ cp .env.example .env   # 값 채우기
 ## 사용
 
 ```bash
-# 큐에 콘텐츠 추가
+# 연결 점검 (발행 안 함, 읽기전용) — 토큰·계정 확인
+python main.py --check
+
+# 큐에 콘텐츠 추가 (수동)
 python main.py --add "오늘의 텐배거 인사이트 ..."
+
+# 주제로 콘텐츠 자동 생성 → 큐 적재 (OPENAI_API_KEY 필요)
+python content_generator.py "AI 전력 인프라 텐배거" "K-방산 성장주"
 
 # 지금 즉시 한 건 발행 (테스트)
 python main.py --once

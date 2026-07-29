@@ -2,6 +2,22 @@
 
 ---
 
+## v6.3 — threads-auto: 콘텐츠 생성기 + 프롬프트 팩 + 연결 점검 (2026-07)
+
+### 추가
+- **`threads-auto/content_generator.py`**: 텐배거 주제(topic)를 입력받아 OpenAI로
+  한국어 Threads 게시물(후킹→재무 근거→CTA, 500자 이내, 매수/매도 단정 금지)을
+  생성해 `content_queue`에 적재. DB에 직접 붙지 않는 느슨한 결합.
+  CLI: `python content_generator.py "주제1" "주제2" --count N`.
+- **`threads-auto/prompt_pack.md`**: Notion 콘텐츠 기획 프롬프트의 `[ ]`를 텐배거
+  컨텍스트로 채우고 Threads(텍스트 우선)에 맞게 조정한 운영자용 프롬프트 팩.
+- **`threads-auto/SETUP.md`**: Meta 앱 생성 → 토큰 발급 → 연결 점검 → 발행 검증까지
+  단계별 가이드(각 단계 검증 포인트 포함).
+- **`main.py --check`**: 발행 없이 토큰 유효성·계정(user_id)만 확인하는 읽기전용 점검.
+- `requirements.txt`에 `openai>=1.30.0` 추가.
+
+> 남은 것: 실제 Meta 자격증명으로 라이브 발행 1건 검증(오너 단계).
+
 ## v6.2 — 숏츠 피드 회고편 DART 팩트체크 완료 (2026-07)
 
 ### 변경

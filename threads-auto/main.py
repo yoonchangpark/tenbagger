@@ -93,6 +93,16 @@ def main() -> int:
 
     client = build_client()
 
+    if args and args[0] == "--check":
+        # 발행 없이 토큰·계정 연결만 확인하는 읽기전용 점검
+        try:
+            uid = client.resolve_user_id()
+        except Exception as exc:  # noqa: BLE001
+            print(f"연결 실패: {exc}")
+            return 1
+        print(f"연결 성공 — Threads user_id={uid}, 대기 콘텐츠 {queue.pending_count()}건")
+        return 0
+
     if args and args[0] == "--once":
         publish_next(client, queue)
         return 0
