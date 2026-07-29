@@ -1,0 +1,5 @@
+requests
+apscheduler
+python-dotenv
+# 콘텐츠 큐를 Supabase로 쓸 때만 필요
+# supabase
