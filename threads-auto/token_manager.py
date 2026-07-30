@@ -133,10 +133,13 @@ class TokenManager:
                 "저장된 유효 토큰이 없고 seed_token(ACCESS_TOKEN)도 없습니다."
             )
         # seed가 이미 장기 토큰일 수도 있으나, 교환은 멱등에 가깝고 만료를 리셋하므로
-        # 우선 교환을 시도하고 실패하면 seed를 그대로 저장한다.
+        # 우선 교환을 시도한다. 실패 시 seed를 이번 실행에만 쓰고 저장하지는 않는다
+        # (교환 실패 = seed가 잘못됐을 가능성이 큼. 저장하면 ACCESS_TOKEN을 고쳐도
+        #  캐시된 잘못된 토큰을 계속 쓰게 된다).
         try:
             return self.exchange_long_lived(seed_token)
         except RuntimeError as exc:
-            logger.warning("장기 토큰 교환 실패(%s), seed 토큰을 그대로 사용", exc)
-            self._save(seed_token, 5184000)
+            logger.warning(
+                "장기 토큰 교환 실패(%s) — seed 토큰을 이번 실행에만 사용(저장 안 함)", exc
+            )
             return seed_token
