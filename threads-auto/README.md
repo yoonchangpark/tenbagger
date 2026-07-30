@@ -13,6 +13,7 @@
 | `content_queue.py` | 발행 콘텐츠 큐 (JSON 파일 / Supabase) |
 | `scheduler.py` | 최적 시간대 발행 로직 (APScheduler cron) |
 | `content_generator.py` | 텐배거 주제 → OpenAI로 Threads 게시물 생성 → 큐 적재 |
+| `preview.py` | 발행 전 큐 내용을 HTML로 미리보기 + 품질 점검 |
 
 관련 문서: 텐배거용 프롬프트는 [`prompt_pack.md`](prompt_pack.md), 실계정 연결·발행 검증은 [`SETUP.md`](SETUP.md).
 
@@ -35,6 +36,9 @@ python main.py --add "오늘의 텐배거 인사이트 ..."
 
 # 주제로 콘텐츠 자동 생성 → 큐 적재 (OPENAI_API_KEY 필요)
 python content_generator.py "AI 전력 인프라 텐배거" "K-방산 성장주"
+
+# 발행 전 미리보기 (브라우저로 열림) — 글자 수·재무 근거·책임 고지 점검
+python preview.py
 
 # 지금 즉시 한 건 발행 (테스트)
 python main.py --once

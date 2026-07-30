@@ -1,3 +1,4 @@
 # 런타임 상태 — 토큰(민감)과 큐는 커밋하지 않는다
 .token.json
 queue.json
+preview.html
