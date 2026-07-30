@@ -80,9 +80,9 @@ python main.py
 
 ## 체크리스트
 
-- [ ] Meta 앱 생성 · `threads_basic` / `threads_content_publish` 권한
-- [ ] `.env`에 APP_ID / APP_SECRET / ACCESS_TOKEN 입력
-- [ ] `python main.py --check` → 계정 ID 확인 (읽기전용)
-- [ ] `--add` + `--once` → 실제 발행 1건 확인
+- [x] Meta 앱 생성 · `threads_basic` / `threads_content_publish` 권한
+- [x] `.env`에 APP_ID / APP_SECRET / ACCESS_TOKEN 입력
+- [x] `python main.py --check` → 계정 ID 확인 (읽기전용)
+- [x] `--add` + `--once` → 실제 발행 1건 확인 (2026-07-30 @yoonchangpark 성공)
 - [ ] (선택) `content_generator.py` → 자동 생성 확인
 - [ ] `python main.py` 상주 → 스케줄 발행 확인
