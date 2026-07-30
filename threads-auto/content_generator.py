@@ -135,7 +135,14 @@ def main() -> int:
         print('사용법: python content_generator.py "주제1" "주제2" [--count N]')
         return 1
 
-    added = generate_and_enqueue(topics, count=count)
+    try:
+        added = generate_and_enqueue(topics, count=count)
+    except RuntimeError as exc:
+        # 설정 누락(키·패키지)은 예상 가능한 상황 — traceback 대신 안내만 출력
+        print(f"실행할 수 없습니다: {exc}")
+        print("  .env에 OPENAI_API_KEY=... 를 추가하고 다시 시도하세요.")
+        return 1
+
     print(f"{added}개 게시물을 큐에 추가했습니다.")
     return 0
 
