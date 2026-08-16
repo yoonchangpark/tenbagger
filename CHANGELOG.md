@@ -2,6 +2,21 @@
 
 ---
 
+## v6.4 — threads-auto ↔ shorts-feed 연결 (2026-07)
+
+### 추가
+- **`content_generator.py --ticker`**: 종목코드 하나로 `/api/v2/shorts-feed`
+  (candidate → retrospective 순으로 탐색)에서 topic·facts를 자동으로 채워 게시물 생성.
+  기존 수동 `--facts` 입력 방식은 그대로 유지(선택 사항).
+- `facts_from_shorts_feed_item()`: shorts-feed의 `facts[]`·`narrative`·`target_scenario`를
+  게시물 생성용 문자열로 변환. candidate(미확정 미래 시나리오)일 땐 단정 표현 금지 주의문 자동 추가.
+
+### 배경
+숏츠 영상(aiva)과 Threads 텍스트 포스트(threads-auto)가 지금까지 같은 "DART 검증
+facts만 인용" 원칙을 쓰면서도 데이터 입력은 각자 따로(코드 하드코딩 / `--facts` 수동)였다.
+`shorts-feed`를 공통 데이터 소스로 연결해 종목 하나 검증하면 영상·텍스트 콘텐츠가
+같은 근거로 동시에 나올 수 있게 했다.
+
 ## v6.3 — threads-auto: 콘텐츠 생성기 + 프롬프트 팩 + 연결 점검 (2026-07)
 
 ### 추가

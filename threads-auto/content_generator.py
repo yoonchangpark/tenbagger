@@ -14,6 +14,10 @@ content_queue에 pending 상태로 넣는다. 발행은 스케줄러(main.py)가
   python content_generator.py "AI 전력 인프라 텐배거"
   python content_generator.py "삼성전자 배당 성장" --count 2   # 2개 변형 생성
 
+  # tenbagger shorts-feed에서 종목코드로 자동으로 topic+facts를 채운다 (수동 --facts 불필요)
+  # candidate → retrospective 순서로 찾는다. TENBAGGER_API_BASE 환경변수로 API 주소 지정.
+  python content_generator.py --ticker 033100
+
 재무 수치는 DART에서 확인한 값을 넣는다. 모델은 주어진 숫자만 쓰고
 없는 수치는 지어내지 않도록 지시받는다.
 """
@@ -85,6 +89,48 @@ NO_FACTS_BLOCK = """
 - 대신 '지표를 어떻게 읽는가', '흔한 실수', '판단 기준' 처럼
   숫자 없이도 실질적인 정보가 되는 내용으로 써라.
 """
+
+
+def fetch_shorts_feed_item(ticker: str, base: Optional[str] = None) -> Optional[dict]:
+    """tenbagger의 shorts-feed에서 종목코드에 해당하는 항목을 찾아 반환한다.
+
+    candidate(현재 탑다운 후보) → retrospective(과거 실측 승자) 순서로 찾는다.
+    두 모드 다 없으면 None. tenbagger 백엔드가 안 떠 있으면 경고만 남기고 None.
+    """
+    import requests
+
+    base = (base or os.getenv("TENBAGGER_API_BASE", "http://localhost:8000")).rstrip("/")
+    for mode in ("candidate", "retrospective"):
+        try:
+            resp = requests.get(
+                f"{base}/api/v2/shorts-feed",
+                params={"mode": mode, "limit": 50},
+                timeout=15.0,
+            )
+            resp.raise_for_status()
+            for item in resp.json().get("items", []):
+                if item.get("ticker") == ticker:
+                    item["_mode"] = mode
+                    return item
+        except Exception as exc:  # noqa: BLE001 — 조회 실패는 다음 모드로 계속
+            logger.warning("shorts-feed 조회 실패(mode=%s): %s", mode, exc)
+    return None
+
+
+def facts_from_shorts_feed_item(item: dict) -> str:
+    """shorts-feed 항목(facts[]·narrative·target_scenario 등) → 게시물 생성용 facts 문자열."""
+    parts = []
+    for f in item.get("facts", []) or []:
+        label, value, period = f.get("label"), f.get("value"), f.get("period", "")
+        if label and value:
+            parts.append(f"{label} {value}" + (f" ({period})" if period else ""))
+    if item.get("narrative"):
+        parts.append(f"발굴 논리: {item['narrative']}")
+    if item.get("_mode") == "candidate":
+        if item.get("target_scenario"):
+            parts.append(f"향후 시나리오(미확정): {item['target_scenario']}")
+        parts.append("※ 아직 결과가 나오지 않은 미래 시나리오다 — 단정적 표현 금지.")
+    return " / ".join(parts)
 
 
 def _client():
@@ -191,10 +237,26 @@ def main() -> int:
             return 1
 
     facts = take_value("--facts") or ""
+    ticker = take_value("--ticker")
 
     topics = [a for a in args if a.strip()]
+
+    if ticker:
+        if topics or facts:
+            print("--ticker 는 주제/--facts와 함께 쓸 수 없습니다 (shorts-feed에서 둘 다 자동으로 채웁니다).")
+            return 1
+        item = fetch_shorts_feed_item(ticker)
+        if not item:
+            print(f"shorts-feed(candidate/retrospective)에서 종목코드 {ticker}를 찾을 수 없습니다.")
+            print("  TENBAGGER_API_BASE 환경변수(기본 http://localhost:8000)가 맞는지 확인하세요.")
+            return 1
+        topics = [item.get("name", ticker)]
+        facts = facts_from_shorts_feed_item(item)
+        print(f"shorts-feed에서 자동 로드 (mode={item.get('_mode')}): {item.get('name')} — {facts[:100]}")
+
     if not topics:
         print('사용법: python content_generator.py "주제" [--facts "매출 1,806억→3,067억, ROE 22%"] [--count N]')
+        print('       또는: python content_generator.py --ticker 033100')
         return 1
 
     # 재무 수치는 주제 하나에 대응한다. 여러 주제에 같은 숫자를 붙이면 틀린 글이 나온다.
