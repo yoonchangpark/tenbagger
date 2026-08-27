@@ -1709,7 +1709,19 @@
 
     // ── 영상 데이터 — 실제 업로드 후 여기에 추가 ──
     // 형식: "ticker": { url: "https://youtu.be/VIDEO_ID", title: "...", duration: "0:58", views: "12.4만", thumbnail: "https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg", shorts: true, grade: "TENBAGGER", ticker: "000660", name: "종목명" }
-    const VIDEOS = {};
+    const VIDEOS = {
+      "247540": {
+        url: "https://youtube.com/shorts/uhdzXnq_y1g",
+        title: "2019년의 에코프로비엠, 모두가 환호할 때 데이터는 식고 있었다",
+        duration: "0:57",
+        views: "",
+        thumbnail: "https://img.youtube.com/vi/uhdzXnq_y1g/hqdefault.jpg",
+        shorts: true,
+        grade: "회고 분석",
+        ticker: "247540",
+        name: "에코프로비엠",
+      },
+    };
     const VIDEO_LIST = Object.values(VIDEOS);
 
     function renderVideoCard(v, featured) {
