@@ -4,13 +4,19 @@
   1) 미디어 컨테이너 생성 (POST /{user_id}/threads)
   2) 컨테이너 발행       (POST /{user_id}/threads_publish)
 
+캐러셀(이미지 여러 장)은 한 단계 더 있다.
+  1) 각 이미지를 is_carousel_item=true 로 개별 컨테이너 생성
+  2) media_type=CAROUSEL + children=<id들> 로 부모 컨테이너 생성 (여기에 text 부착)
+  3) 부모 컨테이너 발행
+
 Meta는 컨테이너 생성 직후 서버 처리 시간을 두고 발행할 것을 권고한다(특히 이미지/영상).
+image_url은 Meta 서버가 직접 fetch하므로 반드시 공개 접근 가능한 URL이어야 한다.
 """
 from __future__ import annotations
 
 import time
 import logging
-from typing import Optional
+from typing import Optional, Sequence
 
 import requests
 
@@ -95,6 +101,54 @@ class ThreadsClient:
         creation_id = data["id"]
         logger.info("컨테이너 생성 완료: %s", creation_id)
         return creation_id
+
+    def create_carousel_item(self, image_url: str) -> str:
+        """캐러셀 자식 아이템(이미지 1장) 컨테이너를 생성하고 id를 반환한다."""
+        uid = self.resolve_user_id()
+        data = self._post(
+            f"{uid}/threads",
+            {"media_type": "IMAGE", "image_url": image_url, "is_carousel_item": "true"},
+        )
+        item_id = data["id"]
+        logger.info("캐러셀 아이템 생성 완료: %s", item_id)
+        return item_id
+
+    def create_carousel_container(self, text: str, children: Sequence[str]) -> str:
+        """캐러셀 부모 컨테이너를 생성하고 creation_id를 반환한다."""
+        uid = self.resolve_user_id()
+        data = self._post(
+            f"{uid}/threads",
+            {"media_type": "CAROUSEL", "children": ",".join(children), "text": text},
+        )
+        creation_id = data["id"]
+        logger.info("캐러셀 컨테이너 생성 완료: %s (자식 %d개)", creation_id, len(children))
+        return creation_id
+
+    def publish_carousel(
+        self,
+        text: str,
+        image_urls: Sequence[str],
+        item_delay: int = 5,
+        processing_delay: int = 30,
+    ) -> str:
+        """이미지 여러 장을 캐러셀로 발행하고 media_id를 반환한다.
+
+        Args:
+            item_delay: 자식 아이템 생성 사이 대기(초) — 연속 생성 시 처리 지연 완화.
+            processing_delay: 부모 컨테이너 생성 후 발행 전 대기(초).
+        """
+        if not image_urls:
+            raise ValueError("image_urls가 비어 있습니다.")
+        children = []
+        for url in image_urls:
+            children.append(self.create_carousel_item(url))
+            if item_delay:
+                time.sleep(item_delay)
+        creation_id = self.create_carousel_container(text, children)
+        if processing_delay:
+            logger.debug("발행 전 %d초 대기(캐러셀 처리)", processing_delay)
+            time.sleep(processing_delay)
+        return self.publish_container(creation_id)
 
     def publish_container(self, creation_id: str) -> str:
         """컨테이너를 발행하고 media_id를 반환한다."""

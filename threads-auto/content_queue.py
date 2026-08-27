@@ -8,11 +8,12 @@
 
 콘텐츠 아이템 스키마
   {
-    "id":        임의 식별자,
-    "text":      본문(필수),
-    "image_url": 선택,
-    "video_url": 선택,
-    "status":    "pending" | "published" | "failed",
+    "id":         임의 식별자,
+    "text":       본문(필수),
+    "image_url":  선택 (단일 이미지),
+    "image_urls": 선택 (캐러셀 — 2장 이상의 공개 이미지 URL 리스트, image_url보다 우선),
+    "video_url":  선택,
+    "status":     "pending" | "published" | "failed",
   }
 """
 from __future__ import annotations
@@ -38,7 +39,13 @@ class ContentQueue:
     def mark_failed(self, item_id: Any, error: str) -> None:
         raise NotImplementedError
 
-    def add(self, text: str, image_url: str = "", video_url: str = "") -> None:
+    def add(
+        self,
+        text: str,
+        image_url: str = "",
+        video_url: str = "",
+        image_urls: Optional[List[str]] = None,
+    ) -> None:
         raise NotImplementedError
 
     def pending_count(self) -> int:
@@ -82,18 +89,25 @@ class JSONFileQueue(ContentQueue):
     def mark_failed(self, item_id: Any, error: str) -> None:
         self._update(item_id, status="failed", error=error)
 
-    def add(self, text: str, image_url: str = "", video_url: str = "") -> None:
+    def add(
+        self,
+        text: str,
+        image_url: str = "",
+        video_url: str = "",
+        image_urls: Optional[List[str]] = None,
+    ) -> None:
         items = self._read()
         next_id = max((int(i.get("id", 0)) for i in items), default=0) + 1
-        items.append(
-            {
-                "id": next_id,
-                "text": text,
-                "image_url": image_url,
-                "video_url": video_url,
-                "status": "pending",
-            }
-        )
+        item: Dict[str, Any] = {
+            "id": next_id,
+            "text": text,
+            "image_url": image_url,
+            "video_url": video_url,
+            "status": "pending",
+        }
+        if image_urls:
+            item["image_urls"] = list(image_urls)
+        items.append(item)
         self._write(items)
         logger.info("큐에 아이템 추가: #%d", next_id)
 
@@ -109,6 +123,7 @@ class SupabaseQueue(ContentQueue):
         id         bigint generated always as identity primary key,
         text       text not null,
         image_url  text,
+        image_urls jsonb,
         video_url  text,
         status     text not null default 'pending',
         media_id   text,
@@ -149,10 +164,22 @@ class SupabaseQueue(ContentQueue):
             {"status": "failed", "error": error}
         ).eq("id", item_id).execute()
 
-    def add(self, text: str, image_url: str = "", video_url: str = "") -> None:
-        self.client.table(self.TABLE).insert(
-            {"text": text, "image_url": image_url, "video_url": video_url, "status": "pending"}
-        ).execute()
+    def add(
+        self,
+        text: str,
+        image_url: str = "",
+        video_url: str = "",
+        image_urls: Optional[List[str]] = None,
+    ) -> None:
+        row: Dict[str, Any] = {
+            "text": text,
+            "image_url": image_url,
+            "video_url": video_url,
+            "status": "pending",
+        }
+        if image_urls:
+            row["image_urls"] = list(image_urls)
+        self.client.table(self.TABLE).insert(row).execute()
         logger.info("Supabase 큐에 아이템 추가")
 
     def pending_count(self) -> int:
