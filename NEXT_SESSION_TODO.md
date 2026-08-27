@@ -62,6 +62,21 @@ YouTube에 올라간 영상을 조합해 카드뉴스를 자동 생성 → 발�
 
 ---
 
+## 4. Scene 순서 규칙 추가 (짧지만 잊기 쉬움 — 먼저 처리해도 좋음)
+
+**증상**: 한화에어로스페이스 대본(서사품질 100/100, 팩트체크 통과)에서 Scene 19~20이
+CTA("전체 예측 기록은 프로필 링크에서")로 끝났는데, Scene 21에서 다시 "검색량이
+터졌을 땐 이미 고점이었습니다"로 돌아갔다. 시청자 입장에선 끝난 줄 알았다가 다시
+시작되는 느낌 → 이탈 지점이 된다.
+
+**수정**: `historical_topic.py`의 `NARRATIVE_DIRECTIVE` 5단계 지시에 순서 강제를 추가.
+- CTA와 면책은 **반드시 맨 마지막 2개 Scene**에 위치
+- 검색량 차트(`source_type: chart`)·분석 카드(`card`) 같은 에셋 Scene은 CTA **앞**에 배치
+- 마지막 메시지에 여운을 남겨 다음 영상을 보고 싶게 만들 것
+  (AI 피드백도 "마지막에 여운 부족" + "반전 계기를 더 명확히"를 지적함)
+
+---
+
 ## 오늘(8/27) 완료된 것 — 참고용
 
 - 첫 영상 제작 → YouTube Shorts 업로드 (에코프로비엠 회고편, 0:57)
@@ -75,3 +90,44 @@ YouTube에 올라간 영상을 조합해 카드뉴스를 자동 생성 → 발�
   - **모드/주제 분리** — 모드 버튼이 입력창을 덮어쓰던 구조적 버그 수정
     (`mode` state 신설, `preferred` 필드로 종목 지정 분리)
   - history 모드 서사 5단 구조 강제 (`NARRATIVE_DIRECTIVE`)
+
+---
+
+## 오늘의 시행착오 — 내일 카드뉴스 작업 시 참고
+
+### 1) Windows PowerShell 5.1 인코딩 함정 (여러 번 당함)
+- `Get-Content -Raw` / `Set-Content -Encoding utf8` → 한글 깨짐 또는 BOM 삽입.
+  BOM이 들어가면 파이썬이 `SyntaxError: invalid non-printable character U+FEFF`로 죽는다.
+- **안전한 패턴**: 읽기 `[System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)`,
+  쓰기 `[System.IO.File]::WriteAllText($path, $c, (New-Object System.Text.UTF8Encoding($false)))`
+- 파이썬 패치 스크립트로 파일을 수정할 때도 원본 BOM이 남을 수 있으니, 수정 후
+  `ast.parse()`로 반드시 검증할 것.
+- `Select-String -Pattern`에 작은따옴표 문자열을 넣을 땐 이스케이프 주의
+  (`'history'` 같은 패턴이 인자 파싱 에러를 냈음).
+- 콘솔에 한글이 깨져 보여도 파일 자체는 멀쩡한 경우가 많다 — `chcp 65001` 후 재확인.
+
+### 2) 파일을 직접 못 읽으면 디버깅이 몇 배 느려진다
+- aiva_server가 로컬에만 있어서, 오늘 버그 하나 잡는 데 "출력 붙여넣기 → 패치 스크립트
+  작성 → 실행 → 결과 붙여넣기" 왕복을 6~7회 반복했다. 추측으로 짠 패치가 실제 코드와
+  안 맞아 실패한 것도 2번(`mode` 변수가 아예 없었음, `lines` 앵커 불일치).
+- **교훈**: 작업 대상 코드는 Claude가 읽을 수 있는 곳(GitHub)에 두는 게 압도적으로 빠르다.
+  → 이것이 1번 작업(aiva GitHub push)을 최우선으로 둔 이유.
+
+### 3) 카드뉴스 이미지 생성은 이 방법으로 했다 (3번 작업에서 프로그램화할 것)
+- HTML로 카드 5장을 4:5 비율 캐러셀로 작성 → Playwright(Node)로 각 `.card` 요소를
+  `deviceScaleFactor: 2`로 개별 스크린샷 → PNG 5장.
+- 실행 환경: `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`,
+  `executablePath: '/opt/pw-browsers/chromium'` (심볼릭 링크. `chromium/chrome-linux/chrome`
+  경로로 직접 지정하면 실패함)
+- 생성된 이미지는 `frontend/media/threads-posts/`에 커밋 → Railway 배포 후 공개 URL이 되고,
+  Meta가 그 URL을 직접 fetch해서 캐러셀로 발행한다(공개 접근 필수).
+
+### 4) Threads API 연동 시 걸린 것들
+- Meta 앱은 이미 존재했으나(앱명 `Tenbagger`), 로컬에 클론이 없어 `.env`가 전부
+  placeholder 상태였다. → `threads-auto/SETUP.md` 절차대로 재설정.
+- **App Secret은 화면에 평문으로 안 보이고 "복사됨" 토스트만 뜬다** — 클립보드에 담긴
+  상태이므로 다른 걸 복사하기 전에 즉시 `.env`에 붙여넣어야 한다.
+- 액세스 토큰은 앱 → 이용 사례 → Threads API 액세스 → **맞춤 설정 → 설정 탭** →
+  "사용자 토큰 생성기"에서 발급. 여기서 나오는 건 이미 60일 장기 토큰이라,
+  실행 시 뜨는 "장기 토큰 교환 실패" 경고는 무시해도 된다(정상 동작).
+  ⚠️ 단 60일 후 자동 갱신이 안 되므로 재발급 필요 — **만료 예상: 2026-10-26 무렵**
