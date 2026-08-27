@@ -2,6 +2,26 @@
 
 ---
 
+## v6.6 — threads-auto 캐러셀(이미지 여러 장) 발행 지원 (2026-08)
+
+### 추가
+- **`threads_api.py`**: `create_carousel_item()`/`create_carousel_container()`/
+  `publish_carousel()` 추가. Meta Threads 캐러셀 발행(자식 이미지 컨테이너 → 부모
+  CAROUSEL 컨테이너 → 발행) 3단계를 구현.
+- **`content_queue.py`**: 큐 아이템 스키마에 `image_urls`(리스트) 필드 추가 —
+  기존 단일 `image_url`과 공존, 있으면 캐러셀로 우선 발행.
+- **`main.py`**: `--add "본문" --images url1,url2,...` 로 캐러셀 아이템을 큐에 바로
+  추가 가능. 스케줄러(`publish_next`)는 `image_urls` 존재 시 자동으로 캐러셀 발행 경로를 탄다.
+- `frontend/media/threads-posts/`: Threads 게시물용 이미지 정적 호스팅 폴더 신설.
+  첫 사용처로 "첫 영상 제작기" 카드뉴스 5장(`2026-08-27-first-video-card-0{1..5}.png`) 추가.
+  배포 후 `https://tenbagger-production.up.railway.app/media/threads-posts/...` 로 공개 접근 가능
+  (Meta 서버가 image_url을 직접 fetch하므로 공개 URL 필수).
+
+### 배경
+카드뉴스 형태(여러 장 이미지 + 캡션)로 빌딩인퍼블릭 콘텐츠를 올리고 싶었는데
+threads-auto는 단일 이미지/영상만 지원했다. 캐러셀을 추가해 이후에도 진행 상황을
+이미지 여러 장으로 기록해 자동 발행 큐에 넣을 수 있게 했다.
+
 ## v6.5 — 첫 분석 영상 홈 연결 (2026-08)
 
 ### 추가

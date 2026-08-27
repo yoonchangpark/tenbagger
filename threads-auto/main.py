@@ -7,7 +7,9 @@
 사용법:
   python main.py            # 스케줄러 상주 실행
   python main.py --once     # 지금 즉시 한 건만 발행(테스트/수동)
-  python main.py --add "본문 텍스트"   # 큐에 아이템 추가
+  python main.py --add "본문 텍스트"   # 큐에 텍스트 아이템 추가
+  python main.py --add "본문 텍스트" --images url1,url2,url3   # 캐러셀 아이템 추가
+                                                                  # (2장 이상, 공개 접근 가능한 URL만 가능)
 """
 from __future__ import annotations
 
@@ -64,11 +66,15 @@ def publish_next(client: ThreadsClient, queue: ContentQueue) -> None:
 
     item_id = item.get("id")
     try:
-        media_id = client.publish(
-            text=item["text"],
-            image_url=item.get("image_url") or None,
-            video_url=item.get("video_url") or None,
-        )
+        image_urls = item.get("image_urls") or None
+        if image_urls:
+            media_id = client.publish_carousel(text=item["text"], image_urls=image_urls)
+        else:
+            media_id = client.publish(
+                text=item["text"],
+                image_url=item.get("image_url") or None,
+                video_url=item.get("video_url") or None,
+            )
         queue.mark_published(item_id, media_id)
         logger.info("발행 성공: item=%s media=%s", item_id, media_id)
     except (ThreadsAPIError, KeyError) as exc:
@@ -83,12 +89,18 @@ def main() -> int:
     queue = build_queue()
 
     if args and args[0] == "--add":
-        text = " ".join(args[1:]).strip()
+        rest = args[1:]
+        image_urls: list[str] = []
+        if "--images" in rest:
+            idx = rest.index("--images")
+            image_urls = [u.strip() for u in rest[idx + 1].split(",") if u.strip()]
+            rest = rest[:idx]
+        text = " ".join(rest).strip()
         if not text:
-            print("사용법: python main.py --add \"발행할 본문\"")
+            print("사용법: python main.py --add \"발행할 본문\" [--images url1,url2,...]")
             return 1
-        queue.add(text)
-        print("큐에 추가했습니다.")
+        queue.add(text, image_urls=image_urls or None)
+        print(f"큐에 추가했습니다{'(캐러셀 ' + str(len(image_urls)) + '장)' if image_urls else ''}.")
         return 0
 
     client = build_client()
