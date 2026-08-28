@@ -5,21 +5,19 @@
 
 ---
 
-## 1. aiva_server를 GitHub에 push (최우선 — 2번의 선행 조건)
+## 1. ~~aiva_server를 GitHub에 push~~ ✅ 완료 (2026-08-28)
 
-**왜**: aiva_server는 현재 사용자 Windows PC 로컬(`C:\Users\yoonc\OneDrive\DIGITAL NOMAD\aiva_server`)
-에만 있어서, Claude가 파일을 직접 못 읽는다. 오늘 작업 내내 사용자가 PowerShell 출력을
-복붙 → Claude가 패치 스크립트 작성 → 사용자가 실행하는 왕복이 반복됐다(매우 느림).
+`https://github.com/yoonchangpark/aiva_server.git` main 브랜치에 push 완료 (`9ba596a`).
+Claude가 `git clone`으로 직접 읽는 것까지 검증했다 — 앞으로 복붙 왕복 불필요.
 
-**할 일**:
-- 로컬 aiva_server를 `https://github.com/yoonchangpark/aiva_server.git`에 push
-  (레포는 이미 생성돼 있음)
-- ⚠️ `.env`는 절대 커밋하지 말 것 — `.gitignore` 확인 필수
-  (ELEVENLABS_API_KEY, OPENAI_API_KEY, META 토큰 등 포함)
-- 이후 세션에서 Claude가 clone해서 직접 읽기/수정 가능해짐
-- 단, 현재 세션의 GitHub MCP 도구는 `yoonchangpark/tenbagger`로만 제한돼 있어
-  aiva_server에 PR을 올리려면 세션 환경 설정 변경이 필요할 수 있음
-  (최소한 `git clone`으로 읽는 것은 가능)
+- `.env`는 `.gitignore`에 있고, 전체 히스토리에서도 커밋된 적 없음을 확인
+  (`git log --all -- .env` / `git ls-files` 둘 다 빈 결과)
+- 일회성 작업 파일(`patch_*.py`, `frames/`, `review_sheet.png`)도 gitignore에 추가
+- 런타임 상태 파일(`history.json`, `data/step_timings.json`)은 매 실행마다 바뀌어
+  diff 노이즈가 되므로 커밋에서 제외했다. 추후 gitignore + `git rm --cached` 고려.
+- ⚠️ 남은 제약: 이 세션의 GitHub MCP 도구는 `yoonchangpark/tenbagger`로만 제한돼
+  aiva_server에 PR은 못 올린다. 읽기는 clone으로 가능하므로, 수정 결과는
+  패치 스크립트나 파일 내용으로 전달해 사용자가 로컬에서 커밋하는 방식.
 
 ---
 
