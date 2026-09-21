@@ -335,3 +335,7 @@ CREATE TABLE IF NOT EXISTS threads_queue (
     published_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_threads_queue_status ON threads_queue(status, created_at);
+
+-- Threads 큐 자동 보충: 같은 출처(예: CHANGELOG 버전)로 두 번 적재하는 것을 막는다
+ALTER TABLE threads_queue ADD COLUMN IF NOT EXISTS source_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_queue_source ON threads_queue(source_key);
