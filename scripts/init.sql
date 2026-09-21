@@ -329,3 +329,18 @@ CREATE TABLE IF NOT EXISTS user_holdings (
     UNIQUE (user_id, ticker)
 );
 CREATE INDEX IF NOT EXISTS idx_user_holdings_user ON user_holdings(user_id);
+
+-- Threads 자동 발행 큐 (threads-auto). 컨테이너 재배포와 무관하게 큐를 보존한다.
+CREATE TABLE IF NOT EXISTS threads_queue (
+    id           SERIAL PRIMARY KEY,
+    text         TEXT NOT NULL,
+    image_url    TEXT,
+    image_urls   JSONB,
+    video_url    TEXT,
+    status       VARCHAR(20) NOT NULL DEFAULT 'pending',
+    media_id     TEXT,
+    error        TEXT,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    published_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_threads_queue_status ON threads_queue(status, created_at);

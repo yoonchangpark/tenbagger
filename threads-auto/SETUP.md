@@ -70,11 +70,40 @@ python main.py --once
 # 주제로 글 생성 → 큐 적재
 python content_generator.py "AI 전력 인프라 텐배거" "K-방산 성장주"
 
-# 스케줄러 상주 실행 → 07:30/12:30/18:30/21:00 KST 자동 발행
+# 스케줄러 상주 실행 → 월·수·금 18:30 KST 자동 발행 (주 3회)
 python main.py
 ```
 
-**검증 포인트:** 지정 시각에 큐의 글이 하나씩 발행되고 로그에 `발행 성공`이 남는다.
+**검증 포인트:** 지정 요일·시각에 큐의 글이 하나씩 발행되고 로그에 `발행 성공`이 남는다.
+
+## 7. 운영(Railway) 자동 발행 — 상주 프로세스 없이
+
+운영에서는 `python main.py`를 따로 띄우지 않는다. 이미 상주 중인 tenbagger
+백엔드의 스케줄러가 월·수·금 18:30 KST에 `main.py --once`를 실행한다.
+
+Railway 백엔드 서비스 환경변수에 아래를 넣으면 끝이다.
+
+```
+META_APP_SECRET=...
+ACCESS_TOKEN=...          # 장기 토큰 (60일마다 재발급 필요 — 아래 주의)
+```
+
+`DATABASE_URL`은 이미 설정돼 있고, 큐 백엔드는 백엔드 잡이 `postgres`로 넘긴다.
+요일·시각을 바꾸려면 `THREADS_POST_DAYS` / `THREADS_POST_TIME`을 설정한다.
+
+**검증 포인트:** 배포 로그에 `✅ [SCHEDULER] ... | 스레드발행 mon,wed,fri 18:30 KST`가
+찍히고, 발행 요일에 `🧵 [SCHEDULER] Threads 자동 발행 시작...`이 남는다.
+
+큐 적재는 로컬에서 운영 DB를 보고 하면 된다:
+
+```bash
+CONTENT_QUEUE_BACKEND=postgres DATABASE_URL="<운영 DATABASE_URL>" \
+  python main.py --add "오늘의 텐배거 인사이트 ..."
+```
+
+> ⚠️ 컨테이너 파일시스템은 재배포마다 초기화되므로 `.token.json`이 남지 않는다.
+> 매 발행마다 `ACCESS_TOKEN`으로 다시 교환하므로, 60일마다 토큰을 새로 발급해
+> 넣어야 발행이 끊기지 않는다. 토큰을 DB에 보관하는 것은 후속 작업.
 
 ---
 
@@ -85,4 +114,6 @@ python main.py
 - [x] `python main.py --check` → 계정 ID 확인 (읽기전용)
 - [x] `--add` + `--once` → 실제 발행 1건 확인 (2026-07-30 @yoonchangpark 성공)
 - [ ] (선택) `content_generator.py` → 자동 생성 확인
-- [ ] `python main.py` 상주 → 스케줄 발행 확인
+- [ ] Railway 백엔드에 `META_APP_SECRET` / `ACCESS_TOKEN` 설정
+- [ ] 운영 DB 큐에 콘텐츠 3건 이상 적재
+- [ ] 첫 발행 요일(월/수/금 18:30)에 실제 발행 확인
