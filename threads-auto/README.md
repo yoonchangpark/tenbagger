@@ -17,6 +17,7 @@
 | `scheduler.py` | 발행 요일·시각 스케줄 (APScheduler cron) |
 | `publisher.py` | 토큰 확보 + 큐의 다음 1건 발행 (백엔드와 공유) |
 | `content_generator.py` | 텐배거 주제 → OpenAI로 Threads 게시물 생성 → 큐 적재 |
+| `devlog_generator.py` | 개발 내용을 AS-IS → TO-BE 빌드로그로 생성 + 큐 자동 보충 |
 | `preview.py` | 발행 전 큐 내용을 HTML로 미리보기 + 품질 점검 |
 
 관련 문서: 텐배거용 프롬프트는 [`prompt_pack.md`](prompt_pack.md), 실계정 연결·발행 검증은 [`SETUP.md`](SETUP.md).
@@ -108,6 +109,47 @@ python content_generator.py "제룡전기" \
 
 발행 전 `python preview.py`로 확인하면 숫자가 없는 글은
 **"숫자 없음 — 일반론 위험"** 으로 표시된다.
+
+## 빌드로그 — AS-IS → TO-BE 공개
+
+지금 만들고 있는 걸 그대로 열어 반응을 보는 용도다. 투자 콘텐츠와 톤·목적이
+달라서 별도 모듈(`devlog_generator.py`)과 별도 페르소나를 쓴다. 종목 추천이
+아니므로 투자 책임 고지를 붙이지 않고, 대신 마지막 줄을 질문으로 끝낸다.
+
+글감은 `CHANGELOG.md`다. 항목이 이미 `### 배경`(AS-IS)과
+`### 추가`/`### 변경`/`### 수정`(TO-BE)으로 나뉘어 있어 그대로 쓴다.
+
+```bash
+# CHANGELOG 최신 항목으로 생성 → 큐 적재
+python devlog_generator.py --from-changelog --count 2
+
+# CHANGELOG에 없는 내용을 직접
+python devlog_generator.py --asis "전에는 이랬다" --tobe "이렇게 바꿨다" --title "제목"
+```
+
+모델에는 파일명·함수명·환경변수명을 쓰지 말고 독자가 화면에서 겪는 일로 옮겨
+쓰도록, 주어지지 않은 수치(사용자 수·수익·정확도)는 지어내지 말도록 지시한다.
+
+## 큐 자동 보충
+
+큐가 비면 스케줄이 돌아도 아무것도 올라가지 않는다. 그래서 매주 일요일 21:00 KST에
+백엔드 스케줄러가 대기 건수를 보고 목표치보다 적으면 채운다.
+
+```bash
+python devlog_generator.py --refill
+```
+
+| 환경변수 | 기본값 | 설명 |
+|---------|--------|------|
+| `QUEUE_TARGET_PENDING` | `3` | 큐를 이 개수까지 채운다(주 3회 발행 = 약 한 주치) |
+
+- 이미 목표치를 채우고 있으면 아무것도 하지 않는다.
+- 같은 CHANGELOG 버전으로 두 번 적재하지 않는다(`source_key`로 막는다).
+- 글감은 최신 5개 항목까지만 본다. 오래된 변경을 이제 와서 "방금 고쳤다"로
+  내보내지 않기 위해서다. 최근 것을 다 썼으면 새로 만든 게 나올 때까지 쉰다.
+
+발행일(월·수·금)보다 앞선 일요일에 채우므로, 발행 전에 `preview.py`로 걸러낼
+시간이 있다.
 
 ## Supabase 큐 (선택)
 

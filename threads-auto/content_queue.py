@@ -15,6 +15,7 @@
     "image_urls": 선택 (캐러셀 — 2장 이상의 공개 이미지 URL 리스트, image_url보다 우선),
     "video_url":  선택,
     "status":     "pending" | "published" | "failed",
+    "source_key": 선택 (출처 식별자. 같은 소스로 두 번 적재하는 것을 막는다),
   }
 """
 from __future__ import annotations
@@ -46,10 +47,15 @@ class ContentQueue:
         image_url: str = "",
         video_url: str = "",
         image_urls: Optional[List[str]] = None,
+        source_key: str = "",
     ) -> None:
         raise NotImplementedError
 
     def pending_count(self) -> int:
+        raise NotImplementedError
+
+    def has_source(self, source_key: str) -> bool:
+        """이 출처로 이미 적재한 적이 있는지. 자동 보충의 중복 방지용."""
         raise NotImplementedError
 
 
@@ -96,6 +102,7 @@ class JSONFileQueue(ContentQueue):
         image_url: str = "",
         video_url: str = "",
         image_urls: Optional[List[str]] = None,
+        source_key: str = "",
     ) -> None:
         items = self._read()
         next_id = max((int(i.get("id", 0)) for i in items), default=0) + 1
@@ -108,12 +115,17 @@ class JSONFileQueue(ContentQueue):
         }
         if image_urls:
             item["image_urls"] = list(image_urls)
+        if source_key:
+            item["source_key"] = source_key
         items.append(item)
         self._write(items)
         logger.info("큐에 아이템 추가: #%d", next_id)
 
     def pending_count(self) -> int:
         return sum(1 for i in self._read() if i.get("status", "pending") == "pending")
+
+    def has_source(self, source_key: str) -> bool:
+        return any(i.get("source_key") == source_key for i in self._read())
 
 
 class SupabaseQueue(ContentQueue):
@@ -129,6 +141,7 @@ class SupabaseQueue(ContentQueue):
         status     text not null default 'pending',
         media_id   text,
         error      text,
+        source_key text unique,
         created_at timestamptz default now()
       );
     """
@@ -171,6 +184,7 @@ class SupabaseQueue(ContentQueue):
         image_url: str = "",
         video_url: str = "",
         image_urls: Optional[List[str]] = None,
+        source_key: str = "",
     ) -> None:
         row: Dict[str, Any] = {
             "text": text,
@@ -180,6 +194,8 @@ class SupabaseQueue(ContentQueue):
         }
         if image_urls:
             row["image_urls"] = list(image_urls)
+        if source_key:
+            row["source_key"] = source_key
         self.client.table(self.TABLE).insert(row).execute()
         logger.info("Supabase 큐에 아이템 추가")
 
@@ -191,6 +207,16 @@ class SupabaseQueue(ContentQueue):
             .execute()
         )
         return res.count or 0
+
+    def has_source(self, source_key: str) -> bool:
+        res = (
+            self.client.table(self.TABLE)
+            .select("id")
+            .eq("source_key", source_key)
+            .limit(1)
+            .execute()
+        )
+        return bool(res.data)
 
 
 class PostgresQueue(ContentQueue):
@@ -254,16 +280,19 @@ class PostgresQueue(ContentQueue):
         image_url: str = "",
         video_url: str = "",
         image_urls: Optional[List[str]] = None,
+        source_key: str = "",
     ) -> None:
         self._run(
-            f'INSERT INTO {self.TABLE} ("text", image_url, video_url, image_urls, status)'
-            " VALUES (%s, %s, %s, %s, %s)",
+            f'INSERT INTO {self.TABLE}'
+            ' ("text", image_url, video_url, image_urls, status, source_key)'
+            " VALUES (%s, %s, %s, %s, %s, %s)",
             (
                 text,
                 image_url,
                 video_url,
                 self._json(list(image_urls)) if image_urls else None,
                 "pending",
+                source_key or None,
             ),
         )
         logger.info("Postgres 큐에 아이템 추가")
@@ -275,6 +304,14 @@ class PostgresQueue(ContentQueue):
             fetch=True,
         )
         return int(row["n"]) if row else 0
+
+    def has_source(self, source_key: str) -> bool:
+        row = self._run(
+            f"SELECT 1 AS hit FROM {self.TABLE} WHERE source_key = %s LIMIT 1",
+            (source_key,),
+            fetch=True,
+        )
+        return row is not None
 
 
 def build_queue() -> ContentQueue:

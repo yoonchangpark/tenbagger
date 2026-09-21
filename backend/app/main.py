@@ -155,8 +155,8 @@ def _run_weight_tuner_job():
         print(f"❌ [SCHEDULER] 가중치 분석 오류: {e}")
 
 
-def _run_threads_publish_job():
-    """월·수·금 18:30(KST) Threads 자동 발행 — 큐의 다음 pending 1건"""
+def _run_threads_script(script: str, *script_args: str, label: str, timeout: int = 300):
+    """threads-auto 디렉터리에서 스크립트를 실행한다 (발행·큐 보충 공통)."""
     import subprocess, sys
     repo_root = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -165,21 +165,36 @@ def _run_threads_publish_job():
     if not os.path.isdir(threads_dir):
         print(f"⚠️ [SCHEDULER] threads-auto 경로 없음: {threads_dir}")
         return
-    print("🧵 [SCHEDULER] Threads 자동 발행 시작...")
+    print(f"🧵 [SCHEDULER] {label} 시작...")
     env = dict(os.environ)
     # 컨테이너 파일시스템은 재배포마다 초기화되므로 큐는 DB에 둔다.
     env.setdefault("CONTENT_QUEUE_BACKEND", "postgres")
     try:
         result = subprocess.run(
-            [sys.executable, "main.py", "--once"],
-            capture_output=True, text=True, timeout=300,
+            [sys.executable, script, *script_args],
+            capture_output=True, text=True, timeout=timeout,
             cwd=threads_dir, env=env,
         )
-        print(f"✅ [SCHEDULER] Threads 발행 완료\n{result.stdout[-500:] if result.stdout else ''}")
+        print(f"✅ [SCHEDULER] {label} 완료\n{result.stdout[-500:] if result.stdout else ''}")
         if result.returncode != 0:
-            print(f"⚠️ [SCHEDULER] Threads 발행 stderr: {result.stderr[-300:]}")
+            print(f"⚠️ [SCHEDULER] {label} stderr: {result.stderr[-300:]}")
     except Exception as e:
-        print(f"❌ [SCHEDULER] Threads 발행 오류: {e}")
+        print(f"❌ [SCHEDULER] {label} 오류: {e}")
+
+
+def _run_threads_publish_job():
+    """월·수·금 18:30(KST) Threads 자동 발행 — 큐의 다음 pending 1건"""
+    _run_threads_script("main.py", "--once", label="Threads 발행")
+
+
+def _run_threads_refill_job():
+    """일요일 21:00(KST) 큐 자동 보충 — 대기가 목표치보다 적으면 채운다.
+
+    발행일(월·수·금)보다 앞서 돌려서, 오너가 preview로 걸러낼 시간을 남긴다.
+    """
+    _run_threads_script(
+        "devlog_generator.py", "--refill", label="Threads 큐 보충", timeout=600
+    )
 
 
 async def _run_news_job():
@@ -304,9 +319,18 @@ async def lifespan(app: FastAPI):
             print(f"⚠️ [SCHEDULER] 스레드 발행 스케줄 등록 실패 (무시): {e}")
             _t_desc = "등록 안 됨"
 
+        # 매주 일요일 21:00 KST — 스레드 큐 자동 보충 (다음 주 발행분 미리 채움)
+        scheduler.add_job(
+            lambda: asyncio.get_event_loop().run_in_executor(None, _run_threads_refill_job),
+            CronTrigger(day_of_week="sun", hour=21, minute=0, timezone="Asia/Seoul"),
+            id="threads_refill",
+            name="Threads Queue Refill",
+            replace_existing=True,
+        )
+
         scheduler.start()
         print("✅ [SCHEDULER] ETL 02:00 | 뉴스 04:00 | 어드바이저 07:00 | 분기보고서알림 07:30 | 주간리포트 월 08:00 | 목표가알림 16:00 | 정확도 일 23:00 | 가중치분석 일 23:30 | 스레드발행 "
-              f"{_t_desc} KST")
+              f"{_t_desc} | 스레드큐보충 일 21:00 KST")
     except Exception as e:
         print(f"⚠️ [SCHEDULER] 스케줄러 시작 실패 (무시): {e}")
 
