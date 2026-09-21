@@ -46,9 +46,20 @@ Free와 Pro가 쓸 수 있는 기능이 사실상 같았다. 구독의 값을 �
 - **`watchlist._get_user_tier`**: 만료 검사가 없어 만료 구독자가 관심종목 권한을 유지하던
   문제 수정(`resolve_tier`로 위임).
 
+### 무료 체험 (서버 구현)
+- **`ai_trial_usage` 테이블 신설**(`scripts/init.sql`, `UNIQUE(user_id, feature)`).
+  기존 `localStorage` 체험 게이트는 개발자도구로 우회 가능했으므로 계정 단위로 서버가 센다.
+  `main.py`의 `init_db()`가 기동 시 `init.sql`을 재실행하므로 배포하면 자동 생성된다.
+- **`require_subscription_or_trial(feature)`**: Pro 이상은 그대로 통과, 무료 회원은
+  기능당 1회 체험. 기록은 **엔드포인트가 정상 종료된 뒤**에 남기므로 분석이 실패하면
+  체험 횟수가 깎이지 않는다. 비로그인은 401 — 횟수를 셀 수 없기 때문.
+- 적용: `/api/v2/company/{ticker}/qualitative`, `/api/v2/committee/{ticker}` 각각 1회.
+  강제 재분석 `/api/v2/committee/{ticker}/run`은 체험 없이 Pro 전용 유지.
+- 프론트는 403 응답의 `detail`("무료 체험 1회를 모두 사용하셨습니다…")을 잠금 카드에
+  그대로 노출하고, 비로그인에게는 "로그인하시면 1회 무료로 체험할 수 있습니다"로 안내한다.
+
 ### 남은 것
 - 정기결제(빌링키) 미구현 — 30일 만료 후 자동 갱신되지 않는다.
-- 무료 체험(AI 1회)을 서버에서 세려면 사용량 테이블이 필요해 이번 범위에서 제외했다.
 - `/api/company/{ticker}`의 관련 종목 목록과 `/api/v2/committee/recent`는 게이트가 없어
   무료 사용자가 일부 정보를 우회 조회할 수 있다 — 막을지는 결정 필요.
 

@@ -14,7 +14,7 @@ from app.infra.clients.dart_client import (
 from app.domain.qualitative_analysis import generate_qualitative_analysis
 from app.infra.repositories.company_repo import get_score_cached, get_financials_cached
 from app.core.database import SessionLocal
-from app.core.auth import require_subscription
+from app.core.auth import require_subscription_or_trial
 from sqlalchemy import text
 
 router = APIRouter(prefix="/api/v2", tags=["v2-qualitative"])
@@ -165,7 +165,7 @@ def _get_market_valuation(market: str) -> dict:
 @router.get("/company/{ticker}/qualitative")
 async def get_qualitative_analysis(
     ticker: str,
-    _user: dict = Depends(require_subscription("pro")),
+    _user: dict = Depends(require_subscription_or_trial("qualitative")),
 ):
     """
     AI 기반 정성적 기업 분석

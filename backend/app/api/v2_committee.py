@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 from app.core.database import SessionLocal
 from app.agents.committee import run_committee
-from app.core.auth import require_subscription
+from app.core.auth import require_subscription, require_subscription_or_trial
 
 
 router = APIRouter(prefix="/api/v2/committee", tags=["ai-committee"])
@@ -87,7 +87,7 @@ def list_recent_committee_v2(limit: int = Query(20, ge=1, le=100)):
 async def get_committee_analysis(
     ticker: str,
     force: bool = Query(False, description="True면 캐시 무시 강제 재분석"),
-    _user: dict = Depends(require_subscription("pro")),
+    _user: dict = Depends(require_subscription_or_trial("committee")),
 ):
     """
     AI 투자위원회 분석 결과 조회.

@@ -122,6 +122,15 @@ CREATE TABLE IF NOT EXISTS payments (
     paid_at     TIMESTAMP DEFAULT NOW()
 );
 
+-- AI 기능 무료 체험 사용 기록 (무료 회원은 기능당 1회)
+CREATE TABLE IF NOT EXISTS ai_trial_usage (
+    id       SERIAL PRIMARY KEY,
+    user_id  INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    feature  VARCHAR(40) NOT NULL,
+    used_at  TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, feature)
+);
+
 -- 카카오 챗봇 채널 구독자 (Push 알림 대상)
 CREATE TABLE IF NOT EXISTS kakao_bot_subscribers (
     id              SERIAL PRIMARY KEY,

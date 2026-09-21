@@ -213,3 +213,54 @@ def require_subscription(tier: str = "pro"):
         return {**current_user, "subscription_tier": user_tier}
 
     return _check
+
+
+def require_subscription_or_trial(feature: str, tier: str = "pro"):
+    """
+    tier 이상이면 통과. 무료 회원은 feature당 1회 체험할 수 있다.
+    체험 기록은 요청이 정상 처리된 뒤에 남기므로, 분석이 실패하면 횟수가 깎이지 않는다.
+    비로그인은 401 — 체험 횟수는 계정 단위로만 셀 수 있다.
+    """
+
+    def _check(
+        current_user: dict = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        from sqlalchemy import text
+
+        user_tier = resolve_tier(current_user, db)
+        ctx = {**current_user, "subscription_tier": user_tier}
+
+        if TIER_RANK.get(user_tier, 0) >= TIER_RANK.get(tier, 0):
+            yield {**ctx, "trial": False}
+            return
+
+        already_used = db.execute(
+            text(
+                "SELECT 1 FROM ai_trial_usage WHERE user_id = :uid AND feature = :feature LIMIT 1"
+            ),
+            {"uid": current_user["id"], "feature": feature},
+        ).fetchone()
+
+        if already_used:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"무료 체험 1회를 모두 사용하셨습니다. 계속 이용하시려면 {tier} 구독이 필요합니다.",
+            )
+
+        yield {**ctx, "trial": True}
+
+        # 엔드포인트가 예외 없이 끝났을 때만 체험 1회를 소진시킨다
+        db.execute(
+            text(
+                """
+                INSERT INTO ai_trial_usage (user_id, feature)
+                VALUES (:uid, :feature)
+                ON CONFLICT (user_id, feature) DO NOTHING
+                """
+            ),
+            {"uid": current_user["id"], "feature": feature},
+        )
+        db.commit()
+
+    return _check
