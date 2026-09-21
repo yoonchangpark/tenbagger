@@ -2,6 +2,31 @@
 
 ---
 
+## v6.10 — 카드뉴스 이미지 생성기 (빌딩인퍼블릭) (2026-09)
+
+### 배경
+`frontend/media/threads-posts/`의 카드뉴스(첫 영상 제작기 5장, 오늘의 디버깅 로그 5장)는
+손으로 만든 PNG만 커밋돼 있어 원본도 만드는 방법도 남아 있지 않았다. 같은 톤으로 한 장
+더 만들려면 처음부터 다시 디자인해야 했고, 그래서 주 3~4회 발행에 이미지를 붙일 수 없었다.
+
+### 추가
+- **`threads-auto/cardnews/template.html`**: 카드 한 장의 레이아웃. 기존 카드의 형태를
+  그대로 옮겼다 — 4:5, 방안지 격자, 좌상단 모노 라벨 + 우상단 번호, 하단 SWIPE.
+  카드 종류는 `hook`(표지) · `compare`(AS-IS 빨강 → ↓ → TO-BE 초록) · `body` · `outro`(마무리+질문).
+- **`threads-auto/cardnews/render.py`**: 스펙 JSON을 받아 Chromium(Playwright)으로
+  카드를 한 장씩 캡처한다(1080×1350 @2x). `public_urls()`는 캐러셀 발행에 넣을
+  공개 URL을 만들어 준다. 버전이 어긋난 환경에서는 `CHROMIUM_PATH`로 실행 파일 지정.
+- **`threads-auto/cardnews/README.md`**: 스펙 필드와 발행 연결 방법.
+- **`threads-auto/cardnews/examples/2026-09-21-shorts-inventory.json`** + 결과 PNG 5장:
+  이번 숏츠 소재 확충 작업(후보 10개 목표 → DART 확인에서 3개 탈락 → 7개)을
+  그대로 카드뉴스로 만든 첫 사례.
+
+### 범위
+글 본문 생성과 큐 적재는 `devlog_generator.py`(v6.8)가 한다. 여기서는 이미지만 만든다.
+둘을 잇는 접점은 큐 아이템의 `image_urls` 한 필드뿐이다.
+
+---
+
 ## v6.9 — 숏츠 전망편 후보 재고 확충 (2026-09)
 
 ### 추가

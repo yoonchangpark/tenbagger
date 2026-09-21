@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>텐배거 빌드로그 카드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fbfbfd;
+    --ink: #1a1a1f;
+    --muted: #6b7280;
+    --line: #e9e9f0;
+    --accent: #6d5ce7;
+    --asis-bg: #fbe4e4;
+    --asis-ink: #d64545;
+    --tobe-bg: #ddf3e4;
+    --tobe-ink: #1f9254;
+    --sans: "Noto Sans KR", Pretendard, "Malgun Gothic", sans-serif;
+    --mono: "JetBrains Mono", "D2Coding", Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #ffffff; }
+  body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; word-break: keep-all; overflow-wrap: break-word; }
+
+  /* 4:5 — 스레드 캐러셀이 가장 크게 보여주는 비율 */
+  .card {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    background: var(--bg);
+    border-radius: 28px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 64px 68px 56px;
+  }
+  /* 방안지 격자 — 작업 노트 느낌 */
+  .card::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(to right, var(--line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+    background-size: 68px 68px;
+    opacity: .55;
+    pointer-events: none;
+  }
+  .card > * { position: relative; }
+
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    font-family: var(--mono); font-size: 25px; font-weight: 500;
+    color: var(--muted); letter-spacing: -0.2px;
+    flex-shrink: 0;
+  }
+  header .label { display: flex; align-items: center; gap: 14px; }
+  header .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  header .no { font-weight: 700; font-size: 32px; color: var(--ink); }
+
+  main { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 44px; padding: 56px 0; }
+
+  footer {
+    font-family: var(--mono); font-size: 22px; color: var(--muted);
+    letter-spacing: .5px; flex-shrink: 0;
+  }
+
+  /* ── hook: 표지. 큰 헤드라인 한 덩어리 ── */
+  .hook { font-size: 86px; font-weight: 700; line-height: 1.28; letter-spacing: -2.4px; }
+  .hook .sub { display: block; margin-top: 36px; font-size: 34px; font-weight: 400; line-height: 1.55; color: var(--muted); letter-spacing: -.6px; }
+
+  /* ── body: 제목 + 문단 ── */
+  .h { font-size: 52px; font-weight: 700; line-height: 1.34; letter-spacing: -1.4px; }
+  .p { font-size: 36px; font-weight: 400; line-height: 1.68; letter-spacing: -.6px; color: #33333b; }
+  .p + .p { margin-top: 26px; }
+
+  /* ── compare: AS-IS 박스 → 화살표 → TO-BE 박스 ── */
+  .box { border-radius: 24px; padding: 44px 46px; }
+  .box.asis { background: var(--asis-bg); }
+  .box.tobe { background: var(--tobe-bg); }
+  .box .tag {
+    font-family: var(--mono); font-size: 26px; font-weight: 700;
+    letter-spacing: 1.4px; margin-bottom: 26px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .box.asis .tag { color: var(--asis-ink); }
+  .box.tobe .tag { color: var(--tobe-ink); }
+  .box .p { color: var(--ink); font-size: 34px; }
+  .arrow { text-align: center; font-size: 40px; color: var(--muted); line-height: 1; }
+
+  /* ── 인라인 강조 ── */
+  strong { font-weight: 700; }
+  code {
+    font-family: var(--mono); font-size: .92em;
+    background: rgba(109, 92, 231, .12); color: #4c3fc4;
+    padding: 4px 12px; border-radius: 8px;
+  }
+
+  /* ── outro: 마무리 + 질문 ── */
+  .outro .q {
+    margin-top: 44px; padding-top: 40px; border-top: 3px solid var(--line);
+    font-size: 40px; font-weight: 700; line-height: 1.5; letter-spacing: -1px;
+  }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <header>
+      <span class="label"><span class="dot"></span><span id="label"></span></span>
+      <span class="no" id="no"></span>
+    </header>
+    <main id="main"></main>
+    <footer id="footer"></footer>
+  </div>
+
+<script>
+// render(spec) — 캡처 스크립트가 페이지마다 호출한다.
+// spec: {label, no, footer, kind, ...kind별 필드}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+}
+// 본문에서만 쓰는 최소 마크업: **굵게**, `코드`, 줄바꿈은 문단 분리
+function rich(s) {
+  return esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.+?)`/g, "<code>$1</code>")
+    .replace(/\n/g, "<br>");   // 개행을 직접 잡을 수 있게 — 표제에서 특히 중요
+}
+function paras(text) {
+  return String(text || "").split("\n").filter(l => l.trim())
+    .map(l => `<p class="p">${rich(l)}</p>`).join("");
+}
+
+function render(spec) {
+  document.getElementById("label").textContent = spec.label || "";
+  document.getElementById("no").textContent = spec.no || "";
+  document.getElementById("footer").textContent = spec.footer || "";
+
+  const main = document.getElementById("main");
+  if (spec.kind === "hook") {
+    main.innerHTML =
+      `<div class="hook">${rich(spec.headline)}` +
+      (spec.sub ? `<span class="sub">${rich(spec.sub)}</span>` : "") +
+      `</div>`;
+  } else if (spec.kind === "compare") {
+    main.innerHTML =
+      `<div class="box asis"><div class="tag">× ${esc(spec.asis_tag || "AS-IS")}</div>${paras(spec.asis)}</div>` +
+      `<div class="arrow">↓</div>` +
+      `<div class="box tobe"><div class="tag">✓ ${esc(spec.tobe_tag || "TO-BE")}</div>${paras(spec.tobe)}</div>`;
+  } else if (spec.kind === "outro") {
+    main.innerHTML =
+      `<div class="outro">${paras(spec.body)}` +
+      (spec.question ? `<div class="q">${rich(spec.question)}</div>` : "") +
+      `</div>`;
+  } else { // body
+    main.innerHTML =
+      (spec.title ? `<div class="h">${rich(spec.title)}</div>` : "") +
+      `<div>${paras(spec.body)}</div>`;
+  }
+}
+window.render = render;
+</script>
+</body>
+</html>
