@@ -2,6 +2,41 @@
 
 ---
 
+## v6.7 — threads-auto 주 3~4회 자동 발행 (백엔드 스케줄러 합류) (2026-09)
+
+### 배경
+발행 파이프라인은 동작했지만 실제로 "자동"이 아니었다. `scheduler.py`가 요일 없이
+매일 4회(07:30/12:30/18:30/21:00) 발행하도록 돼 있어 주 28회였고, threads-auto를
+상주 실행해 줄 호스트가 없어 사람이 `python main.py`를 켜둬야만 돌았다.
+
+### 추가
+- **`scheduler.py`**: `POST_DAYS` 환경변수로 발행 요일 지정. 기본값을
+  `mon,wed,fri` × `18:30` → **주 3회**로 변경(기존 매일 4회). 주 4회는 요일 추가.
+- **`publisher.py`** (신규): `build_client()` / `publish_next()`를 `main.py`에서
+  분리. 백엔드 스케줄러가 같은 발행 로직을 재사용한다.
+- **`content_queue.py`**: `PostgresQueue` 추가. tenbagger 백엔드와 같은 DB의
+  `threads_queue` 테이블을 쓴다(`CONTENT_QUEUE_BACKEND=postgres`). 컨테이너
+  파일시스템이 재배포마다 초기화되는 Railway에서도 큐가 보존된다.
+- **`scripts/init.sql`**: `threads_queue` 테이블 + 상태 인덱스.
+- **`backend/app/main.py`**: APScheduler에 `threads_publish` 잡 등록 —
+  월·수·금 18:30 KST에 `threads-auto/main.py --once` 실행. 새로 띄울 프로세스가
+  없다. 요일·시각은 `THREADS_POST_DAYS` / `THREADS_POST_TIME`으로 조정.
+
+### 수정
+- **`main.py`**: 상주 실행 시 토큰이 갱신되지 않던 버그. 프로세스 시작 때
+  `build_client()`를 한 번만 호출해, 60일 뒤 토큰이 만료되면 발행이 계속
+  실패했다. 이제 발행 직전마다 클라이언트를 다시 만들어 `TokenManager`가
+  refresh 할 기회를 갖는다.
+- **`publisher.py`**: 큐가 비면 `warning`으로 남기고, 발행 후 남은 대기 건수를
+  로그에 찍는다(큐 고갈을 미리 알 수 있게).
+
+### 남은 작업
+- 토큰(`.token.json`)도 컨테이너 파일시스템에 있어 재배포 시 사라진다. 현재는 매
+  발행마다 `ACCESS_TOKEN`으로 재교환하므로 60일마다 수동 재발급이 필요하다.
+  토큰을 DB에 보관하는 것은 후속 작업.
+
+---
+
 ## v6.6 — threads-auto 캐러셀(이미지 여러 장) 발행 지원 (2026-08)
 
 ### 추가

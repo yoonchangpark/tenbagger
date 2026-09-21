@@ -1,7 +1,10 @@
 # threads-auto — Meta Threads 자동 발행 스케줄러
 
-큐에 쌓아둔 콘텐츠를 한국 사용자 활동이 높은 시간대에 맞춰 Meta Threads에
+큐에 쌓아둔 콘텐츠를 **주 3~4회**(기본 월·수·금 18:30 KST) Meta Threads에
 자동 발행한다. 토큰(60일 장기)은 만료 임박 시 자동 갱신된다.
+
+운영 환경에서는 별도 프로세스를 띄우지 않고 **tenbagger 백엔드 스케줄러**가
+이 모듈을 호출한다(아래 "운영 배포" 참고).
 
 ## 구성
 
@@ -10,8 +13,9 @@
 | `main.py` | 스케줄러 진입점 (토큰 확보 → 큐 → 스케줄 등록) |
 | `threads_api.py` | Threads Graph API 래퍼 (컨테이너 생성 → 발행) |
 | `token_manager.py` | 토큰 자동 갱신 (단기→장기 교환, 장기 refresh) |
-| `content_queue.py` | 발행 콘텐츠 큐 (JSON 파일 / Supabase) |
-| `scheduler.py` | 최적 시간대 발행 로직 (APScheduler cron) |
+| `content_queue.py` | 발행 콘텐츠 큐 (JSON 파일 / Postgres / Supabase) |
+| `scheduler.py` | 발행 요일·시각 스케줄 (APScheduler cron) |
+| `publisher.py` | 토큰 확보 + 큐의 다음 1건 발행 (백엔드와 공유) |
 | `content_generator.py` | 텐배거 주제 → OpenAI로 Threads 게시물 생성 → 큐 적재 |
 | `preview.py` | 발행 전 큐 내용을 HTML로 미리보기 + 품질 점검 |
 
@@ -44,7 +48,7 @@ python preview.py
 # 지금 즉시 한 건 발행 (테스트)
 python main.py --once
 
-# 스케줄러 상주 실행 (POST_TIMES 마다 자동 발행)
+# 스케줄러 상주 실행 (POST_DAYS × POST_TIMES 마다 자동 발행)
 python main.py
 ```
 
@@ -56,8 +60,37 @@ python main.py
 2. **발행**: Threads API는 2단계다. 컨테이너 생성(`/{user}/threads`) 후
    서버 처리 시간을 두고 발행(`/{user}/threads_publish`)한다. 미디어는 30초,
    텍스트는 5초 대기한다.
-3. **스케줄**: 기본 발행 시각은 KST 07:30 / 12:30 / 18:30 / 21:00. 매 시각
+3. **스케줄**: 기본은 `POST_DAYS=mon,wed,fri` × `POST_TIMES=18:30` → **주 3회**.
+   주 4회로 늘리려면 요일을 하나 더 넣는다(`mon,wed,fri,sun`). 매 발행 시각에
    큐의 다음 `pending` 아이템 하나를 발행하고 상태를 `published`로 바꾼다.
+   주간 발행 횟수 = 요일 수 × 시각 수이므로, 시각은 하나만 두는 것이 기본이다.
+4. **토큰 갱신 시점**: 발행 직전마다 토큰을 다시 확인한다. 상주 프로세스가
+   60일 넘게 살아 있어도 만료 전에 refresh 된다.
+
+## 운영 배포 — 백엔드 스케줄러가 호출한다
+
+threads-auto는 Railway에 따로 배포되지 않는다. 대신 이미 상주 중인 tenbagger
+백엔드(`backend/app/main.py`)의 APScheduler가 월·수·금 18:30 KST에
+`python main.py --once`를 실행한다. 새로 띄울 프로세스가 없다.
+
+| 환경변수 | 기본값 | 설명 |
+|---------|--------|------|
+| `THREADS_POST_DAYS` | `mon,wed,fri` | 백엔드 잡의 발행 요일 |
+| `THREADS_POST_TIME` | `18:30` | 백엔드 잡의 발행 시각(KST) |
+| `CONTENT_QUEUE_BACKEND` | 백엔드 잡에서 `postgres` | 큐 저장소 |
+
+컨테이너 파일시스템은 재배포마다 초기화되므로 운영 큐는 Postgres에 둔다
+(`threads_queue` 테이블, `scripts/init.sql`이 기동 시 생성). 로컬에서 같은 큐에
+콘텐츠를 넣으려면 운영 `DATABASE_URL`을 주고 `--add` 하면 된다:
+
+```bash
+CONTENT_QUEUE_BACKEND=postgres DATABASE_URL="postgresql://..." \
+  python main.py --add "오늘의 텐배거 인사이트 ..."
+```
+
+> ⚠️ 토큰 파일(`.token.json`)은 아직 컨테이너 파일시스템에 저장되므로 재배포 시
+> 사라지고, 매 발행마다 `ACCESS_TOKEN`으로 다시 교환한다. 60일마다 `ACCESS_TOKEN`을
+> 새로 발급해 넣어야 한다. 토큰도 DB에 보관하는 것은 후속 작업.
 
 ## 콘텐츠 품질 — `--facts`가 핵심이다
 
