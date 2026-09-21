@@ -145,37 +145,66 @@ def get_optional_user(
         return None
 
 
+# ── 구독 등급 조회 ───────────────────────────────────────────────
+TIER_RANK = {"free": 0, "pro": 1, "premium": 2}
+
+
+def resolve_tier(user: Optional[dict], db: Session) -> str:
+    """
+    사용자의 현재 구독 등급을 반환한다.
+    비로그인 / 구독 없음 / 만료는 모두 "free", 오너 이메일은 항상 "premium".
+    """
+    from sqlalchemy import text
+
+    if not user:
+        return "free"
+
+    if settings.admin_email and user.get("email") == settings.admin_email:
+        return "premium"
+
+    row = db.execute(
+        text(
+            """
+            SELECT tier, expires_at FROM subscriptions
+            WHERE user_id = :uid AND status = 'active'
+            ORDER BY id DESC LIMIT 1
+            """
+        ),
+        {"uid": user["id"]},
+    ).fetchone()
+
+    if not row:
+        return "free"
+    if row.expires_at and row.expires_at < datetime.utcnow():
+        return "free"
+    return row.tier or "free"
+
+
+def get_current_tier(
+    user: Optional[dict] = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> str:
+    """
+    비로그인 접근을 허용하되 등급별로 결과를 제한하는 엔드포인트용 Dependency.
+    (예: 스크리너 — 무료는 상위 N개만)
+    """
+    return resolve_tier(user, db)
+
+
 def require_subscription(tier: str = "pro"):
     """
     특정 구독 등급 이상인 사용자만 허용하는 Dependency 팩토리.
     사용 예) Depends(require_subscription("pro"))
+    비로그인은 401, 등급 미달은 403을 반환한다.
     """
-    tier_rank = {"free": 0, "pro": 1, "premium": 2}
 
     def _check(
         current_user: dict = Depends(get_current_user),
         db: Session = Depends(get_db),
     ):
-        from sqlalchemy import text
+        user_tier = resolve_tier(current_user, db)
 
-        row = db.execute(
-            text(
-                """
-                SELECT tier, status, expires_at FROM subscriptions
-                WHERE user_id = :uid AND status = 'active'
-                ORDER BY id DESC LIMIT 1
-                """
-            ),
-            {"uid": current_user["id"]},
-        ).fetchone()
-
-        user_tier = row.tier if row else "free"
-
-        # 만료 체크
-        if row and row.expires_at and row.expires_at < datetime.utcnow():
-            user_tier = "free"
-
-        if tier_rank.get(user_tier, 0) < tier_rank.get(tier, 0):
+        if TIER_RANK.get(user_tier, 0) < TIER_RANK.get(tier, 0):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"이 기능은 {tier} 이상 구독이 필요합니다. 현재: {user_tier}",

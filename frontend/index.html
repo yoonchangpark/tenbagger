@@ -574,6 +574,25 @@
 
   <script>
     const API = "";
+
+    // ── 구독 게이트 헬퍼 ── 401=비로그인, 403=등급 미달
+    function authHeaders(){
+      const t = localStorage.getItem('access_token');
+      return t ? { Authorization: 'Bearer ' + t } : {};
+    }
+    function lockedCardHtml(status, feature){
+      const needLogin = status === 401;
+      const href  = needLogin ? 'login.html?redirect=/index.html' : 'pricing.html';
+      const label = needLogin ? '로그인하기' : '💎 Pro로 업그레이드';
+      const title = needLogin ? '로그인이 필요합니다' : 'Pro 구독이 필요합니다';
+      return '<div style="text-align:center;padding:24px 16px;">'
+        + '<div style="font-size:32px;margin-bottom:12px;">🔒</div>'
+        + '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">' + title + '</div>'
+        + '<div style="font-size:12px;color:var(--muted);margin-bottom:16px;">'
+        + feature + '은(는) Pro 이상에서 무제한 이용할 수 있습니다.</div>'
+        + '<a href="' + href + '" style="display:inline-block;padding:10px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:white;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">'
+        + label + '</a></div>';
+    }
     const HISTORY_KEY = "tenbagger_history";
 
     // ── 랜딩 vs 분석 모드 ──
@@ -1245,7 +1264,12 @@
       content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>GPT가 분석 중입니다… (10~20초 소요)</div>';
       content.classList.add("visible");
       try{
-        const r=await fetch(API+"/api/v2/company/"+ticker+"/qualitative");
+        const r=await fetch(API+"/api/v2/company/"+ticker+"/qualitative",{headers:authHeaders()});
+        if(r.status===401||r.status===403){
+          content.innerHTML=lockedCardHtml(r.status,"AI 정성 분석");
+          btn.disabled=false; btn.textContent="🔒 Pro 전용";
+          return;
+        }
         if(!r.ok)throw new Error("HTTP "+r.status);
         const q=await r.json();
         renderQualitative(q);
@@ -1525,34 +1549,23 @@
       const btn=document.getElementById("committeeLoadBtn");
       const content=document.getElementById("committeeContent");
 
-      // 무료 체험 1회 게이트
-      const tier = localStorage.getItem('user_tier') || 'free';
-      const trialUsed = localStorage.getItem('committee_trial_used') === '1';
-      if ((tier === 'free' || tier === 'none') && trialUsed) {
-        content.innerHTML =
-          '<div style="text-align:center;padding:24px 16px;">' +
-          '<div style="font-size:32px;margin-bottom:12px;">🔒</div>' +
-          '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">무료 체험을 사용하셨습니다</div>' +
-          '<div style="font-size:12px;color:var(--muted);margin-bottom:16px;">AI 투자위원회는 Pro 이상에서 무제한 이용할 수 있습니다.</div>' +
-          '<a href="pricing.html" style="display:inline-block;padding:10px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:white;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">💎 Pro로 업그레이드</a>' +
-          '</div>';
-        content.classList.add("visible");
-        return;
-      }
-
       btn.disabled=true;
       btn.textContent="위원회 소집 중…";
       content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>4명의 AI 전문가가 독립 분석 중입니다… (15~20초 소요)</div>';
       content.classList.add("visible");
       try {
-        const r = await fetch(API + "/api/v2/committee/" + ticker);
+        const r = await fetch(API + "/api/v2/committee/" + ticker, {headers: authHeaders()});
+        if (r.status === 401 || r.status === 403) {
+          content.innerHTML = lockedCardHtml(r.status, "AI 투자위원회");
+          btn.disabled = false; btn.textContent = "🔒 Pro 전용";
+          return;
+        }
         if (!r.ok) {
           const err = await r.json().catch(()=>({detail:"HTTP "+r.status}));
           throw new Error(err.detail || "HTTP "+r.status);
         }
         const result = await r.json();
         renderCommittee(result);
-        if (tier === 'free' || tier === 'none') localStorage.setItem('committee_trial_used', '1');
         btn.textContent = result.from_cache ? "♻️ 캐시 결과 (재분석하려면 클릭)" : "✅ 분석 완료 (재분석)";
         btn.disabled = false;
         btn.onclick = () => loadCommitteeForce(ticker, name);
@@ -1569,7 +1582,12 @@
       const content=document.getElementById("committeeContent");
       content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>위원회 재소집 중… (15~20초)</div>';
       try {
-        const r = await fetch(API + "/api/v2/committee/" + ticker + "/run", {method: "POST"});
+        const r = await fetch(API + "/api/v2/committee/" + ticker + "/run", {method: "POST", headers: authHeaders()});
+        if (r.status === 401 || r.status === 403) {
+          content.innerHTML = lockedCardHtml(r.status, "AI 투자위원회");
+          btn.disabled = false; btn.textContent = "🔒 Pro 전용";
+          return;
+        }
         if (!r.ok) throw new Error("HTTP "+r.status);
         const result = await r.json();
         renderCommittee(result);

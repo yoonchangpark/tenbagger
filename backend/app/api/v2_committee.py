@@ -6,11 +6,12 @@ Phase 6: AI 투자위원회 API
 """
 import json
 import datetime
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 
 from app.core.database import SessionLocal
 from app.agents.committee import run_committee
+from app.core.auth import require_subscription
 
 
 router = APIRouter(prefix="/api/v2/committee", tags=["ai-committee"])
@@ -83,7 +84,11 @@ def list_recent_committee_v2(limit: int = Query(20, ge=1, le=100)):
 
 
 @router.get("/{ticker}")
-async def get_committee_analysis(ticker: str, force: bool = Query(False, description="True면 캐시 무시 강제 재분석")):
+async def get_committee_analysis(
+    ticker: str,
+    force: bool = Query(False, description="True면 캐시 무시 강제 재분석"),
+    _user: dict = Depends(require_subscription("pro")),
+):
     """
     AI 투자위원회 분석 결과 조회.
     - 24시간 이내 캐시 있으면 즉시 반환 (~0.1초)
@@ -123,7 +128,10 @@ async def get_committee_analysis(ticker: str, force: bool = Query(False, descrip
 
 
 @router.post("/{ticker}/run")
-async def trigger_committee_analysis(ticker: str):
+async def trigger_committee_analysis(
+    ticker: str,
+    _user: dict = Depends(require_subscription("pro")),
+):
     """강제 재분석 트리거 (캐시 무시)"""
     import traceback
     ticker = ticker.upper().strip()

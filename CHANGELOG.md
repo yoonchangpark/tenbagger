@@ -2,6 +2,38 @@
 
 ---
 
+## v6.7 — 구독 게이트 실제 적용 (2026-09)
+
+### 배경
+결제(토스페이먼츠)·플랜 정의·인증은 이미 있었지만 유료 게이트 함수
+`require_subscription()`이 **정의만 되고 어떤 엔드포인트에도 붙어 있지 않아**
+Free와 Pro가 쓸 수 있는 기능이 사실상 같았다. 구독의 값을 실제로 만드는 작업.
+
+### 추가
+- **`core/auth.py`**: `resolve_tier(user, db)` — 등급 판정 단일 진입점.
+  비로그인·구독 없음·만료는 모두 `free`, 오너 이메일(`settings.admin_email`)은 항상 `premium`.
+  `get_current_tier` Dependency 추가(비로그인 허용 + 등급별 결과 제한용).
+  `require_subscription()`은 이 함수를 쓰도록 정리 — 기존에 빠져 있던 오너 예외가 함께 적용된다.
+
+### 변경
+- **`/api/screener`**: 무료·비로그인은 상위 `FREE_SCREENER_LIMIT`(10)개까지만 반환.
+  Pro 이상은 기존대로 무제한. 쿼리 파라미터는 그대로이고 응답에 `tier`·`limited`·`free_limit`
+  필드가 **추가**됐다(기존 필드 불변 — v1 계약 유지, 401/403 없이 결과만 줄어든다).
+- **`/api/v2/company/{ticker}/qualitative`**, **`/api/v2/committee/{ticker}`**,
+  **`/api/v2/committee/{ticker}/run`**: Pro 이상 필요(비로그인 401, 등급 미달 403).
+  `payment.PLANS`의 `limits.ai_analysis: false`를 서버에서 처음으로 강제한다.
+- **`frontend/index.html`**: AI 정성 분석·투자위원회 호출에 `Authorization` 헤더 전송,
+  401/403이면 잠금 카드(로그인 또는 Pro 업그레이드 CTA)를 띄운다.
+  기존 `localStorage` 기반 "무료 체험 1회" 게이트는 서버 게이트로 대체되어 제거
+  (클라이언트 저장값이라 개발자도구로 우회 가능했다).
+- **`frontend/screener.html`**: 토큰을 실어 보내고, 응답이 `limited`면 결과 아래
+  업그레이드 안내 배너를 노출.
+- **`frontend/dashboard.html`**: AI 정성 분석을 `authFetch`로 호출하고 403이면 잠금 카드.
+
+### 남은 것
+- 정기결제(빌링키) 미구현 — 30일 만료 후 자동 갱신되지 않는다.
+- 무료 체험(AI 1회)을 서버에서 세려면 사용량 테이블이 필요해 이번 범위에서 제외했다.
+
 ## v6.6 — threads-auto 캐러셀(이미지 여러 장) 발행 지원 (2026-08)
 
 ### 추가
