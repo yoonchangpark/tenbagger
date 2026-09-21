@@ -146,13 +146,16 @@ def get_optional_user(
 
 
 # ── 구독 등급 조회 ───────────────────────────────────────────────
-TIER_RANK = {"free": 0, "pro": 1, "premium": 2}
+TIER_RANK = {"free": 0, "basic": 1, "pro": 2, "platinum": 3}
+
+# 2026-09 플랜 개편 전에 저장된 등급명 — DB에 남아 있는 값을 새 이름으로 읽는다
+LEGACY_TIERS = {"premium": "platinum"}
 
 
 def resolve_tier(user: Optional[dict], db: Session) -> str:
     """
     사용자의 현재 구독 등급을 반환한다.
-    비로그인 / 구독 없음 / 만료는 모두 "free", 오너 이메일은 항상 "premium".
+    비로그인 / 구독 없음 / 만료는 모두 "free", 오너 이메일은 항상 최상위 등급.
     """
     from sqlalchemy import text
 
@@ -160,7 +163,7 @@ def resolve_tier(user: Optional[dict], db: Session) -> str:
         return "free"
 
     if settings.admin_email and user.get("email") == settings.admin_email:
-        return "premium"
+        return "platinum"
 
     row = db.execute(
         text(
@@ -177,7 +180,8 @@ def resolve_tier(user: Optional[dict], db: Session) -> str:
         return "free"
     if row.expires_at and row.expires_at < datetime.utcnow():
         return "free"
-    return row.tier or "free"
+    tier = row.tier or "free"
+    return LEGACY_TIERS.get(tier, tier)
 
 
 def get_current_tier(

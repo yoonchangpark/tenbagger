@@ -28,29 +28,40 @@ PLANS = {
     "free": {
         "name": "Free",
         "price": 0,
-        "description": "기본 분석 무료 제공",
+        "description": "먼저 써보기",
         "features": [
             "종목 분석 (기본)",
             "스크리너 상위 10개",
-            "등급 조회",
+            "AI 분석 체험 1회",
         ],
         "limits": {"screener": 10, "watchlist": 0, "ai_analysis": False},
+    },
+    "basic": {
+        "name": "기본",
+        "price": 5900,
+        "description": "전 종목을 직접 찾아보는 플랜",
+        "features": [
+            "스크리너 전체 무제한",
+            "종목 분석 (전체)",
+            "관심종목 10개",
+            "월간 투자 리포트",
+        ],
+        "limits": {"screener": -1, "watchlist": 10, "ai_analysis": False},
     },
     "pro": {
         "name": "Pro",
         "price": 9900,
-        "description": "투자자를 위한 전문 분석",
+        "description": "AI 분석까지 쓰는 전문가 플랜",
         "features": [
-            "종목 분석 (전체)",
-            "스크리너 전체 무제한",
-            "AI 정성 분석",
+            "기본 모든 기능",
+            "AI 정성 분석 무제한",
+            "AI 투자위원회 무제한",
             "관심종목 20개",
-            "월간 투자 리포트",
         ],
         "limits": {"screener": -1, "watchlist": 20, "ai_analysis": True},
     },
-    "premium": {
-        "name": "Premium",
+    "platinum": {
+        "name": "플래티넘",
         "price": 19900,
         "description": "기관급 분석 환경",
         "features": [
@@ -106,7 +117,7 @@ async def confirm_payment(
             detail="TOSS_SECRET_KEY가 설정되지 않았습니다.",
         )
 
-    if body.tier not in ("pro", "premium"):
+    if body.tier not in ("basic", "pro", "platinum"):
         raise HTTPException(status_code=400, detail="유효하지 않은 플랜입니다.")
 
     expected_price = PLANS[body.tier]["price"]

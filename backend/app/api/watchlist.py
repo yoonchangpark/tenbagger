@@ -16,7 +16,7 @@ from app.core.auth import get_current_user, get_db, resolve_tier
 router = APIRouter(prefix="/api/v2/watchlist", tags=["watchlist"])
 
 # 구독 등급별 관심종목 한도
-WATCHLIST_LIMITS = {"free": 0, "pro": 20, "premium": -1}  # -1 = 무제한
+WATCHLIST_LIMITS = {"free": 0, "basic": 10, "pro": 20, "platinum": -1}  # -1 = 무제한
 
 
 def _get_user_tier(user_id: int, db: Session, user_email: str = "") -> str:

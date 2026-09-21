@@ -760,7 +760,7 @@
       // 유료 구독자인데 free로 내려왔다면 토큰 만료다 — 결제 유도 대신 재로그인 안내
       const knownTier = localStorage.getItem("user_tier");
       const expired = localStorage.getItem("access_token")
-        && data.tier === "free" && (knownTier === "pro" || knownTier === "premium");
+        && data.tier === "free" && !!knownTier && knownTier !== "free";
       document.getElementById("upgradeExpired").style.display = expired ? "block" : "none";
       document.getElementById("upgradeOffer").style.display = expired ? "none" : "block";
       if (range) { range.disabled = true; range.title = "Pro 구독 시 최대 200개까지 조회할 수 있습니다"; }
