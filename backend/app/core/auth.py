@@ -255,17 +255,32 @@ def require_subscription_or_trial(feature: str, tier: str = "pro"):
                 detail=f"무료 체험 {FREE_TRIAL_LIMIT}회를 모두 사용하셨습니다. 계속 이용하시려면 {tier} 구독이 필요합니다.",
             )
 
-        yield {**ctx, "trial": True, "trial_remaining": FREE_TRIAL_LIMIT - used - 1}
+        # 엔드포인트는 이 dict를 그대로 받는다. 캐시된 결과를 돌려주는 등
+        # AI 호출이 실제로 일어나지 않은 경우 consume_trial을 False로 바꾸면 차감하지 않는다.
+        trial_ctx = {
+            **ctx,
+            "trial": True,
+            "trial_remaining": FREE_TRIAL_LIMIT - used - 1,
+            "consume_trial": True,
+        }
+        yield trial_ctx
+
+        if not trial_ctx.get("consume_trial", True):
+            return
 
         # 엔드포인트가 예외 없이 끝났을 때만 체험 1회를 소진시킨다
         db.execute(
             text(
                 """
                 INSERT INTO ai_trial_usage (user_id, feature)
-                VALUES (:uid, :feature)
+                SELECT :uid, :feature
+                WHERE (
+                    SELECT COUNT(*) FROM ai_trial_usage
+                    WHERE user_id = :uid AND feature = :feature
+                ) < :limit
                 """
             ),
-            {"uid": current_user["id"], "feature": feature},
+            {"uid": current_user["id"], "feature": feature, "limit": FREE_TRIAL_LIMIT},
         )
         db.commit()
 

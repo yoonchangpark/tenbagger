@@ -129,6 +129,10 @@
         `;
       } else {
         setStatus(`오류: ${data.detail}`, "error");
+        document.getElementById("ctaArea").innerHTML = `
+          <p style="font-size:13px;color:#94a3b8;margin-bottom:14px;">판매하지 않는 플랜 링크로 들어오셨다면 결제는 승인되지 않았으니 청구되지 않습니다.</p>
+          <a href="/pricing.html" class="btn-primary">요금제 다시 보기</a>
+          <p style="font-size:12px;color:#64748b;margin-top:12px;">문의: yoonchang.park@gmail.com</p>`;
       }
     } catch (e) {
       setStatus("네트워크 오류가 발생했습니다.", "error");

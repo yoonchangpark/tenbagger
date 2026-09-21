@@ -31,7 +31,7 @@
 
     .plan-card {
       background: #1a2332; border: 1px solid #1e2a3a; border-radius: 1rem;
-      padding: 2rem; width: 320px; position: relative; transition: transform 0.2s, border-color 0.2s;
+      padding: 2rem; flex: 1 1 280px; max-width: 340px; position: relative; transition: transform 0.2s, border-color 0.2s;
     }
     .plan-card:hover { transform: translateY(-4px); border-color: #60a5fa44; }
     .plan-card.popular { border-color: #60a5fa; }
@@ -103,6 +103,7 @@
       .compare-section { padding: 0 1rem; }
       .compare-table { font-size: 0.8rem; }
       .compare-table th, .compare-table td { padding: 10px 10px; }
+      .compare-table th:first-child { min-width: 110px; }
     }
   </style>
 </head>
@@ -133,6 +134,7 @@
     <ul class="plan-features">
       <li>종목 분석 (기본)</li>
       <li>스크리너 상위 10개</li>
+      <li>백테스트</li>
       <li>AI 분석 체험 3회</li>
     </ul>
     <div id="free-btn-area">
@@ -149,6 +151,7 @@
       <li>스크리너 전체 무제한</li>
       <li>종목 분석 (전체)</li>
       <li>관심종목 10개</li>
+      <li>AI 분석 체험 3회</li>
     </ul>
     <div id="basic-btn-area">
       <button class="btn btn-primary" onclick="startPayment('basic')">기본 시작하기</button>
@@ -157,7 +160,7 @@
 
   <!-- Pro -->
   <div class="plan-card popular" id="card-pro">
-    <div class="popular-badge">⭐ 가장 인기</div>
+    <div class="popular-badge">⭐ 추천</div>
     <div class="plan-name">Pro</div>
     <div class="plan-price">₩9,900 <span>/ 월</span></div>
     <div class="plan-desc">AI 분석까지 쓰는 전문가 플랜</div>
@@ -194,6 +197,12 @@
         <td><span class="check-yes">✓</span></td>
       </tr>
       <tr>
+        <td>백테스트</td>
+        <td><span class="check-yes">✓</span></td>
+        <td><span class="check-yes">✓</span></td>
+        <td><span class="check-yes">✓</span></td>
+      </tr>
+      <tr>
         <td>스크리너</td>
         <td><span class="check-txt">상위 10개</span></td>
         <td><span class="check-txt basic">전체 무제한</span></td>
@@ -202,13 +211,13 @@
       <tr>
         <td>AI 정성 분석 (기업 리서치)</td>
         <td><span class="check-txt">체험 3회</span></td>
-        <td><span class="check-no">—</span></td>
+        <td><span class="check-txt basic">체험 3회</span></td>
         <td><span class="check-yes">✓</span></td>
       </tr>
       <tr>
         <td>AI 투자위원회 (최종 판단)</td>
         <td><span class="check-txt">체험 3회</span></td>
-        <td><span class="check-no">—</span></td>
+        <td><span class="check-txt basic">체험 3회</span></td>
         <td><span class="check-yes">✓</span></td>
       </tr>
       <tr>
@@ -221,12 +230,6 @@
         <td>주간 관심종목 리포트</td>
         <td><span class="check-no">—</span></td>
         <td><span class="check-no">—</span></td>
-        <td><span class="check-yes">✓</span></td>
-      </tr>
-      <tr>
-        <td>백테스트</td>
-        <td><span class="check-yes">✓</span></td>
-        <td><span class="check-yes">✓</span></td>
         <td><span class="check-yes">✓</span></td>
       </tr>
     </tbody>

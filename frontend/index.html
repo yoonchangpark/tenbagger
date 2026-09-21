@@ -430,7 +430,7 @@
 
   <div id="freeBanner" style="display:none;max-width:640px;margin:12px auto 0;padding:0 24px;">
     <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-      <span style="font-size:12px;color:#93c5fd;">📊 <strong>무료 플랜</strong> · 기본 재무 분석 제공 &nbsp;·&nbsp; AI 분석은 <strong>Pro</strong> 이상 전용</span>
+      <span style="font-size:12px;color:#93c5fd;">📊 <strong>무료 플랜</strong> · 기본 재무 분석 제공 &nbsp;·&nbsp; AI 분석 <strong>3회 무료 체험</strong> · 이후 Pro</span>
       <a href="/pricing.html" style="background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;">Pro 업그레이드 →</a>
     </div>
   </div>
@@ -603,6 +603,23 @@
     // 잠금 응답을 받은 버튼은 구독·로그인 후 다시 누를 수 있다는 걸 라벨로 알린다
     function lockedBtnLabel(status){
       return status === 401 ? "로그인 후 다시 시도" : "🔒 Pro 전용 · 구독 후 다시 시도";
+    }
+    // 무료 체험으로 받은 결과에는 남은 횟수를 알려 준다 (구독자는 undefined라 아무것도 안 뜬다)
+    function showTrialNotice(container, remaining){
+      if (typeof remaining !== "number") return;
+      const box = document.createElement("div");
+      box.style.cssText = "margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(59,130,246,.10);border:1px solid rgba(59,130,246,.28);font-size:12px;color:#93c5fd;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;";
+      box.innerHTML = (remaining > 0
+          ? "무료 체험 " + remaining + "회 남았습니다."
+          : "마지막 무료 체험이었습니다.")
+        + ' <a href="pricing.html" style="color:#60a5fa;font-weight:700;white-space:nowrap;">Pro 구독 시 무제한 →</a>';
+      container.insertBefore(box, container.firstChild);
+    }
+    function trialBtnLabel(doneLabel, remaining){
+      if (typeof remaining !== "number") return doneLabel;
+      return remaining > 0
+        ? "🔄 다시 분석 (체험 " + remaining + "회 남음)"
+        : "🔒 체험 소진 · 구독 후 다시 분석";
     }
     const HISTORY_KEY = "tenbagger_history";
 
@@ -1291,7 +1308,8 @@
         if(!r.ok)throw new Error("HTTP "+r.status);
         const q=await r.json();
         renderQualitative(q);
-        btn.textContent="✅ 분석 완료 (새로고침)";
+        showTrialNotice(content, q.trial_remaining);
+        btn.textContent=trialBtnLabel("✅ 분석 완료 (새로고침)", q.trial_remaining);
         btn.disabled=false;
         btn.onclick=()=>loadQualitative(ticker);
       }catch(e){
@@ -1592,7 +1610,10 @@
         }
         const result = await r.json();
         renderCommittee(result);
-        btn.textContent = result.from_cache ? "♻️ 캐시 결과 (재분석하려면 클릭)" : "✅ 분석 완료 (재분석)";
+        showTrialNotice(content, result.trial_remaining);
+        btn.textContent = result.from_cache
+          ? "♻️ 캐시 결과 (재분석하려면 클릭)"
+          : trialBtnLabel("✅ 분석 완료 (재분석)", result.trial_remaining);
         btn.disabled = false;
         btn.onclick = () => loadCommitteeForce(ticker, name);
       } catch(e) {
@@ -1606,12 +1627,18 @@
       const btn=document.getElementById("committeeLoadBtn");
       btn.disabled=true; btn.textContent="재분석 중…";
       const content=document.getElementById("committeeContent");
+      const prevHtml = content.innerHTML;   // 강제 재분석은 Pro 전용이라 403이 날 수 있다
       content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>위원회 재소집 중… (15~20초)</div>';
       try {
         const r = await fetch(API + "/api/v2/committee/" + ticker + "/run", {method: "POST", headers: authHeaders()});
         if (r.status === 401 || r.status === 403) {
           const lockErr = await r.json().catch(()=>({}));
-          content.innerHTML = lockedCardHtml(r.status, "AI 투자위원회", lockErr.detail);
+          content.innerHTML = prevHtml;     // 방금 본 분석 결과를 살려 둔다
+          const note = document.createElement("div");
+          note.style.cssText = "margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(147,51,234,.10);border:1px solid rgba(147,51,234,.28);font-size:12px;color:var(--muted);";
+          note.innerHTML = (lockErr.detail || "강제 재분석은 Pro 구독자 전용입니다.")
+            + ' <a href="pricing.html" style="color:#a78bfa;font-weight:700;">구독 보기 →</a>';
+          content.appendChild(note);
           btn.disabled = false; btn.textContent = lockedBtnLabel(r.status);
           return;
         }

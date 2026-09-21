@@ -524,7 +524,7 @@
     <div class="section-header">
       <div>
         <div class="section-title">⭐ 관심종목</div>
-        <div class="section-desc">내 포트폴리오 후보 · Pro 20개 / Premium 무제한</div>
+        <div class="section-desc">내 포트폴리오 후보 · 기본 10개 / Pro 20개</div>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="refresh-btn" onclick="loadWatchlist()">새로고침</button>
@@ -1361,7 +1361,7 @@
       }
 
       const { items, tier, limit } = data;
-      const limitLabel = limit === -1 ? '무제한' : `${items.length}/${limit}개`;
+      const limitLabel = `${items.length}/${limit}개`;
       const gradeColor = { TENBAGGER:'#f59e0b', COMPOUNDER:'#10b981', WATCHLIST:'#3b82f6', AVOID:'#ef4444' };
       const gradeEmoji = { TENBAGGER:'⭐', COMPOUNDER:'🟢', WATCHLIST:'🟡', AVOID:'🔴' };
 
@@ -1369,8 +1369,8 @@
         document.getElementById('watchlistContent').innerHTML =
           `<div style="text-align:center;padding:60px;color:var(--muted);">
             <div style="font-size:3rem;margin-bottom:12px;">💎</div>
-            <p style="font-size:16px;font-weight:700;margin-bottom:8px;">Pro 구독 전용 기능입니다</p>
-            <p style="margin-bottom:20px;">Pro: 20개 / Premium: 무제한</p>
+            <p style="font-size:16px;font-weight:700;margin-bottom:8px;">기본 플랜 이상 구독이 필요합니다</p>
+            <p style="margin-bottom:20px;">기본: 10개 / Pro: 20개</p>
             <a href="/pricing.html" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border-radius:10px;font-weight:700;text-decoration:none;">💎 구독 업그레이드</a>
           </div>`;
         return;
@@ -3115,8 +3115,16 @@
       h += '<div class="ai-box"><h4>🔭 향후 전망</h4><p>' + escHtml(q.future_outlook || "-") + '</p></div>';
       h += '<div class="ai-box"><h4>🚨 핵심 리스크</h4><p>' + escHtml(q.key_risks || "-") + '</p></div>';
       h += '</div>';
+      if (typeof q.trial_remaining === "number") {
+        h = '<div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(59,130,246,.10);border:1px solid rgba(59,130,246,.28);font-size:12px;color:#93c5fd;">'
+          + (q.trial_remaining > 0 ? '무료 체험 ' + q.trial_remaining + '회 남았습니다.' : '마지막 무료 체험이었습니다.')
+          + ' <a href="/pricing.html" style="color:#60a5fa;font-weight:700;">Pro 구독 시 무제한 →</a></div>' + h;
+      }
       content.innerHTML = h;
-      btn.textContent = "✅ 완료 (새로고침)"; btn.disabled = false;
+      btn.textContent = typeof q.trial_remaining === "number"
+        ? (q.trial_remaining > 0 ? "🔄 다시 분석 (체험 " + q.trial_remaining + "회 남음)" : "🔒 체험 소진 · 구독 후 다시 분석")
+        : "✅ 완료 (새로고침)";
+      btn.disabled = false;
       btn.onclick = () => dashLoadAI(ticker);
     } catch (e) {
       content.innerHTML = '<div style="color:#f87171;font-size:13px;">분석 실패: ' + escHtml(e.message) + '</div>';

@@ -32,6 +32,7 @@ PLANS = {
         "features": [
             "종목 분석 (기본)",
             "스크리너 상위 10개",
+            "백테스트",
             "AI 분석 체험 3회",
         ],
         "limits": {"screener": 10, "watchlist": 0, "ai_analysis": False},
@@ -44,6 +45,7 @@ PLANS = {
             "스크리너 전체 무제한",
             "종목 분석 (전체)",
             "관심종목 10개",
+            "AI 분석 체험 3회",
         ],
         "limits": {"screener": -1, "watchlist": 10, "ai_analysis": False},
     },

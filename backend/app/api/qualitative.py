@@ -290,4 +290,7 @@ async def get_qualitative_analysis(
             })
     result["recent_disclosures"] = disclosure_list
 
+    if _user.get("trial"):
+        result["trial_remaining"] = _user.get("trial_remaining", 0)
+
     return result

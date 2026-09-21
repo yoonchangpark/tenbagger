@@ -100,6 +100,8 @@ async def get_committee_analysis(
         try:
             cached = _get_cached(ticker)
             if cached:
+                # 캐시 히트는 AI를 부르지 않으므로 체험 횟수를 깎지 않는다
+                _user["consume_trial"] = False
                 return cached
         except Exception as e:
             print(f"[committee] 캐시 조회 오류 (계속 진행): {e}")
@@ -124,6 +126,8 @@ async def get_committee_analysis(
     except Exception as e:
         print(f"[committee] 캐시 저장 오류 (응답은 정상): {e}")
         traceback.print_exc()
+    if _user.get("trial"):
+        result["trial_remaining"] = _user.get("trial_remaining", 0)
     return result
 
 
