@@ -91,7 +91,12 @@ def screen_companies(
         "total": len(results),
         "companies": results,
         "tier": tier,
-        "limited": tier == "free" and limit > FREE_SCREENER_LIMIT,
+        # 실제로 잘렸을 때만 True — 결과가 한도보다 적으면 제한에 걸린 게 아니다
+        "limited": (
+            tier == "free"
+            and limit > FREE_SCREENER_LIMIT
+            and len(results) >= FREE_SCREENER_LIMIT
+        ),
         "free_limit": FREE_SCREENER_LIMIT,
     }
 

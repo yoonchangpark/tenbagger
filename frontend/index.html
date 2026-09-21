@@ -582,16 +582,24 @@
     }
     function lockedCardHtml(status, feature){
       const needLogin = status === 401;
-      const href  = needLogin ? 'login.html?redirect=/index.html' : 'pricing.html';
+      const href  = needLogin
+        ? 'login.html?redirect=' + encodeURIComponent(location.pathname + location.search)
+        : 'pricing.html';
       const label = needLogin ? '로그인하기' : '💎 Pro로 업그레이드';
       const title = needLogin ? '로그인이 필요합니다' : 'Pro 구독이 필요합니다';
+      const desc  = '‘' + feature + '’ 기능은 Pro 구독자 전용입니다.'
+        + (needLogin ? ' 로그인하시면 구독 상태를 확인합니다.' : '');
       return '<div style="text-align:center;padding:24px 16px;">'
         + '<div style="font-size:32px;margin-bottom:12px;">🔒</div>'
         + '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">' + title + '</div>'
-        + '<div style="font-size:12px;color:var(--muted);margin-bottom:16px;">'
-        + feature + '은(는) Pro 이상에서 무제한 이용할 수 있습니다.</div>'
-        + '<a href="' + href + '" style="display:inline-block;padding:10px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:white;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">'
+        + '<div style="font-size:12px;color:var(--muted);margin-bottom:16px;">' + desc + '</div>'
+        + '<a href="' + href + '" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:white;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">'
         + label + '</a></div>';
+    }
+
+    // 잠금 응답을 받은 버튼은 구독·로그인 후 다시 누를 수 있다는 걸 라벨로 알린다
+    function lockedBtnLabel(status){
+      return status === 401 ? "로그인 후 다시 시도" : "🔒 Pro 전용 · 구독 후 다시 시도";
     }
     const HISTORY_KEY = "tenbagger_history";
 
@@ -1259,6 +1267,12 @@
       gtag('event','ai_analysis_click',{ticker});
       const btn=document.getElementById("aiLoadBtn");
       const content=document.getElementById("aiContent");
+      if(!localStorage.getItem('access_token')){
+        content.innerHTML=lockedCardHtml(401,"AI 정성 분석");
+        content.classList.add("visible");
+        btn.textContent=lockedBtnLabel(401);
+        return;
+      }
       btn.disabled=true;
       btn.textContent="분석 중…";
       content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>GPT가 분석 중입니다… (10~20초 소요)</div>';
@@ -1267,7 +1281,7 @@
         const r=await fetch(API+"/api/v2/company/"+ticker+"/qualitative",{headers:authHeaders()});
         if(r.status===401||r.status===403){
           content.innerHTML=lockedCardHtml(r.status,"AI 정성 분석");
-          btn.disabled=false; btn.textContent="🔒 Pro 전용";
+          btn.disabled=false; btn.textContent=lockedBtnLabel(r.status);
           return;
         }
         if(!r.ok)throw new Error("HTTP "+r.status);
@@ -1549,6 +1563,13 @@
       const btn=document.getElementById("committeeLoadBtn");
       const content=document.getElementById("committeeContent");
 
+      if(!localStorage.getItem('access_token')){
+        content.innerHTML=lockedCardHtml(401,"AI 투자위원회");
+        content.classList.add("visible");
+        btn.textContent=lockedBtnLabel(401);
+        return;
+      }
+
       btn.disabled=true;
       btn.textContent="위원회 소집 중…";
       content.innerHTML='<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;"></div>4명의 AI 전문가가 독립 분석 중입니다… (15~20초 소요)</div>';
@@ -1557,7 +1578,7 @@
         const r = await fetch(API + "/api/v2/committee/" + ticker, {headers: authHeaders()});
         if (r.status === 401 || r.status === 403) {
           content.innerHTML = lockedCardHtml(r.status, "AI 투자위원회");
-          btn.disabled = false; btn.textContent = "🔒 Pro 전용";
+          btn.disabled = false; btn.textContent = lockedBtnLabel(r.status);
           return;
         }
         if (!r.ok) {
@@ -1585,7 +1606,7 @@
         const r = await fetch(API + "/api/v2/committee/" + ticker + "/run", {method: "POST", headers: authHeaders()});
         if (r.status === 401 || r.status === 403) {
           content.innerHTML = lockedCardHtml(r.status, "AI 투자위원회");
-          btn.disabled = false; btn.textContent = "🔒 Pro 전용";
+          btn.disabled = false; btn.textContent = lockedBtnLabel(r.status);
           return;
         }
         if (!r.ok) throw new Error("HTTP "+r.status);
@@ -1802,7 +1823,7 @@
         if (sorted.length) { renderTop5Rows(sorted); return; }
         // API fallback
         try {
-          const r = await fetch(API + '/api/screener?sort=dividend_yield&min_dividend_yield=2&limit=5');
+          const r = await fetch(API + '/api/screener?sort=dividend_yield&min_dividend_yield=2&limit=5', {headers:authHeaders()});
           const d = await r.json();
           renderTop5Rows((d.companies || []).slice(0, 5));
         } catch { renderTop5Rows([]); }
@@ -1835,7 +1856,7 @@
           }
         }).catch(()=>{});
 
-      fetch(API+'/api/screener?grade=TENBAGGER&limit=6')
+      fetch(API+'/api/screener?grade=TENBAGGER&limit=6',{headers:authHeaders()})
         .then(r=>r.ok?r.json():null)
         .then(data=>{
           const list=(data?.companies||data||[]).slice(0,6);

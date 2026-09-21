@@ -11,8 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user, get_db
-from app.core.config import settings
+from app.core.auth import get_current_user, get_db, resolve_tier
 
 router = APIRouter(prefix="/api/v2/watchlist", tags=["watchlist"])
 
@@ -21,15 +20,8 @@ WATCHLIST_LIMITS = {"free": 0, "pro": 20, "premium": -1}  # -1 = 무제한
 
 
 def _get_user_tier(user_id: int, db: Session, user_email: str = "") -> str:
-    # 오너/관리자는 항상 premium
-    if user_email and settings.admin_email and user_email == settings.admin_email:
-        return "premium"
-    row = db.execute(text("""
-        SELECT tier FROM subscriptions
-        WHERE user_id = :uid AND status = 'active'
-        ORDER BY id DESC LIMIT 1
-    """), {"uid": user_id}).fetchone()
-    return row.tier if row else "free"
+    # 오너 예외·만료 처리는 resolve_tier 한 곳에서 판정한다
+    return resolve_tier({"id": user_id, "email": user_email}, db)
 
 
 def _fetch_current_price(ticker: str) -> dict | None:

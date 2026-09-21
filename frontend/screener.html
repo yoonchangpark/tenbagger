@@ -393,18 +393,26 @@
       </div>
     </div>
 
+    <div id="upgradeNotice" style="display:none;margin-bottom:16px;padding:18px 20px;border:1px solid rgba(147,51,234,.4);border-radius:12px;background:rgba(147,51,234,.08);text-align:center;">
+      <div id="upgradeOffer">
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px;">🔒 무료 플랜은 상위 <span id="freeLimitNum">10</span>개까지 보여드립니다</div>
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">Pro로 업그레이드하면 KOSPI·KOSDAQ 전 종목 스크리닝 결과를 제한 없이 볼 수 있습니다.</div>
+        <a href="pricing.html" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:#fff;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">💎 Pro로 업그레이드</a>
+        <div style="font-size:11px;color:#6b7280;margin-top:10px;">이미 구독 중이신가요? <a href="login.html?redirect=/screener.html" style="color:#a78bfa;">로그인</a></div>
+      </div>
+      <div id="upgradeExpired" style="display:none;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px;">🔑 로그인 세션이 만료되었습니다</div>
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">구독 중인 계정인데 결과가 상위 <span id="freeLimitNumExpired">10</span>개로 제한됐습니다. 다시 로그인하면 전 종목이 보입니다.</div>
+        <a href="login.html?redirect=/screener.html" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:#fff;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">다시 로그인</a>
+      </div>
+    </div>
+
     <div id="tableArea">
       <div class="empty-state">
         <div class="e-icon">🔍</div>
         <p>필터를 설정하고 <strong>스크리닝 실행</strong> 버튼을 누르세요.<br>
         ETL이 실행된 이후에 KOSPI/KOSDAQ 전체 종목에서 검색됩니다.</p>
       </div>
-    </div>
-
-    <div id="upgradeNotice" style="display:none;margin-top:16px;padding:18px 20px;border:1px solid rgba(147,51,234,.4);border-radius:12px;background:rgba(147,51,234,.08);text-align:center;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:6px;">🔒 무료 플랜은 상위 <span id="freeLimitNum">10</span>개까지 보여드립니다</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">Pro로 업그레이드하면 KOSPI·KOSDAQ 전 종목 스크리닝 결과를 제한 없이 볼 수 있습니다.</div>
-      <a href="pricing.html" style="display:inline-block;padding:10px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:#fff;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">💎 Pro로 업그레이드</a>
     </div>
 
   </main>
@@ -421,6 +429,7 @@
   const API = "";
 
   // ── 구독 게이트 ── 로그인 토큰을 실어 보내면 Pro 이상은 전체 결과를 받는다
+  let _lastLimited = false;   // 직전 조회가 무료 개수 제한에 걸렸는지
   function authHeaders(){
     const t = localStorage.getItem('access_token');
     return t ? { Authorization: 'Bearer ' + t } : {};
@@ -719,6 +728,7 @@
       const sumData = sumRes.ok ? await sumRes.json() : null;
 
       renderSummary(sumData);
+      _lastLimited = !!data.limited;
       _lastResults = data.companies;
       applyFiltersAndRender();
       renderUpgradeNotice(data);
@@ -735,15 +745,30 @@
     }
   }
 
-  // 무료 플랜이 결과 개수 제한에 걸렸을 때만 업그레이드 안내를 띄운다
+  // 무료 플랜이 결과 개수 제한에 걸렸을 때만 업그레이드 안내를 띄운다.
+  // 제한 중에는 "결과 개수" 슬라이더가 실제로 동작하지 않으므로 함께 잠근다.
   function renderUpgradeNotice(data) {
     const el = document.getElementById("upgradeNotice");
+    const range = document.getElementById("limitRange");
+    const display = document.getElementById("limitDisplay");
     if (!el) return;
     if (data && data.limited) {
-      document.getElementById("freeLimitNum").textContent = data.free_limit ?? 10;
+      const freeLimit = data.free_limit ?? 10;
+      document.getElementById("freeLimitNum").textContent = freeLimit;
+      document.getElementById("freeLimitNumExpired").textContent = freeLimit;
       el.style.display = "block";
+      // 유료 구독자인데 free로 내려왔다면 토큰 만료다 — 결제 유도 대신 재로그인 안내
+      const knownTier = localStorage.getItem("user_tier");
+      const expired = localStorage.getItem("access_token")
+        && data.tier === "free" && (knownTier === "pro" || knownTier === "premium");
+      document.getElementById("upgradeExpired").style.display = expired ? "block" : "none";
+      document.getElementById("upgradeOffer").style.display = expired ? "none" : "block";
+      if (range) { range.disabled = true; range.title = "Pro 구독 시 최대 200개까지 조회할 수 있습니다"; }
+      if (display) display.textContent = freeLimit + "개 (무료 제한)";
     } else {
       el.style.display = "none";
+      if (range) { range.disabled = false; range.title = ""; }
+      if (display && range) display.textContent = range.value + "개";
     }
   }
 
@@ -830,10 +855,13 @@
 
   function renderTable(companies) {
     if (!companies.length) {
+      const msg = _lastLimited
+        ? `무료 플랜은 상위 10개만 조회되어 이 조건에 해당하는 종목이 없습니다.<br><a href="pricing.html" style="color:#a78bfa;">Pro로 업그레이드</a>하면 전 종목에서 찾습니다.`
+        : `조건에 맞는 종목이 없습니다.<br>필터를 완화하거나 ETL을 실행해 주세요.`;
       document.getElementById("tableArea").innerHTML = `
         <div class="empty-state">
           <div class="e-icon">🔍</div>
-          <p>조건에 맞는 종목이 없습니다.<br>필터를 완화하거나 ETL을 실행해 주세요.</p>
+          <p>${msg}</p>
         </div>`;
       return;
     }
