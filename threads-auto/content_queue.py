@@ -1,7 +1,8 @@
 """발행할 콘텐츠 큐.
 
-두 가지 백엔드를 제공한다.
+세 가지 백엔드를 제공한다.
   - JSONFileQueue : 파일 기반. 자격증명 없이 바로 동작(개발/테스트 기본값).
+  - PostgresQueue : 운영용. tenbagger 백엔드와 같은 DB의 `threads_queue` 테이블.
   - SupabaseQueue : 운영용. Supabase 테이블 `threads_queue`를 사용.
 
 `build_queue()`가 환경변수(CONTENT_QUEUE_BACKEND)에 따라 적절한 백엔드를 만든다.
@@ -192,13 +193,104 @@ class SupabaseQueue(ContentQueue):
         return res.count or 0
 
 
+class PostgresQueue(ContentQueue):
+    """PostgreSQL 테이블 `threads_queue` 기반 큐(운영용).
+
+    tenbagger 백엔드와 같은 DB(DATABASE_URL)를 쓴다. Railway처럼 컨테이너
+    파일시스템이 재배포마다 초기화되는 환경에서도 큐가 살아남는다.
+    테이블은 백엔드 기동 시 `scripts/init.sql`이 생성한다.
+    """
+
+    TABLE = "threads_queue"
+
+    def __init__(self, dsn: str):
+        try:
+            import psycopg2
+            from psycopg2.extras import RealDictCursor, Json
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError(
+                "PostgresQueue를 쓰려면 `pip install psycopg2-binary`가 필요합니다."
+            ) from exc
+        self._psycopg2 = psycopg2
+        self._cursor_factory = RealDictCursor
+        self._json = Json
+        self.dsn = dsn
+
+    def _run(self, sql: str, params: tuple = (), fetch: bool = False) -> Optional[Dict[str, Any]]:
+        conn = self._psycopg2.connect(self.dsn)
+        try:
+            with conn.cursor(cursor_factory=self._cursor_factory) as cur:
+                cur.execute(sql, params)
+                row = cur.fetchone() if fetch else None
+            conn.commit()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def next_pending(self) -> Optional[Dict[str, Any]]:
+        return self._run(
+            f'SELECT * FROM {self.TABLE} WHERE status = %s'
+            " ORDER BY created_at, id LIMIT 1",
+            ("pending",),
+            fetch=True,
+        )
+
+    def mark_published(self, item_id: Any, media_id: str) -> None:
+        self._run(
+            f"UPDATE {self.TABLE} SET status = %s, media_id = %s,"
+            " published_at = NOW() WHERE id = %s",
+            ("published", media_id, item_id),
+        )
+
+    def mark_failed(self, item_id: Any, error: str) -> None:
+        self._run(
+            f"UPDATE {self.TABLE} SET status = %s, error = %s WHERE id = %s",
+            ("failed", error, item_id),
+        )
+
+    def add(
+        self,
+        text: str,
+        image_url: str = "",
+        video_url: str = "",
+        image_urls: Optional[List[str]] = None,
+    ) -> None:
+        self._run(
+            f'INSERT INTO {self.TABLE} ("text", image_url, video_url, image_urls, status)'
+            " VALUES (%s, %s, %s, %s, %s)",
+            (
+                text,
+                image_url,
+                video_url,
+                self._json(list(image_urls)) if image_urls else None,
+                "pending",
+            ),
+        )
+        logger.info("Postgres 큐에 아이템 추가")
+
+    def pending_count(self) -> int:
+        row = self._run(
+            f"SELECT COUNT(*) AS n FROM {self.TABLE} WHERE status = %s",
+            ("pending",),
+            fetch=True,
+        )
+        return int(row["n"]) if row else 0
+
+
 def build_queue() -> ContentQueue:
     """환경변수를 보고 큐 백엔드를 만든다.
 
-    CONTENT_QUEUE_BACKEND=supabase 이고 SUPABASE_URL/SUPABASE_KEY가 있으면 Supabase,
+    CONTENT_QUEUE_BACKEND=postgres 이고 DATABASE_URL이 있으면 PostgreSQL,
+    =supabase 이고 SUPABASE_URL/SUPABASE_KEY가 있으면 Supabase,
     그 외에는 JSON 파일 큐(QUEUE_FILE, 기본 queue.json)를 사용한다.
     """
     backend = os.getenv("CONTENT_QUEUE_BACKEND", "json").lower()
+    if backend == "postgres":
+        dsn = os.getenv("DATABASE_URL", "")
+        if dsn:
+            logger.info("콘텐츠 큐 백엔드: PostgreSQL")
+            return PostgresQueue(dsn)
+        logger.warning("DATABASE_URL 미설정 — JSON 파일 큐로 대체")
     if backend == "supabase":
         url = os.getenv("SUPABASE_URL", "")
         key = os.getenv("SUPABASE_KEY", "")

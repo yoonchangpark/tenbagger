@@ -155,6 +155,33 @@ def _run_weight_tuner_job():
         print(f"❌ [SCHEDULER] 가중치 분석 오류: {e}")
 
 
+def _run_threads_publish_job():
+    """월·수·금 18:30(KST) Threads 자동 발행 — 큐의 다음 pending 1건"""
+    import subprocess, sys
+    repo_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+    threads_dir = os.path.join(repo_root, "threads-auto")
+    if not os.path.isdir(threads_dir):
+        print(f"⚠️ [SCHEDULER] threads-auto 경로 없음: {threads_dir}")
+        return
+    print("🧵 [SCHEDULER] Threads 자동 발행 시작...")
+    env = dict(os.environ)
+    # 컨테이너 파일시스템은 재배포마다 초기화되므로 큐는 DB에 둔다.
+    env.setdefault("CONTENT_QUEUE_BACKEND", "postgres")
+    try:
+        result = subprocess.run(
+            [sys.executable, "main.py", "--once"],
+            capture_output=True, text=True, timeout=300,
+            cwd=threads_dir, env=env,
+        )
+        print(f"✅ [SCHEDULER] Threads 발행 완료\n{result.stdout[-500:] if result.stdout else ''}")
+        if result.returncode != 0:
+            print(f"⚠️ [SCHEDULER] Threads 발행 stderr: {result.stderr[-300:]}")
+    except Exception as e:
+        print(f"❌ [SCHEDULER] Threads 발행 오류: {e}")
+
+
 async def _run_news_job():
     """
     매일 새벽 4시(KST) 뉴스 감성 분석 실행 (Lazy 모드)
@@ -257,8 +284,29 @@ async def lifespan(app: FastAPI):
             replace_existing=True,
         )
 
+        # 월·수·금 18:30 KST — Threads 자동 발행 (주 3회)
+        # 요일/시각은 THREADS_POST_DAYS / THREADS_POST_TIME 으로 덮어쓸 수 있다.
+        # 값이 잘못돼도 다른 잡은 살아야 하므로 이 잡만 따로 감싼다.
+        _t_days = os.getenv("THREADS_POST_DAYS", "mon,wed,fri")
+        _t_time = os.getenv("THREADS_POST_TIME", "18:30")
+        try:
+            _t_hour, _t_minute = (int(x) for x in _t_time.split(":"))
+            scheduler.add_job(
+                lambda: asyncio.get_event_loop().run_in_executor(None, _run_threads_publish_job),
+                CronTrigger(day_of_week=_t_days, hour=_t_hour, minute=_t_minute,
+                            timezone="Asia/Seoul"),
+                id="threads_publish",
+                name="Threads Auto Publish",
+                replace_existing=True,
+            )
+            _t_desc = f"{_t_days} {_t_time}"
+        except Exception as e:
+            print(f"⚠️ [SCHEDULER] 스레드 발행 스케줄 등록 실패 (무시): {e}")
+            _t_desc = "등록 안 됨"
+
         scheduler.start()
-        print("✅ [SCHEDULER] ETL 02:00 | 뉴스 04:00 | 어드바이저 07:00 | 분기보고서알림 07:30 | 주간리포트 월 08:00 | 목표가알림 16:00 | 정확도 일 23:00 | 가중치분석 일 23:30 KST")
+        print("✅ [SCHEDULER] ETL 02:00 | 뉴스 04:00 | 어드바이저 07:00 | 분기보고서알림 07:30 | 주간리포트 월 08:00 | 목표가알림 16:00 | 정확도 일 23:00 | 가중치분석 일 23:30 | 스레드발행 "
+              f"{_t_desc} KST")
     except Exception as e:
         print(f"⚠️ [SCHEDULER] 스케줄러 시작 실패 (무시): {e}")
 
