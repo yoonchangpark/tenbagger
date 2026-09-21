@@ -32,7 +32,7 @@ PLANS = {
         "features": [
             "종목 분석 (기본)",
             "스크리너 상위 10개",
-            "AI 분석 체험 1회",
+            "AI 분석 체험 3회",
         ],
         "limits": {"screener": 10, "watchlist": 0, "ai_analysis": False},
     },
@@ -56,22 +56,9 @@ PLANS = {
             "AI 정성 분석 무제한",
             "AI 투자위원회 무제한",
             "관심종목 20개",
-            "월간 투자 리포트",
+            "주간 관심종목 리포트",
         ],
         "limits": {"screener": -1, "watchlist": 20, "ai_analysis": True},
-    },
-    "platinum": {
-        "name": "플래티넘",
-        "price": 19900,
-        "description": "기관급 분석 환경",
-        "features": [
-            "Pro 모든 기능",
-            "관심종목 무제한",
-            "카카오톡 알림",
-            "백테스트 무제한",
-            "API 접근",
-        ],
-        "limits": {"screener": -1, "watchlist": -1, "ai_analysis": True},
     },
 }
 
@@ -81,7 +68,7 @@ class PaymentConfirmRequest(BaseModel):
     paymentKey: str
     orderId: str
     amount: int
-    tier: str  # pro / premium
+    tier: str  # basic / pro
 
 
 class CancelRequest(BaseModel):
@@ -117,7 +104,7 @@ async def confirm_payment(
             detail="TOSS_SECRET_KEY가 설정되지 않았습니다.",
         )
 
-    if body.tier not in ("basic", "pro", "platinum"):
+    if body.tier not in ("basic", "pro"):
         raise HTTPException(status_code=400, detail="유효하지 않은 플랜입니다.")
 
     expected_price = PLANS[body.tier]["price"]

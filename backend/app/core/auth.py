@@ -146,10 +146,13 @@ def get_optional_user(
 
 
 # ── 구독 등급 조회 ───────────────────────────────────────────────
-TIER_RANK = {"free": 0, "basic": 1, "pro": 2, "platinum": 3}
+TIER_RANK = {"free": 0, "basic": 1, "pro": 2}
 
-# 2026-09 플랜 개편 전에 저장된 등급명 — DB에 남아 있는 값을 새 이름으로 읽는다
-LEGACY_TIERS = {"premium": "platinum"}
+# 판매 중단된 등급명 — DB에 남아 있는 값을 현재 최상위 등급으로 읽는다
+LEGACY_TIERS = {"premium": "pro", "platinum": "pro"}
+
+# 무료 회원이 기능당 써볼 수 있는 AI 체험 횟수
+FREE_TRIAL_LIMIT = 3
 
 
 def resolve_tier(user: Optional[dict], db: Session) -> str:
@@ -163,7 +166,7 @@ def resolve_tier(user: Optional[dict], db: Session) -> str:
         return "free"
 
     if settings.admin_email and user.get("email") == settings.admin_email:
-        return "platinum"
+        return "pro"
 
     row = db.execute(
         text(
@@ -221,7 +224,7 @@ def require_subscription(tier: str = "pro"):
 
 def require_subscription_or_trial(feature: str, tier: str = "pro"):
     """
-    tier 이상이면 통과. 무료 회원은 feature당 1회 체험할 수 있다.
+    tier 이상이면 통과. 무료 회원은 feature당 FREE_TRIAL_LIMIT회 체험할 수 있다.
     체험 기록은 요청이 정상 처리된 뒤에 남기므로, 분석이 실패하면 횟수가 깎이지 않는다.
     비로그인은 401 — 체험 횟수는 계정 단위로만 셀 수 있다.
     """
@@ -239,20 +242,20 @@ def require_subscription_or_trial(feature: str, tier: str = "pro"):
             yield {**ctx, "trial": False}
             return
 
-        already_used = db.execute(
+        used = db.execute(
             text(
-                "SELECT 1 FROM ai_trial_usage WHERE user_id = :uid AND feature = :feature LIMIT 1"
+                "SELECT COUNT(*) FROM ai_trial_usage WHERE user_id = :uid AND feature = :feature"
             ),
             {"uid": current_user["id"], "feature": feature},
-        ).fetchone()
+        ).scalar() or 0
 
-        if already_used:
+        if used >= FREE_TRIAL_LIMIT:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"무료 체험 1회를 모두 사용하셨습니다. 계속 이용하시려면 {tier} 구독이 필요합니다.",
+                detail=f"무료 체험 {FREE_TRIAL_LIMIT}회를 모두 사용하셨습니다. 계속 이용하시려면 {tier} 구독이 필요합니다.",
             )
 
-        yield {**ctx, "trial": True}
+        yield {**ctx, "trial": True, "trial_remaining": FREE_TRIAL_LIMIT - used - 1}
 
         # 엔드포인트가 예외 없이 끝났을 때만 체험 1회를 소진시킨다
         db.execute(
@@ -260,7 +263,6 @@ def require_subscription_or_trial(feature: str, tier: str = "pro"):
                 """
                 INSERT INTO ai_trial_usage (user_id, feature)
                 VALUES (:uid, :feature)
-                ON CONFLICT (user_id, feature) DO NOTHING
                 """
             ),
             {"uid": current_user["id"], "feature": feature},

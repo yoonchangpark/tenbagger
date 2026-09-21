@@ -75,7 +75,6 @@
     .compare-table th:first-child { text-align: left; min-width: 160px; }
     .compare-table th.basic-col { color: #34d399; }
     .compare-table th.pro-col { color: #60a5fa; }
-    .compare-table th.platinum-col { color: #a78bfa; }
     .compare-table td { padding: 11px 18px; text-align: center; border-bottom: 1px solid #1e2a3a; color: #cbd5e1; }
     .compare-table td:first-child { text-align: left; color: #94a3b8; font-size: 0.85rem; }
     .compare-table tr:last-child td { border-bottom: none; }
@@ -85,7 +84,6 @@
     .check-txt { font-size: 0.8rem; color: #94a3b8; }
     .check-txt.pro { color: #60a5fa; }
     .check-txt.basic { color: #34d399; }
-    .check-txt.platinum { color: #a78bfa; }
 
     /* 모바일 탭바 */
     .mobile-tab-bar { display: none; }
@@ -135,7 +133,7 @@
     <ul class="plan-features">
       <li>종목 분석 (기본)</li>
       <li>스크리너 상위 10개</li>
-      <li>AI 분석 체험 1회</li>
+      <li>AI 분석 체험 3회</li>
     </ul>
     <div id="free-btn-area">
       <button class="btn btn-outline" disabled>현재 플랜</button>
@@ -168,27 +166,10 @@
       <li>AI 정성 분석 무제한</li>
       <li>AI 투자위원회 무제한</li>
       <li>관심종목 20개</li>
-      <li>월간 투자 리포트</li>
+      <li>주간 관심종목 리포트</li>
     </ul>
     <div id="pro-btn-area">
       <button class="btn btn-primary" onclick="startPayment('pro')">Pro 시작하기</button>
-    </div>
-  </div>
-
-  <!-- 플래티넘 -->
-  <div class="plan-card" id="card-platinum">
-    <div class="plan-name">플래티넘</div>
-    <div class="plan-price">₩19,900 <span>/ 월</span></div>
-    <div class="plan-desc">기관급 분석 환경</div>
-    <ul class="plan-features">
-      <li>Pro 모든 기능</li>
-      <li>관심종목 무제한</li>
-      <li>카카오톡 알림</li>
-      <li>백테스트 무제한</li>
-      <li>API 접근</li>
-    </ul>
-    <div id="platinum-btn-area">
-      <button class="btn btn-primary" onclick="startPayment('platinum')">플래티넘 시작하기</button>
     </div>
   </div>
 
@@ -203,13 +184,11 @@
         <th>Free</th>
         <th class="basic-col">기본</th>
         <th class="pro-col">Pro</th>
-        <th class="platinum-col">플래티넘</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td>종목 분석 (기본 스코어)</td>
-        <td><span class="check-yes">✓</span></td>
         <td><span class="check-yes">✓</span></td>
         <td><span class="check-yes">✓</span></td>
         <td><span class="check-yes">✓</span></td>
@@ -219,20 +198,17 @@
         <td><span class="check-txt">상위 10개</span></td>
         <td><span class="check-txt basic">전체 무제한</span></td>
         <td><span class="check-txt pro">전체 무제한</span></td>
-        <td><span class="check-txt platinum">전체 무제한</span></td>
       </tr>
       <tr>
         <td>AI 정성 분석 (기업 리서치)</td>
-        <td><span class="check-txt">체험 1회</span></td>
+        <td><span class="check-txt">체험 3회</span></td>
         <td><span class="check-no">—</span></td>
-        <td><span class="check-yes">✓</span></td>
         <td><span class="check-yes">✓</span></td>
       </tr>
       <tr>
         <td>AI 투자위원회 (최종 판단)</td>
-        <td><span class="check-txt">체험 1회</span></td>
+        <td><span class="check-txt">체험 3회</span></td>
         <td><span class="check-no">—</span></td>
-        <td><span class="check-yes">✓</span></td>
         <td><span class="check-yes">✓</span></td>
       </tr>
       <tr>
@@ -240,34 +216,17 @@
         <td><span class="check-no">—</span></td>
         <td><span class="check-txt basic">10개</span></td>
         <td><span class="check-txt pro">20개</span></td>
-        <td><span class="check-txt platinum">무제한</span></td>
       </tr>
       <tr>
-        <td>월간 투자 리포트</td>
-        <td><span class="check-no">—</span></td>
-        <td><span class="check-no">—</span></td>
-        <td><span class="check-yes">✓</span></td>
-        <td><span class="check-yes">✓</span></td>
-      </tr>
-      <tr>
-        <td>카카오톡 실시간 알림</td>
-        <td><span class="check-no">—</span></td>
+        <td>주간 관심종목 리포트</td>
         <td><span class="check-no">—</span></td>
         <td><span class="check-no">—</span></td>
         <td><span class="check-yes">✓</span></td>
       </tr>
       <tr>
         <td>백테스트</td>
-        <td><span class="check-txt">제한</span></td>
-        <td><span class="check-txt">제한</span></td>
-        <td><span class="check-txt">제한</span></td>
-        <td><span class="check-txt platinum">무제한</span></td>
-      </tr>
-      <tr>
-        <td>API 직접 접근</td>
-        <td><span class="check-no">—</span></td>
-        <td><span class="check-no">—</span></td>
-        <td><span class="check-no">—</span></td>
+        <td><span class="check-yes">✓</span></td>
+        <td><span class="check-yes">✓</span></td>
         <td><span class="check-yes">✓</span></td>
       </tr>
     </tbody>
@@ -301,8 +260,8 @@
 
 <script>
   const API = "";
-  const PRICES = { basic: 5900, pro: 9900, platinum: 19900 };
-  const PLAN_NAMES = { basic: "기본", pro: "Pro", platinum: "플래티넘" };
+  const PRICES = { basic: 5900, pro: 9900 };
+  const PLAN_NAMES = { basic: "기본", pro: "Pro" };
 
   let currentTier = "free";
   let clientKey = "";
@@ -335,7 +294,7 @@
   }
 
   function updateButtons() {
-    const tiers = ["free", "basic", "pro", "platinum"];
+    const tiers = ["free", "basic", "pro"];
     tiers.forEach(tier => {
       const area = document.getElementById(`${tier}-btn-area`);
       if (!area) return;
