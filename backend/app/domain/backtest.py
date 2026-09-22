@@ -314,7 +314,7 @@ async def generate_backtest_explanation(
     from app.core.config import settings
     openai_key = settings.openai_api_key or _os.environ.get("OPENAI_API_KEY", "")
     if not openai_key:
-        return {"explanation": "OPENAI_API_KEY가 설정되지 않아 AI 설명을 제공할 수 없습니다.", "improvement_hint": ""}
+        return {"ok": False, "explanation": "OPENAI_API_KEY가 설정되지 않아 AI 설명을 제공할 수 없습니다.", "improvement_hint": ""}
 
     ret_str = f"{actual_return_pct:+.1f}%" if actual_return_pct is not None else "데이터 없음"
     correct_str = "적중" if prediction_correct else "빗나감" if prediction_correct is False else "미확인"
@@ -374,6 +374,7 @@ async def generate_backtest_explanation(
     except Exception as e:
         print(f"[BACKTEST_EXPLAIN] AI 실패: {type(e).__name__}: {e}")
         return {
+            "ok": False,
             "explanation": f"AI 설명 생성 실패: {type(e).__name__}",
             "ticker": ticker,
             "base_year": base_year,

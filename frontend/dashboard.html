@@ -1182,6 +1182,51 @@
     return t ? { Authorization: "Bearer " + t } : {};
   }
 
+  // AI 호출용 래퍼. 로그인 상태면 authFetch(401 → refresh로 재발급 후 재시도)를 타고,
+  // 비로그인은 토큰 없이 그대로 보내 캐시 응답이나 401 안내를 받는다.
+  function aiFetch(url, options) {
+    const opts = options || {};
+    return localStorage.getItem("access_token") ? authFetch(url, opts) : fetch(url, opts);
+  }
+
+  // 저장해 둔 분석의 날짜. 서버가 타임존 없는 UTC를 주므로 Z를 붙여 KST로 읽는다
+  function fmtAnalyzedAt(iso) {
+    if (!iso) return "";
+    const d = new Date(/(Z|[+-]\d{2}:?\d{2})$/.test(iso) ? iso : iso + "Z");
+    if (isNaN(d.getTime())) return "";
+    return d.getFullYear() + "년 " + (d.getMonth() + 1) + "월 " + d.getDate() + "일";
+  }
+
+  // AI를 새로 부르는 게 막혔을 때(비로그인 401 / 체험 소진 403) 보여 줄 안내 카드.
+  // 403은 무료(평생 3회)와 기본 플랜(주 3회) 둘 다에게 나므로 서버 안내문으로 구분한다.
+  function aiLockHtml(status, feature, detail) {
+    const needLogin = status === 401;
+    const weekly    = (detail || "").indexOf("다음 주 월요일") !== -1;
+    const href  = needLogin ? "login.html?redirect=" + encodeURIComponent(location.pathname + location.search) : "pricing.html";
+    const label = needLogin ? "로그인하기" : weekly ? "💎 Pro로 업그레이드" : "💎 구독하고 계속 보기";
+    const title = needLogin ? "로그인이 필요합니다"
+                : weekly    ? "이번 주 3회를 모두 쓰셨습니다"
+                            : "무료 체험 3회를 모두 쓰셨습니다";
+    const desc  = detail || (needLogin
+      ? "‘" + feature + "’는 로그인하시면 3회 무료로 체험할 수 있습니다."
+      : "‘" + feature + "’를 계속 쓰시려면 구독이 필요합니다.");
+    return '<div style="text-align:center;padding:24px 16px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;">🔒</div>'
+      + '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">' + title + '</div>'
+      + '<div style="font-size:12px;color:var(--muted);margin-bottom:16px;">' + escHtml(desc) + '</div>'
+      + '<a href="' + href + '" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:#fff;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">'
+      + label + '</a></div>';
+  }
+
+  // 저장해 둔 분석을 비로그인에게 그대로 보여 줄 때 위에 붙이는 안내 (토큰 비용 0)
+  function sampleHookHtml(feature, analyzedAt) {
+    const when = fmtAnalyzedAt(analyzedAt);
+    return '<div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(147,51,234,.10);border:1px solid rgba(147,51,234,.28);font-size:12px;color:#c4b5fd;">'
+      + (when ? when + "에 " : "") + '저장해 둔 ' + escHtml(feature) + ' 결과입니다. '
+      + '로그인하시면 오늘 데이터로 새로 돌려볼 수 있어요 — 무료 3회. '
+      + '<a href="login.html?redirect=' + encodeURIComponent(location.pathname + location.search) + '" style="color:#a78bfa;font-weight:700;white-space:nowrap;">로그인 →</a></div>';
+  }
+
   async function authFetch(url, options = {}) {
     const doFetch = () => fetch(url, {
       ...options,
@@ -2489,7 +2534,7 @@
     if (!resultEl) return;
 
     // 토글: 이미 결과 있으면 닫기
-    if (resultEl.style.display !== "none" && resultEl.innerHTML) {
+    if (resultEl.style.display !== "none" && resultEl.innerHTML && !resultEl.dataset.locked) {
       resultEl.style.display = "none";
       btn.textContent = "🤖 AI 분석";
       return;
@@ -2497,17 +2542,26 @@
 
     btn.textContent = "분석 중…";
     btn.disabled = true;
+    let lockedStatus = 0;   // 잠금 카드를 띄웠으면 버튼 라벨을 재시도 안내로 바꾼다
     resultEl.style.display = "block";
+    delete resultEl.dataset.locked;
     resultEl.innerHTML = `<div style="padding:14px 20px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;">
       <span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span> GPT-4o가 공시를 분석 중입니다…
     </div>`;
 
     try {
-      const res = await fetch(API + "/api/v2/disclosures/analyze", {
+      const res = await aiFetch(API + "/api/v2/disclosures/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rcept_no, corp_name, report_nm, rcept_dt, ticker: ticker || null, corp_code: corp_code || null }),
       });
+      if (res.status === 401 || res.status === 403) {
+        const lockErr = await res.json().catch(() => ({}));
+        lockedStatus = res.status;
+        resultEl.dataset.locked = "1";   // 다음 클릭은 접기가 아니라 재시도여야 한다
+        resultEl.innerHTML = aiLockHtml(res.status, "공시 AI 분석", lockErr.detail);
+        return;
+      }
       const d = await res.json();
 
       if (d.error) {
@@ -2659,7 +2713,9 @@
     } catch(e) {
       resultEl.innerHTML = `<div style="padding:12px 20px;color:#f87171;font-size:13px;">⚠️ 오류: ${e.message}</div>`;
     } finally {
-      btn.textContent = "🤖 AI 분석 ▲";
+      btn.textContent = lockedStatus === 401 ? "🔒 로그인 후 다시 시도"
+                      : lockedStatus === 403 ? "🔒 구독 후 다시 시도"
+                      : "🤖 AI 분석 ▲";
       btn.disabled = false;
     }
   }
@@ -3017,11 +3073,28 @@
     if (!btn || !content) return;
     btn.disabled = true;
     btn.textContent = "조회 중…";
+    const prevHtml = content.innerHTML;   // 재분석이 막히면 읽고 있던 결과를 되살린다
     content.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;"><span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span> DART + GPT 분기 비교 분석 중… (10~20초)</div>';
 
     try {
       const url = API + "/api/v2/company/" + encodeURIComponent(ticker) + "/quarter-compare" + (forceRefresh ? "?refresh=true" : "");
-      const r = await fetch(url);
+      const r = await aiFetch(url, {});
+      if (r.status === 401 || r.status === 403) {
+        const lockErr = await r.json().catch(() => ({}));
+        if (prevHtml && prevHtml.indexOf("qc-labels") !== -1) {
+          content.innerHTML = prevHtml;   // 방금까지 읽던 분석을 살려 두고 안내만 덧붙인다
+          const note = document.createElement("div");
+          note.style.cssText = "margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(147,51,234,.10);border:1px solid rgba(147,51,234,.28);font-size:12px;color:var(--muted);";
+          note.innerHTML = escHtml(lockErr.detail || "체험 횟수를 모두 쓰셨습니다.")
+            + ' <a href="pricing.html" style="color:#a78bfa;font-weight:700;white-space:nowrap;">구독 보기 →</a>';
+          content.appendChild(note);
+        } else {
+          content.innerHTML = aiLockHtml(r.status, "분기 비교 분석", lockErr.detail);
+        }
+        btn.disabled = false;
+        btn.textContent = r.status === 401 ? "로그인 후 다시 시도" : "구독 후 다시 시도";
+        return;
+      }
       const d = await r.json();
 
       if (d.error) {
@@ -3046,12 +3119,27 @@
 
       const md = escHtml(d.analysis_md || "").replace(/\n/g, "<br>").replace(/## (.+?)(<br>|$)/g, '<strong style="color:#c4b5fd;">$1</strong><br>').replace(/\| (.+?) \|/g, function(m) { return m; });
 
-      let h = '<div class="qc-labels">' + escHtml(d.prev_label || "") + ' → ' + escHtml(d.curr_label || "") + '</div>';
+      let h = d.sample ? sampleHookHtml("분기 비교", d.updated_at) : "";
+      h += '<div class="qc-labels">' + escHtml(d.prev_label || "") + ' → ' + escHtml(d.curr_label || "") + '</div>';
       if (idxHtml) h += '<div class="qc-indices-row">' + idxHtml + '</div>';
       h += '<div class="qc-md">' + md + '</div>';
       h += '<div style="margin-top:10px;text-align:right;">';
-      if (d.updated_at) h += '<span style="font-size:11px;color:var(--muted);">캐시: ' + d.updated_at.slice(0,16).replace("T"," ") + '</span> ';
-      h += '<button onclick="loadQuarterCompare(\'' + escHtml(ticker) + '\',true)" style="padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);border-radius:6px;color:#a78bfa;font-size:11px;cursor:pointer;">🔄 재분석</button>';
+      const analyzedOn = fmtAnalyzedAt(d.updated_at);
+      if (analyzedOn) h += '<span style="font-size:11px;color:var(--muted);">분석일: ' + analyzedOn + '</span> ';
+      const noneLeft = d.trial_remaining === 0;
+      if (typeof d.trial_remaining === "number") {
+        h += '<span style="font-size:11px;color:#93c5fd;">' + (d.trial_weekly
+            ? (noneLeft ? "이번 주 3회를 다 쓰셨습니다. 다음 주 월요일에 다시 3회가 주어집니다." : "이번 주 " + d.trial_remaining + "회 남음")
+            : (noneLeft ? "무료 체험을 모두 쓰셨습니다." : "무료 체험 " + d.trial_remaining + "회 남음")) + '</span> ';
+      }
+      const pillStyle = "display:inline-block;padding:3px 10px;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);border-radius:6px;color:#a78bfa;font-size:11px;text-decoration:none;";
+      h += d.sample
+        ? '<a href="login.html?redirect=' + encodeURIComponent(location.pathname + location.search) + '" style="' + pillStyle + '">🔄 로그인하고 새로 분석</a>'
+        : noneLeft
+          ? (d.trial_weekly
+              ? '<span style="font-size:11px;color:var(--muted);">다음 주 월요일에 초기화</span>'
+              : '<a href="pricing.html" style="' + pillStyle + '">💎 구독하고 계속 분석</a>')
+          : '<button onclick="loadQuarterCompare(\'' + escHtml(ticker) + '\',true)" style="' + pillStyle + 'cursor:pointer;">🔄 재분석</button>';
       h += '</div>';
 
       content.innerHTML = h;
@@ -3081,12 +3169,9 @@
       const r = await authFetch(API + "/api/v2/company/" + ticker + "/qualitative");
       if (r.status === 401 || r.status === 403) {
         const lockErr = await r.json().catch(() => ({}));
-        content.innerHTML = '<div style="text-align:center;padding:24px 16px;">'
-          + '<div style="font-size:32px;margin-bottom:12px;">🔒</div>'
-          + '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">Pro 구독이 필요합니다</div>'
-          + '<div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">' + (lockErr.detail || '‘AI 정성 분석’ 기능은 Pro 구독자 전용입니다.') + '</div>'
-          + '<a href="pricing.html" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:#fff;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">💎 Pro로 업그레이드</a></div>';
-        btn.disabled = false; btn.textContent = "🔒 Pro 전용 · 구독 후 다시 시도";
+        content.innerHTML = aiLockHtml(r.status, "AI 정성 분석", lockErr.detail);
+        btn.disabled = false;
+        btn.textContent = r.status === 401 ? "로그인 후 다시 시도" : "🔒 체험 소진 · 구독 후 다시 시도";
         return;
       }
       if (!r.ok) throw new Error("HTTP " + r.status);
@@ -4959,10 +5044,15 @@
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch(API + '/api/v2/portfolio/parse-image', {
+      const res = await aiFetch(API + '/api/v2/portfolio/parse-image', {
         method: 'POST',
         body: formData,
       });
+      if (res.status === 401 || res.status === 403) {
+        const lockErr = await res.json().catch(() => ({}));
+        statusEl.innerHTML = aiLockHtml(res.status, "이미지로 포트폴리오 추가", lockErr.detail);
+        return;
+      }
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.detail || '분석 실패');
