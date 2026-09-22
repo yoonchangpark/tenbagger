@@ -26,11 +26,8 @@ def build_client() -> ThreadsClient:
     if not app_secret and not seed_token:
         raise RuntimeError("META_APP_SECRET 또는 ACCESS_TOKEN 중 하나는 필요합니다.")
 
-    token_mgr = TokenManager(
-        app_secret=app_secret,
-        token_file=os.getenv("TOKEN_FILE", ".token.json"),
-    )
-    token = token_mgr.get_valid_token(seed_token or None)
+    # 저장소는 DATABASE_URL 유무에 따라 자동으로 정해진다(DB 또는 파일).
+    token = TokenManager(app_secret=app_secret).get_valid_token(seed_token or None)
     return ThreadsClient(
         access_token=token,
         user_id=os.getenv("THREADS_USER_ID", "me"),

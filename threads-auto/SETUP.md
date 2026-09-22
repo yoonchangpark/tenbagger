@@ -85,7 +85,8 @@ Railway 백엔드 서비스 환경변수에 아래를 넣으면 끝이다.
 
 ```
 META_APP_SECRET=...
-ACCESS_TOKEN=...          # 장기 토큰 (60일마다 재발급 필요 — 아래 주의)
+ACCESS_TOKEN=...          # 최초 1회만. 이후 자동 갱신된다
+CONTENT_QUEUE_BACKEND=postgres   # 콘솔에서 수동 실행할 때도 DB 큐를 보게 한다
 ```
 
 `DATABASE_URL`은 이미 설정돼 있고, 큐 백엔드는 백엔드 잡이 `postgres`로 넘긴다.
@@ -101,9 +102,10 @@ CONTENT_QUEUE_BACKEND=postgres DATABASE_URL="<운영 DATABASE_URL>" \
   python main.py --add "오늘의 텐배거 인사이트 ..."
 ```
 
-> ⚠️ 컨테이너 파일시스템은 재배포마다 초기화되므로 `.token.json`이 남지 않는다.
-> 매 발행마다 `ACCESS_TOKEN`으로 다시 교환하므로, 60일마다 토큰을 새로 발급해
-> 넣어야 발행이 끊기지 않는다. 토큰을 DB에 보관하는 것은 후속 작업.
+> 토큰은 DB(`threads_token` 테이블)에 저장되고 만료 5일 전부터 자동 갱신되므로,
+> `ACCESS_TOKEN`은 최초 한 번만 넣으면 된다. 갓 발급한 장기 토큰은 24시간이 지나야
+> 갱신할 수 있어 첫 실행에서는 저장되지 않고 경고가 남을 수 있는데, 다음 실행에서
+> 자동으로 다시 시도한다.
 
 ---
 

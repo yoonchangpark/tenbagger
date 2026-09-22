@@ -351,3 +351,13 @@ CREATE INDEX IF NOT EXISTS idx_threads_queue_status ON threads_queue(status, cre
 -- Threads 큐 자동 보충: 같은 출처(예: CHANGELOG 버전)로 두 번 적재하는 것을 막는다
 ALTER TABLE threads_queue ADD COLUMN IF NOT EXISTS source_key TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_queue_source ON threads_queue(source_key);
+
+-- Threads 장기 토큰 보관(한 행). 컨테이너 재배포와 무관하게 갱신된 토큰을 보존해,
+-- 60일마다 사람이 재발급하지 않아도 스스로 갱신되게 한다.
+CREATE TABLE IF NOT EXISTS threads_token (
+    id           SMALLINT PRIMARY KEY DEFAULT 1,
+    access_token TEXT NOT NULL,
+    expires_at   BIGINT NOT NULL,
+    updated_at   TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT threads_token_single_row CHECK (id = 1)
+);
