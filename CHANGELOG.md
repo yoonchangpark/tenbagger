@@ -16,14 +16,24 @@
 - **`threads-auto/cardnews/render.py`**: 스펙 JSON을 받아 Chromium(Playwright)으로
   카드를 한 장씩 캡처한다(1080×1350 @2x). `public_urls()`는 캐러셀 발행에 넣을
   공개 URL을 만들어 준다. 버전이 어긋난 환경에서는 `CHROMIUM_PATH`로 실행 파일 지정.
+- **`threads-auto/cardnews/publish.py`**: CHANGELOG 한 항목 → 카드 5장 + 본문 →
+  발행 큐(캐러셀). 카드 문구는 `### 배경`(AS-IS)·`### 추가`(TO-BE)에서 뽑고,
+  본문은 `devlog_generator.generate_devlog_post()`를 그대로 재사용한다
+  (글 쓰는 규칙을 복제하지 않기 위해). 같은 버전 중복 발행은 `source_key`로 막는다.
 - **`threads-auto/cardnews/README.md`**: 스펙 필드와 발행 연결 방법.
 - **`threads-auto/cardnews/examples/2026-09-21-shorts-inventory.json`** + 결과 PNG 5장:
   이번 숏츠 소재 확충 작업(후보 10개 목표 → DART 확인에서 3개 탈락 → 7개)을
   그대로 카드뉴스로 만든 첫 사례.
 
 ### 범위
-글 본문 생성과 큐 적재는 `devlog_generator.py`(v6.8)가 한다. 여기서는 이미지만 만든다.
-둘을 잇는 접점은 큐 아이템의 `image_urls` 한 필드뿐이다.
+`devlog_generator.py`·`publisher.py`·`scheduler.py`는 건드리지 않았다. 새 파일에서
+읽어 쓰기만 한다. 둘을 잇는 접점은 큐 아이템의 `image_urls` 한 필드뿐이다.
+
+### 실행 위치 제약
+렌더에 Chromium이 필요하고 배포 컨테이너 파일시스템은 재배포마다 초기화된다.
+Meta는 **발행 시점에** image_url을 직접 가져가므로 그때 이미지가 배포돼 있어야 한다.
+순서: 로컬에서 렌더 → PNG 커밋·푸시 → 배포 → 예정일에 발행.
+큐를 Postgres로 두면 로컬 적재분을 배포된 스케줄러가 그대로 읽는다.
 
 ---
 

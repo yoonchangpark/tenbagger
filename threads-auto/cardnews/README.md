@@ -48,7 +48,20 @@ PNG는 `frontend/media/threads-posts/`에 떨어지고, 배포 후 쓸 공개 UR
 
 ## 발행에 붙이기
 
-`render_spec()`이 돌려주는 경로를 `public_urls()`에 넣으면 캐러셀 URL이 나온다.
+`publish.py`가 CHANGELOG 한 항목을 카드 5장 + 본문으로 만들어 큐에 넣는다.
+
+```bash
+python cardnews/publish.py                 # 최신 미발행 항목 1건
+python cardnews/publish.py --render-only   # 렌더만, 큐에는 안 넣음
+python cardnews/publish.py --spec my.json  # 직접 쓴 스펙으로 렌더만
+```
+
+카드 문구는 CHANGELOG의 `### 배경`(AS-IS)과 `### 추가`/`### 변경`/`### 수정`(TO-BE)에서
+뽑는다. 본문은 `devlog_generator.generate_devlog_post()`를 그대로 쓴다 — 글 쓰는 규칙이
+한 곳에만 있도록 복제하지 않았다. 같은 버전을 두 번 내지 않도록 `source_key`로 막는다
+(`changelog-cards:v7.3`, 본문만 낸 `changelog:v7.3`도 함께 확인).
+
+직접 붙이려면 이렇게 쓴다.
 
 ```python
 from cardnews.render import render_spec, public_urls
@@ -57,7 +70,12 @@ paths = render_spec(spec, out_dir)
 queue.add(text, image_urls=public_urls(paths))
 ```
 
-Meta 서버가 `image_url`을 직접 가져가므로 **배포된 뒤**에 발행해야 한다.
-이미지를 커밋·푸시해서 Railway에 올라간 다음 큐에 넣는 순서다.
+### ⚠️ 실행 위치와 순서
 
-글 본문은 `devlog_generator.py`가 쓴다. 여기서는 이미지만 만든다.
+렌더에 Chromium이 필요하고, 배포 컨테이너의 파일시스템은 재배포마다 초기화된다.
+Meta 서버는 **발행 시점에** `image_url`을 직접 가져가므로, 그때 이미지가 배포돼 있어야 한다.
+
+    이 명령 실행(로컬) → PNG 커밋·푸시 → 배포 확인 → 예정된 발행일에 나감
+
+큐 적재는 Postgres(`CONTENT_QUEUE_BACKEND=postgres`)를 쓰면 로컬에서 실행해도
+배포된 스케줄러가 같은 큐를 읽는다.
