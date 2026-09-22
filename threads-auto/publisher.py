@@ -6,6 +6,9 @@ from __future__ import annotations
 
 import os
 import logging
+from typing import Optional
+
+import requests
 
 from token_manager import TokenManager
 from threads_api import ThreadsClient, ThreadsAPIError
@@ -34,16 +37,64 @@ def build_client() -> ThreadsClient:
     )
 
 
+def images_ready(image_urls: list) -> bool:
+    """캐러셀 이미지가 실제로 공개돼 있는지 확인한다.
+
+    Meta는 발행 시점에 image_url을 직접 가져간다. 카드 PNG는 저장소에
+    커밋한 뒤 배포돼야 주소가 살아나므로, 아직 배포 전이면 발행이 실패하고
+    콘텐츠가 버려진다. 미리 확인해서 그런 건은 큐에 남겨둔다.
+    """
+    for url in image_urls:
+        try:
+            res = requests.head(url, timeout=10, allow_redirects=True)
+        except requests.RequestException as exc:
+            logger.warning("이미지 확인 실패: %s (%s)", url, exc)
+            return False
+        if res.status_code != 200:
+            logger.warning("이미지 아직 배포 전: %s (%d)", url, res.status_code)
+            return False
+    return True
+
+
+# 맨 앞 아이템을 지금 낼 수 없을 때 뒤로 몇 건까지 살펴볼지.
+LOOKAHEAD = 5
+
+
+def pick_publishable(queue: ContentQueue) -> Optional[dict]:
+    """지금 발행할 수 있는 첫 아이템을 고른다.
+
+    이미지가 아직 배포되지 않은 아이템은 실패로 적지 않고 그 자리에 둔 채
+    건너뛴다. 그러지 않으면 배포 전 카드 하나가 큐 앞에 앉아 그 주 발행을
+    통째로 막는다.
+    """
+    items = queue.pending_items(LOOKAHEAD)
+    for item in items:
+        image_urls = item.get("image_urls") or None
+        if image_urls and not images_ready(image_urls):
+            logger.warning("item=%s 이미지가 아직 공개되지 않아 미룹니다.", item.get("id"))
+            continue
+        return item
+
+    if items:
+        logger.warning("대기 중인 앞쪽 %d건이 모두 이미지 배포 전입니다.", len(items))
+    return None
+
+
 def publish_next(client: ThreadsClient, queue: ContentQueue) -> None:
-    """큐에서 다음 pending 아이템 하나를 발행한다."""
-    item = queue.next_pending()
-    if not item:
+    """큐에서 지금 발행 가능한 아이템 하나를 발행한다."""
+    if queue.pending_count() == 0:
         logger.warning("발행할 콘텐츠 없음 — 큐가 비었습니다. 생성기로 채워주세요.")
         return
 
+    item = pick_publishable(queue)
+    if not item:
+        logger.warning("이번 회차는 건너뜁니다.")
+        return
+
     item_id = item.get("id")
+    image_urls = item.get("image_urls") or None
+
     try:
-        image_urls = item.get("image_urls") or None
         if image_urls:
             media_id = client.publish_carousel(text=item["text"], image_urls=image_urls)
         else:

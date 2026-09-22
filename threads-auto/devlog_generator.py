@@ -199,7 +199,9 @@ def enqueue_from_changelog(
         if added >= limit:
             break
         source_key = f"changelog:{entry['version']}"
-        if queue.has_source(source_key):
+        # 카드뉴스 경로(cardnews/publish.py)는 같은 버전을 changelog-cards:로 적재한다.
+        # 한쪽이 이미 냈으면 같은 변경이 두 번 나가지 않게 건너뛴다.
+        if queue.has_source(source_key) or queue.has_source(f"changelog-cards:{entry['version']}"):
             continue  # 이미 이 버전으로 글을 냈다
         try:
             text = generate_devlog_post(

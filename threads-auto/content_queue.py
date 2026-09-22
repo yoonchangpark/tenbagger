@@ -35,6 +35,15 @@ class ContentQueue:
     def next_pending(self) -> Optional[Dict[str, Any]]:
         raise NotImplementedError
 
+    def pending_items(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """앞에서부터 pending 아이템 여러 건.
+
+        발행 쪽에서 맨 앞 아이템을 지금 낼 수 없을 때(카드 이미지가 아직
+        배포 전인 경우) 다음 것을 이어서 시도하려고 쓴다.
+        """
+        item = self.next_pending()
+        return [item] if item else []
+
     def mark_published(self, item_id: Any, media_id: str) -> None:
         raise NotImplementedError
 
@@ -81,6 +90,10 @@ class JSONFileQueue(ContentQueue):
             if item.get("status", "pending") == "pending":
                 return item
         return None
+
+    def pending_items(self, limit: int = 5) -> List[Dict[str, Any]]:
+        pending = [i for i in self._read() if i.get("status", "pending") == "pending"]
+        return pending[:limit]
 
     def _update(self, item_id: Any, **fields: Any) -> None:
         items = self._read()
@@ -168,6 +181,17 @@ class SupabaseQueue(ContentQueue):
         )
         return res.data[0] if res.data else None
 
+    def pending_items(self, limit: int = 5) -> List[Dict[str, Any]]:
+        res = (
+            self.client.table(self.TABLE)
+            .select("*")
+            .eq("status", "pending")
+            .order("created_at")
+            .limit(limit)
+            .execute()
+        )
+        return list(res.data or [])
+
     def mark_published(self, item_id: Any, media_id: str) -> None:
         self.client.table(self.TABLE).update(
             {"status": "published", "media_id": media_id}
@@ -253,12 +277,29 @@ class PostgresQueue(ContentQueue):
         finally:
             conn.close()
 
+    def _run_all(self, sql: str, params: tuple = ()) -> List[Dict[str, Any]]:
+        conn = self._psycopg2.connect(self.dsn)
+        try:
+            with conn.cursor(cursor_factory=self._cursor_factory) as cur:
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
     def next_pending(self) -> Optional[Dict[str, Any]]:
         return self._run(
             f'SELECT * FROM {self.TABLE} WHERE status = %s'
             " ORDER BY created_at, id LIMIT 1",
             ("pending",),
             fetch=True,
+        )
+
+    def pending_items(self, limit: int = 5) -> List[Dict[str, Any]]:
+        return self._run_all(
+            f'SELECT * FROM {self.TABLE} WHERE status = %s'
+            " ORDER BY created_at, id LIMIT %s",
+            ("pending", limit),
         )
 
     def mark_published(self, item_id: Any, media_id: str) -> None:
