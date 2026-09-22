@@ -292,5 +292,6 @@ async def get_qualitative_analysis(
 
     if _user.get("trial"):
         result["trial_remaining"] = _user.get("trial_remaining", 0)
+        result["trial_weekly"] = _user.get("trial_weekly", False)
 
     return result

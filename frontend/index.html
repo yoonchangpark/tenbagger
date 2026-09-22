@@ -605,21 +605,24 @@
       return status === 401 ? "로그인 후 다시 시도" : "🔒 Pro 전용 · 구독 후 다시 시도";
     }
     // 무료 체험으로 받은 결과에는 남은 횟수를 알려 준다 (구독자는 undefined라 아무것도 안 뜬다)
-    function showTrialNotice(container, remaining){
+    function showTrialNotice(container, remaining, weekly){
       if (typeof remaining !== "number") return;
       const box = document.createElement("div");
       box.style.cssText = "margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(59,130,246,.10);border:1px solid rgba(59,130,246,.28);font-size:12px;color:#93c5fd;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;";
-      box.innerHTML = (remaining > 0
-          ? "무료 체험 " + remaining + "회 남았습니다."
-          : "마지막 무료 체험이었습니다.")
+      box.innerHTML = (weekly
+          ? (remaining > 0
+              ? "이번 주 " + remaining + "회 남았습니다. 매주 월요일에 3회로 초기화됩니다."
+              : "이번 주 분량을 다 쓰셨습니다. 다음 주 월요일에 3회가 다시 주어집니다.")
+          : (remaining > 0
+              ? "무료 체험 " + remaining + "회 남았습니다."
+              : "마지막 무료 체험이었습니다."))
         + ' <a href="pricing.html" style="color:#60a5fa;font-weight:700;white-space:nowrap;">Pro 구독 시 무제한 →</a>';
       container.insertBefore(box, container.firstChild);
     }
-    function trialBtnLabel(doneLabel, remaining){
+    function trialBtnLabel(doneLabel, remaining, weekly){
       if (typeof remaining !== "number") return doneLabel;
-      return remaining > 0
-        ? "🔄 다시 분석 (체험 " + remaining + "회 남음)"
-        : "🔒 체험 소진 · 구독 후 다시 분석";
+      if (remaining > 0) return "🔄 다시 분석 (" + remaining + "회 남음)";
+      return weekly ? "다음 주 월요일에 초기화" : "🔒 체험 소진 · 구독 후 다시 분석";
     }
     const HISTORY_KEY = "tenbagger_history";
 
@@ -1308,8 +1311,8 @@
         if(!r.ok)throw new Error("HTTP "+r.status);
         const q=await r.json();
         renderQualitative(q);
-        showTrialNotice(content, q.trial_remaining);
-        btn.textContent=trialBtnLabel("✅ 분석 완료 (새로고침)", q.trial_remaining);
+        showTrialNotice(content, q.trial_remaining, q.trial_weekly);
+        btn.textContent=trialBtnLabel("✅ 분석 완료 (새로고침)", q.trial_remaining, q.trial_weekly);
         btn.disabled=false;
         btn.onclick=()=>loadQualitative(ticker);
       }catch(e){
@@ -1610,10 +1613,10 @@
         }
         const result = await r.json();
         renderCommittee(result);
-        showTrialNotice(content, result.trial_remaining);
+        showTrialNotice(content, result.trial_remaining, result.trial_weekly);
         btn.textContent = result.from_cache
           ? "♻️ 캐시 결과 (재분석하려면 클릭)"
-          : trialBtnLabel("✅ 분석 완료 (재분석)", result.trial_remaining);
+          : trialBtnLabel("✅ 분석 완료 (재분석)", result.trial_remaining, result.trial_weekly);
         btn.disabled = false;
         btn.onclick = () => loadCommitteeForce(ticker, name);
       } catch(e) {

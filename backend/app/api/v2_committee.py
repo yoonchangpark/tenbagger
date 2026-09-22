@@ -128,6 +128,7 @@ async def get_committee_analysis(
         traceback.print_exc()
     if _user.get("trial"):
         result["trial_remaining"] = _user.get("trial_remaining", 0)
+        result["trial_weekly"] = _user.get("trial_weekly", False)
     return result
 
 

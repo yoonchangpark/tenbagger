@@ -3117,12 +3117,16 @@
       h += '</div>';
       if (typeof q.trial_remaining === "number") {
         h = '<div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(59,130,246,.10);border:1px solid rgba(59,130,246,.28);font-size:12px;color:#93c5fd;">'
-          + (q.trial_remaining > 0 ? '무료 체험 ' + q.trial_remaining + '회 남았습니다.' : '마지막 무료 체험이었습니다.')
+          + (q.trial_weekly
+              ? (q.trial_remaining > 0 ? '이번 주 ' + q.trial_remaining + '회 남았습니다. 매주 월요일에 초기화됩니다.' : '이번 주 분량을 다 쓰셨습니다. 다음 주 월요일에 초기화됩니다.')
+              : (q.trial_remaining > 0 ? '무료 체험 ' + q.trial_remaining + '회 남았습니다.' : '마지막 무료 체험이었습니다.'))
           + ' <a href="/pricing.html" style="color:#60a5fa;font-weight:700;">Pro 구독 시 무제한 →</a></div>' + h;
       }
       content.innerHTML = h;
       btn.textContent = typeof q.trial_remaining === "number"
-        ? (q.trial_remaining > 0 ? "🔄 다시 분석 (체험 " + q.trial_remaining + "회 남음)" : "🔒 체험 소진 · 구독 후 다시 분석")
+        ? (q.trial_remaining > 0
+            ? "🔄 다시 분석 (" + q.trial_remaining + "회 남음)"
+            : (q.trial_weekly ? "다음 주 월요일에 초기화" : "🔒 체험 소진 · 구독 후 다시 분석"))
         : "✅ 완료 (새로고침)";
       btn.disabled = false;
       btn.onclick = () => dashLoadAI(ticker);

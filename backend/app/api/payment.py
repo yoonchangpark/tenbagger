@@ -45,7 +45,7 @@ PLANS = {
             "스크리너 전체 무제한",
             "종목 분석 (전체)",
             "관심종목 10개",
-            "AI 분석 체험 3회",
+            "AI 분석 매주 3회",
         ],
         "limits": {"screener": -1, "watchlist": 10, "ai_analysis": False},
     },
