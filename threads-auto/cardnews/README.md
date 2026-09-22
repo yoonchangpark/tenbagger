@@ -79,3 +79,8 @@ Meta 서버는 **발행 시점에** `image_url`을 직접 가져가므로, 그�
 
 큐 적재는 Postgres(`CONTENT_QUEUE_BACKEND=postgres`)를 쓰면 로컬에서 실행해도
 배포된 스케줄러가 같은 큐를 읽는다.
+
+순서가 어긋나도 콘텐츠는 버려지지 않는다. `publisher.py`가 캐러셀 발행 직전에
+이미지 주소를 확인해, 아직 배포 전이면 그 회차만 건너뛰고 큐에 남긴다
+(#118). 공개 URL은 `RAILWAY_PUBLIC_DOMAIN` → `THREADS_PUBLIC_BASE_URL` 순으로
+만들며, 확인하는 쪽과 같은 순서를 쓴다.

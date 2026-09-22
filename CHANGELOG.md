@@ -34,6 +34,9 @@
 Meta는 **발행 시점에** image_url을 직접 가져가므로 그때 이미지가 배포돼 있어야 한다.
 순서: 로컬에서 렌더 → PNG 커밋·푸시 → 배포 → 예정일에 발행.
 큐를 Postgres로 두면 로컬 적재분을 배포된 스케줄러가 그대로 읽는다.
+공개 URL은 `RAILWAY_PUBLIC_DOMAIN` → `THREADS_PUBLIC_BASE_URL` 순으로 만든다 —
+발행 직전에 이미지를 확인하는 `publisher.images_ready()`(v7.4)와 같은 순서여야
+한쪽이 만든 주소를 다른 쪽이 그대로 확인할 수 있다.
 
 ---
 

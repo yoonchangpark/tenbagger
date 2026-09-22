@@ -100,13 +100,24 @@ def render_spec(spec: dict, out_dir: Path) -> list[Path]:
     return written
 
 
+# 배포 도메인 결정 순서. publisher 쪽(`images_ready()`)과 같은 순서를 쓴다 —
+# 한쪽이 만든 URL을 다른 쪽이 확인하므로 어긋나면 발행이 계속 건너뛰어진다.
+DOMAIN_ENV = "RAILWAY_PUBLIC_DOMAIN"      # Railway가 넣어주는 도메인(스킴 없음)
+BASE_URL_ENV = "THREADS_PUBLIC_BASE_URL"  # 직접 지정할 때
+FALLBACK_BASE = "https://tenbagger-production.up.railway.app"
+
+
 def public_urls(paths: list[Path], base: Optional[str] = None) -> list[str]:
     """캐러셀 발행(`queue.add(..., image_urls=[...])`)에 넣을 공개 URL.
 
-    Meta 서버가 image_url을 직접 가져가므로 배포된 주소여야 한다.
+    백엔드가 `frontend/`를 `/`에 마운트하므로 커밋된 PNG는 배포되는 순간
+    `<도메인>/media/threads-posts/....png`로 공개된다. Meta 서버가 발행 시점에
+    image_url을 직접 가져가므로 배포된 주소여야 한다.
     """
-    base = (base or "https://tenbagger-production.up.railway.app").rstrip("/")
-    return [f"{base}/media/threads-posts/{p.name}" for p in paths]
+    if base is None:
+        domain = os.getenv(DOMAIN_ENV, "").strip()
+        base = f"https://{domain}" if domain else (os.getenv(BASE_URL_ENV) or FALLBACK_BASE)
+    return [f"{base.rstrip('/')}/media/threads-posts/{p.name}" for p in paths]
 
 
 def main() -> int:
