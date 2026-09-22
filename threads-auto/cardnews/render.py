@@ -46,7 +46,7 @@ DEFAULT_OUT = HERE.parent.parent / "frontend" / "media" / "threads-posts"
 
 # 마지막 장 하단 문구. 도메인은 아직 없으므로 주소를 쓰지 않는다.
 # 스펙의 카드마다 "footer"로 덮어쓸 수 있다.
-LAST_FOOTER = "텐배거 헌터 — 만드는 중"
+LAST_FOOTER = "텐배거 헌터"
 
 
 def _footer_for(index: int, total: int) -> str:
