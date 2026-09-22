@@ -4,12 +4,16 @@ GET /api/screener
 """
 import asyncio
 import datetime
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from app.infra.repositories.company_repo import query_scores, get_dart_codes_for_tickers
 from app.infra.clients.dart_client import _get as dart_get
+from app.core.auth import get_current_tier
 
 router = APIRouter(prefix="/api/screener", tags=["Screener"])
+
+# 무료·비로그인 사용자에게 노출하는 상위 종목 수 (payment.PLANS의 limits.screener와 동일)
+FREE_SCREENER_LIMIT = 10
 
 # 섹터 키워드 매핑 (committee.py와 동일 로직)
 _SECTOR_MAP = {
@@ -54,13 +58,17 @@ def screen_companies(
     market: Optional[str] = Query(None, description="시장: KOSPI, KOSDAQ"),
     sort: str = Query("total_score", description="정렬 기준"),
     limit: int = Query(50, ge=1, le=200, description="결과 개수"),
+    tier: str = Depends(get_current_tier),
 ):
     """
     DB에 저장된 스코어 중 조건에 맞는 종목 필터링 반환
     ETL 실행 후 데이터가 쌓여야 의미있는 결과가 나옵니다.
     각 종목에 sector(업종), growth_tag(구조적성장/사이클주) 필드가 포함됩니다.
+
+    무료·비로그인은 상위 FREE_SCREENER_LIMIT개까지만 반환한다(Pro 이상 무제한).
     """
     grades = [g.strip() for g in grade.split(",")] if grade else None
+    effective_limit = min(limit, FREE_SCREENER_LIMIT) if tier == "free" else limit
 
     results = query_scores(
         grades=grades,
@@ -70,7 +78,7 @@ def screen_companies(
         max_debt_ratio=max_debt_ratio,
         market=market if market and market != "전체" else None,
         sort_by=sort,
-        limit=limit,
+        limit=effective_limit,
     )
 
     for r in results:
@@ -82,6 +90,14 @@ def screen_companies(
     return {
         "total": len(results),
         "companies": results,
+        "tier": tier,
+        # 실제로 잘렸을 때만 True — 결과가 한도보다 적으면 제한에 걸린 게 아니다
+        "limited": (
+            tier == "free"
+            and limit > FREE_SCREENER_LIMIT
+            and len(results) >= FREE_SCREENER_LIMIT
+        ),
+        "free_limit": FREE_SCREENER_LIMIT,
     }
 
 

@@ -30,6 +30,7 @@ from app.core.auth import (
     get_current_user,
     get_db,
     hash_password,
+    resolve_tier,
     verify_password,
 )
 from app.core.config import settings
@@ -196,7 +197,8 @@ def me(
     ).scalar()
 
     subscription = {
-        "tier": sub.tier if sub else "free",
+        # 만료·오너 예외까지 반영된 실제 등급 (게이트가 쓰는 판정과 동일해야 한다)
+        "tier": resolve_tier(current_user, db),
         "status": sub.status if sub else "none",
         "expires_at": sub.expires_at.isoformat() if sub and sub.expires_at else None,
     }

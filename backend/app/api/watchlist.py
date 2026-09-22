@@ -11,25 +11,17 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user, get_db
-from app.core.config import settings
+from app.core.auth import get_current_user, get_db, resolve_tier
 
 router = APIRouter(prefix="/api/v2/watchlist", tags=["watchlist"])
 
 # 구독 등급별 관심종목 한도
-WATCHLIST_LIMITS = {"free": 0, "pro": 20, "premium": -1}  # -1 = 무제한
+WATCHLIST_LIMITS = {"free": 0, "basic": 10, "pro": 20}
 
 
 def _get_user_tier(user_id: int, db: Session, user_email: str = "") -> str:
-    # 오너/관리자는 항상 premium
-    if user_email and settings.admin_email and user_email == settings.admin_email:
-        return "premium"
-    row = db.execute(text("""
-        SELECT tier FROM subscriptions
-        WHERE user_id = :uid AND status = 'active'
-        ORDER BY id DESC LIMIT 1
-    """), {"uid": user_id}).fetchone()
-    return row.tier if row else "free"
+    # 오너 예외·만료 처리는 resolve_tier 한 곳에서 판정한다
+    return resolve_tier({"id": user_id, "email": user_email}, db)
 
 
 def _fetch_current_price(ticker: str) -> dict | None:
@@ -152,18 +144,18 @@ def add_watchlist(
     if limit == 0:
         raise HTTPException(
             status_code=403,
-            detail="관심종목은 Pro 이상 구독자만 사용 가능합니다. (Pro: 20개, Premium: 무제한)"
+            detail="관심종목은 기본 플랜 이상 구독자만 사용 가능합니다. (기본: 10개, Pro: 20개)"
         )
 
-    if limit > 0:
-        count = db.execute(text(
-            "SELECT COUNT(*) FROM watchlist WHERE user_id = :uid"
-        ), {"uid": current_user["id"]}).scalar()
-        if count >= limit:
-            raise HTTPException(
-                status_code=403,
-                detail=f"{tier.capitalize()} 플랜 관심종목 한도({limit}개)에 도달했습니다. Premium으로 업그레이드하세요."
-            )
+    count = db.execute(text(
+        "SELECT COUNT(*) FROM watchlist WHERE user_id = :uid"
+    ), {"uid": current_user["id"]}).scalar()
+    if count >= limit:
+        upgrade = " Pro로 업그레이드하면 20개까지 담을 수 있습니다." if tier == "basic" else ""
+        raise HTTPException(
+            status_code=403,
+            detail=f"관심종목 한도({limit}개)에 도달했습니다.{upgrade}"
+        )
 
     ticker = body.ticker.upper().strip()
 

@@ -65,23 +65,20 @@
   const API = "";
 
   const TIER_BENEFITS = {
+    basic: [
+      "📊 스크리너 전체 종목 무제한",
+      "📈 종목 분석 전체 지표",
+      "⭐ 관심종목 10개 저장",
+    ],
     pro: [
       "🤖 AI 정성 분석 (기업 리서치 + 투자위원회)",
       "📊 스크리너 전체 종목 무제한",
       "⭐ 관심종목 20개 저장",
-      "📬 월간 투자 리포트",
-    ],
-    premium: [
-      "🤖 AI 정성 분석 (기업 리서치 + 투자위원회)",
-      "📊 스크리너 전체 종목 무제한",
-      "⭐ 관심종목 무제한",
-      "💬 카카오톡 실시간 알림",
-      "🧪 백테스트 무제한",
-      "🔌 API 직접 접근",
+      "📬 주간 관심종목 리포트",
     ],
   };
 
-  const TIER_LABELS = { pro: "Pro", premium: "Premium" };
+  const TIER_LABELS = { basic: "기본", pro: "Pro" };
 
   async function confirmPayment() {
     const params = new URLSearchParams(window.location.search);
@@ -132,6 +129,10 @@
         `;
       } else {
         setStatus(`오류: ${data.detail}`, "error");
+        document.getElementById("ctaArea").innerHTML = `
+          <p style="font-size:13px;color:#94a3b8;margin-bottom:14px;">판매하지 않는 플랜 링크로 들어오셨다면 결제는 승인되지 않았으니 청구되지 않습니다.</p>
+          <a href="/pricing.html" class="btn-primary">요금제 다시 보기</a>
+          <p style="font-size:12px;color:#64748b;margin-top:12px;">문의: yoonchang.park@gmail.com</p>`;
       }
     } catch (e) {
       setStatus("네트워크 오류가 발생했습니다.", "error");
