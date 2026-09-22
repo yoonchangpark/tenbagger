@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS subscriptions (
     id          SERIAL PRIMARY KEY,
     user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    tier        VARCHAR(20) NOT NULL DEFAULT 'free',    -- free, pro, premium
+    tier        VARCHAR(20) NOT NULL DEFAULT 'free',    -- free, basic, pro (구 premium/platinum은 pro로 읽는다)
     status      VARCHAR(20) NOT NULL DEFAULT 'active',  -- active, expired, cancelled
     started_at  TIMESTAMP DEFAULT NOW(),
     expires_at  TIMESTAMP,
@@ -121,6 +121,18 @@ CREATE TABLE IF NOT EXISTS payments (
     status      VARCHAR(20) NOT NULL DEFAULT 'done',
     paid_at     TIMESTAMP DEFAULT NOW()
 );
+
+-- AI 기능 무료 체험 사용 기록 (무료 회원은 기능당 3회, 1행 = 1회)
+CREATE TABLE IF NOT EXISTS ai_trial_usage (
+    id       SERIAL PRIMARY KEY,
+    user_id  INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    feature  VARCHAR(40) NOT NULL,
+    used_at  TIMESTAMP DEFAULT NOW()
+);
+-- 체험 1회 시절의 제약이 남아 있으면 2회차 INSERT가 막힌다
+ALTER TABLE ai_trial_usage DROP CONSTRAINT IF EXISTS ai_trial_usage_user_id_feature_key;
+CREATE INDEX IF NOT EXISTS idx_ai_trial_usage_user_feature
+    ON ai_trial_usage(user_id, feature);
 
 -- 카카오 챗봇 채널 구독자 (Push 알림 대상)
 CREATE TABLE IF NOT EXISTS kakao_bot_subscribers (

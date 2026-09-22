@@ -524,7 +524,7 @@
     <div class="section-header">
       <div>
         <div class="section-title">⭐ 관심종목</div>
-        <div class="section-desc">내 포트폴리오 후보 · Pro 20개 / Premium 무제한</div>
+        <div class="section-desc">내 포트폴리오 후보 · 기본 10개 / Pro 20개</div>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="refresh-btn" onclick="loadWatchlist()">새로고침</button>
@@ -1176,6 +1176,12 @@
   let _isRefreshing = false;
   const _refreshQueue = [];
 
+  // 공개 API지만 등급에 따라 결과가 달라지는 호출용 — 토큰이 있으면 실어 보낸다
+  function authHeaders() {
+    const t = localStorage.getItem("access_token");
+    return t ? { Authorization: "Bearer " + t } : {};
+  }
+
   async function authFetch(url, options = {}) {
     const doFetch = () => fetch(url, {
       ...options,
@@ -1355,7 +1361,7 @@
       }
 
       const { items, tier, limit } = data;
-      const limitLabel = limit === -1 ? '무제한' : `${items.length}/${limit}개`;
+      const limitLabel = `${items.length}/${limit}개`;
       const gradeColor = { TENBAGGER:'#f59e0b', COMPOUNDER:'#10b981', WATCHLIST:'#3b82f6', AVOID:'#ef4444' };
       const gradeEmoji = { TENBAGGER:'⭐', COMPOUNDER:'🟢', WATCHLIST:'🟡', AVOID:'🔴' };
 
@@ -1363,8 +1369,8 @@
         document.getElementById('watchlistContent').innerHTML =
           `<div style="text-align:center;padding:60px;color:var(--muted);">
             <div style="font-size:3rem;margin-bottom:12px;">💎</div>
-            <p style="font-size:16px;font-weight:700;margin-bottom:8px;">Pro 구독 전용 기능입니다</p>
-            <p style="margin-bottom:20px;">Pro: 20개 / Premium: 무제한</p>
+            <p style="font-size:16px;font-weight:700;margin-bottom:8px;">기본 플랜 이상 구독이 필요합니다</p>
+            <p style="margin-bottom:20px;">기본: 10개 / Pro: 20개</p>
             <a href="/pricing.html" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border-radius:10px;font-weight:700;text-decoration:none;">💎 구독 업그레이드</a>
           </div>`;
         return;
@@ -1871,7 +1877,7 @@
         tickers = (wlData.items || []).map(i => i.ticker);
       } else {
         // 등급 필터 모드: 스크리너에서 해당 등급 종목 목록 가져오기
-        const res = await fetch(`${API}/api/screener?grade=${encodeURIComponent(grade)}&limit=60`);
+        const res = await fetch(`${API}/api/screener?grade=${encodeURIComponent(grade)}&limit=60`, { headers: authHeaders() });
         const d = await res.json();
         tickers = (d.companies || []).map(c => c.ticker);
       }
@@ -2032,7 +2038,7 @@
     el.innerHTML = '<div class="loading-row"><div class="spinner"></div><div>랭킹 데이터 불러오는 중…</div></div>';
 
     try {
-      const r = await fetch(API + "/api/screener?sort=total_score&limit=10");
+      const r = await fetch(API + "/api/screener?sort=total_score&limit=10", { headers: authHeaders() });
       const data = await r.json();
       const companies = data.companies || [];
 
@@ -3062,8 +3068,27 @@
     btn.disabled = true; btn.textContent = "분석 중…";
     content.innerHTML = '<div class="ai-spinner"><div class="spinner" style="width:20px;height:20px;margin:0;border-width:2px;"></div>GPT가 분석 중입니다… (10~20초 소요)</div>';
     content.classList.add("visible");
+    if (!localStorage.getItem("access_token")) {
+      content.innerHTML = '<div style="text-align:center;padding:24px 16px;">'
+        + '<div style="font-size:32px;margin-bottom:12px;">🔒</div>'
+        + '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">로그인이 필요합니다</div>'
+        + '<div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">‘AI 정성 분석’ 기능은 로그인하시면 3회 무료로 체험할 수 있습니다.</div>'
+        + '<a href="login.html?redirect=/dashboard.html" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:#fff;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">로그인하기</a></div>';
+      btn.disabled = false; btn.textContent = "로그인 후 다시 시도";
+      return;
+    }
     try {
-      const r = await fetch(API + "/api/v2/company/" + ticker + "/qualitative");
+      const r = await authFetch(API + "/api/v2/company/" + ticker + "/qualitative");
+      if (r.status === 401 || r.status === 403) {
+        const lockErr = await r.json().catch(() => ({}));
+        content.innerHTML = '<div style="text-align:center;padding:24px 16px;">'
+          + '<div style="font-size:32px;margin-bottom:12px;">🔒</div>'
+          + '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">Pro 구독이 필요합니다</div>'
+          + '<div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">' + (lockErr.detail || '‘AI 정성 분석’ 기능은 Pro 구독자 전용입니다.') + '</div>'
+          + '<a href="pricing.html" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#9333ea,#3b82f6);color:#fff;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;">💎 Pro로 업그레이드</a></div>';
+        btn.disabled = false; btn.textContent = "🔒 Pro 전용 · 구독 후 다시 시도";
+        return;
+      }
       if (!r.ok) throw new Error("HTTP " + r.status);
       const q = await r.json();
       const opinionWord = (q.ai_investment_opinion || "").includes("BUY") ? "BUY" : (q.ai_investment_opinion || "").includes("AVOID") ? "AVOID" : "HOLD";
@@ -3090,8 +3115,20 @@
       h += '<div class="ai-box"><h4>🔭 향후 전망</h4><p>' + escHtml(q.future_outlook || "-") + '</p></div>';
       h += '<div class="ai-box"><h4>🚨 핵심 리스크</h4><p>' + escHtml(q.key_risks || "-") + '</p></div>';
       h += '</div>';
+      if (typeof q.trial_remaining === "number") {
+        h = '<div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(59,130,246,.10);border:1px solid rgba(59,130,246,.28);font-size:12px;color:#93c5fd;">'
+          + (q.trial_weekly
+              ? (q.trial_remaining > 0 ? '이번 주 ' + q.trial_remaining + '회 남았습니다. 매주 월요일에 초기화됩니다.' : '이번 주 분량을 다 쓰셨습니다. 다음 주 월요일에 초기화됩니다.')
+              : (q.trial_remaining > 0 ? '무료 체험 ' + q.trial_remaining + '회 남았습니다.' : '마지막 무료 체험이었습니다.'))
+          + ' <a href="/pricing.html" style="color:#60a5fa;font-weight:700;">Pro 구독 시 무제한 →</a></div>' + h;
+      }
       content.innerHTML = h;
-      btn.textContent = "✅ 완료 (새로고침)"; btn.disabled = false;
+      btn.textContent = typeof q.trial_remaining === "number"
+        ? (q.trial_remaining > 0
+            ? "🔄 다시 분석 (" + q.trial_remaining + "회 남음)"
+            : (q.trial_weekly ? "다음 주 월요일에 초기화" : "🔒 체험 소진 · 구독 후 다시 분석"))
+        : "✅ 완료 (새로고침)";
+      btn.disabled = false;
       btn.onclick = () => dashLoadAI(ticker);
     } catch (e) {
       content.innerHTML = '<div style="color:#f87171;font-size:13px;">분석 실패: ' + escHtml(e.message) + '</div>';
@@ -4252,7 +4289,7 @@
       return;
     }
     try {
-      const res  = await fetch(`${API}/api/screener?sort=dividend_yield&limit=30`);
+      const res  = await fetch(`${API}/api/screener?sort=dividend_yield&limit=30`, { headers: authHeaders() });
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
       _mhGoalDivStocks = (data.companies || data.results || []).filter(s => s.dividend_yield > 0);
@@ -4318,7 +4355,7 @@
   async function mhWhatIfLoadStocks() {
     if (_mhTopStocks) return _mhTopStocks;
     try {
-      const res  = await fetch(`${API}/api/screener?grade=TENBAGGER,COMPOUNDER&limit=200`);
+      const res  = await fetch(`${API}/api/screener?grade=TENBAGGER,COMPOUNDER&limit=200`, { headers: authHeaders() });
       const data = await res.json();
       _mhTopStocks = (data.results || data.companies || []).slice(0, 200);
       mhWhatIfRenderChips();
@@ -5040,7 +5077,7 @@
     el.style.display = 'block';
     el.innerHTML = '<div class="loading-row"><div class="spinner"></div>로딩 중…</div>';
     try {
-      const res = await fetch(`${API}/api/screener?grade=${grade}&limit=20&sort=total_score`);
+      const res = await fetch(`${API}/api/screener?grade=${grade}&limit=20&sort=total_score`, { headers: authHeaders() });
       const data = await res.json();
       const items = data.companies || data.results || [];
       if (!items.length) { el.innerHTML = '<div class="empty-row">ETL을 먼저 실행해주세요.</div>'; return; }
@@ -5205,7 +5242,7 @@
     const el = document.getElementById('divTopStocks');
     if (!el) return;
     try {
-      const res = await fetch(`${API}/api/screener?sort=dividend_yield&min_dividend_yield=2&limit=12`);
+      const res = await fetch(`${API}/api/screener?sort=dividend_yield&min_dividend_yield=2&limit=12`, { headers: authHeaders() });
       const data = await res.json();
       const items = (data.companies || []).filter(s => s.dividend_yield > 0);
       if (!items.length) {

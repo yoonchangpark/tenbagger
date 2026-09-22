@@ -1,11 +1,18 @@
 """
 weekly_report.py — 매주 월요일 08:00(KST) 관심종목 주간 변화 요약 이메일
-  - alert_enabled=TRUE 사용자 대상 (관심종목 1개 이상)
+  - Pro 구독자 대상 (관심종목 1개 이상) — 요금제에서 Pro 혜택으로 판매한다
   - 지난 주 대비 현재가 변화, 등급 변동, 목표가 도달 여부 요약
 """
 import datetime
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
+from app.core.auth import LEGACY_TIERS
+from app.core.config import settings
 from app.core.database import SessionLocal
+
+# 구독 테이블에 남아 있을 수 있는 등급명까지 포함해 Pro 수신자를 고른다
+PRO_TIERS = tuple(
+    sorted({"pro"} | {old for old, new in LEGACY_TIERS.items() if new == "pro"})
+)
 
 
 def _get_week_price(ticker: str, days_ago: int) -> int | None:
@@ -128,7 +135,7 @@ def run_weekly_report():
         print("[WEEKLY_REPORT] EMAIL_SENDER / EMAIL_PASSWORD 미설정 — 건너뜀")
         return
 
-    # alert_enabled 사용자 + 관심종목 조회
+    # Pro 구독자(+오너) 중 관심종목이 있는 사용자만 조회
     with SessionLocal() as session:
         rows = session.execute(text("""
             SELECT DISTINCT u.id, u.email,
@@ -138,8 +145,19 @@ def run_weekly_report():
             JOIN users u ON u.id = w.user_id
             LEFT JOIN scores s ON s.ticker = w.ticker
             WHERE u.email IS NOT NULL
+              AND (
+                u.email = :admin_email
+                OR EXISTS (
+                    SELECT 1 FROM subscriptions sub
+                    WHERE sub.user_id = u.id
+                      AND sub.status = 'active'
+                      AND sub.tier IN :pro_tiers
+                      AND (sub.expires_at IS NULL OR sub.expires_at > NOW())
+                )
+              )
             ORDER BY u.id, s.total_score DESC NULLS LAST
-        """)).fetchall()
+        """).bindparams(bindparam("pro_tiers", expanding=True)),
+        {"admin_email": settings.admin_email or "", "pro_tiers": list(PRO_TIERS)}).fetchall()
 
     # 사용자별 그룹핑
     user_map: dict[int, dict] = {}

@@ -145,12 +145,104 @@ def get_optional_user(
         return None
 
 
+# ── 구독 등급 조회 ───────────────────────────────────────────────
+TIER_RANK = {"free": 0, "basic": 1, "pro": 2}
+
+# 판매 중단된 등급명 — DB에 남아 있는 값을 현재 최상위 등급으로 읽는다
+LEGACY_TIERS = {"premium": "pro", "platinum": "pro"}
+
+# 기능당 AI 체험 횟수 — 무료는 계정당 평생, 기본 플랜은 매주 월요일(KST)에 초기화된다
+FREE_TRIAL_LIMIT = 3
+BASIC_TRIAL_LIMIT = 3
+
+# 주간 초기화 기준 시각. 주간 리포트(월요일 08:00 KST)와 같은 요일에 맞춘다.
+KST_OFFSET = timedelta(hours=9)
+
+
+def current_week_start_utc() -> datetime:
+    """이번 주 월요일 00:00(KST)을 UTC로 돌려준다."""
+    now_kst = datetime.utcnow() + KST_OFFSET
+    monday_kst = (now_kst - timedelta(days=now_kst.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    return monday_kst - KST_OFFSET
+
+
+def resolve_tier(user: Optional[dict], db: Session) -> str:
+    """
+    사용자의 현재 구독 등급을 반환한다.
+    비로그인 / 구독 없음 / 만료는 모두 "free", 오너 이메일은 항상 최상위 등급.
+    """
+    from sqlalchemy import text
+
+    if not user:
+        return "free"
+
+    if settings.admin_email and user.get("email") == settings.admin_email:
+        return "pro"
+
+    row = db.execute(
+        text(
+            """
+            SELECT tier, expires_at FROM subscriptions
+            WHERE user_id = :uid AND status = 'active'
+            ORDER BY id DESC LIMIT 1
+            """
+        ),
+        {"uid": user["id"]},
+    ).fetchone()
+
+    if not row:
+        return "free"
+    if row.expires_at and row.expires_at < datetime.utcnow():
+        return "free"
+    tier = row.tier or "free"
+    return LEGACY_TIERS.get(tier, tier)
+
+
+def get_current_tier(
+    user: Optional[dict] = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> str:
+    """
+    비로그인 접근을 허용하되 등급별로 결과를 제한하는 엔드포인트용 Dependency.
+    (예: 스크리너 — 무료는 상위 N개만)
+    """
+    return resolve_tier(user, db)
+
+
 def require_subscription(tier: str = "pro"):
     """
     특정 구독 등급 이상인 사용자만 허용하는 Dependency 팩토리.
     사용 예) Depends(require_subscription("pro"))
+    비로그인은 401, 등급 미달은 403을 반환한다.
     """
-    tier_rank = {"free": 0, "pro": 1, "premium": 2}
+
+    def _check(
+        current_user: dict = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        user_tier = resolve_tier(current_user, db)
+
+        if TIER_RANK.get(user_tier, 0) < TIER_RANK.get(tier, 0):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"이 기능은 {tier} 이상 구독이 필요합니다. 현재: {user_tier}",
+            )
+
+        return {**current_user, "subscription_tier": user_tier}
+
+    return _check
+
+
+def require_subscription_or_trial(feature: str, tier: str = "pro"):
+    """
+    tier 이상이면 통과. 그 아래 등급은 feature당 정해진 횟수만큼 체험할 수 있다.
+      · 무료  — 계정당 FREE_TRIAL_LIMIT회 (초기화 없음)
+      · 기본  — 매주 월요일 00:00 KST에 BASIC_TRIAL_LIMIT회로 초기화
+    체험 기록은 요청이 정상 처리된 뒤에 남기므로, 분석이 실패하면 횟수가 깎이지 않는다.
+    비로그인은 401 — 체험 횟수는 계정 단위로만 셀 수 있다.
+    """
 
     def _check(
         current_user: dict = Depends(get_current_user),
@@ -158,29 +250,68 @@ def require_subscription(tier: str = "pro"):
     ):
         from sqlalchemy import text
 
-        row = db.execute(
+        user_tier = resolve_tier(current_user, db)
+        ctx = {**current_user, "subscription_tier": user_tier}
+
+        if TIER_RANK.get(user_tier, 0) >= TIER_RANK.get(tier, 0):
+            yield {**ctx, "trial": False}
+            return
+
+        weekly = user_tier == "basic"
+        limit = BASIC_TRIAL_LIMIT if weekly else FREE_TRIAL_LIMIT
+        # 무료는 전체 기록을, 기본 플랜은 이번 주 기록만 센다
+        since = current_week_start_utc() if weekly else datetime.min
+        params = {"uid": current_user["id"], "feature": feature, "since": since}
+
+        used = db.execute(
             text(
                 """
-                SELECT tier, status, expires_at FROM subscriptions
-                WHERE user_id = :uid AND status = 'active'
-                ORDER BY id DESC LIMIT 1
+                SELECT COUNT(*) FROM ai_trial_usage
+                WHERE user_id = :uid AND feature = :feature AND used_at >= :since
                 """
             ),
-            {"uid": current_user["id"]},
-        ).fetchone()
+            params,
+        ).scalar() or 0
 
-        user_tier = row.tier if row else "free"
-
-        # 만료 체크
-        if row and row.expires_at and row.expires_at < datetime.utcnow():
-            user_tier = "free"
-
-        if tier_rank.get(user_tier, 0) < tier_rank.get(tier, 0):
+        if used >= limit:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"이 기능은 {tier} 이상 구독이 필요합니다. 현재: {user_tier}",
+                detail=(
+                    f"이번 주 체험 {limit}회를 모두 사용하셨습니다. 다음 주 월요일에 다시 {limit}회가 주어집니다. "
+                    f"지금 바로 이용하시려면 {tier} 구독이 필요합니다."
+                    if weekly else
+                    f"무료 체험 {limit}회를 모두 사용하셨습니다. 계속 이용하시려면 {tier} 구독이 필요합니다."
+                ),
             )
 
-        return {**current_user, "subscription_tier": user_tier}
+        # 엔드포인트는 이 dict를 그대로 받는다. 캐시된 결과를 돌려주는 등
+        # AI 호출이 실제로 일어나지 않은 경우 consume_trial을 False로 바꾸면 차감하지 않는다.
+        trial_ctx = {
+            **ctx,
+            "trial": True,
+            "trial_remaining": limit - used - 1,
+            "trial_weekly": weekly,
+            "consume_trial": True,
+        }
+        yield trial_ctx
+
+        if not trial_ctx.get("consume_trial", True):
+            return
+
+        # 엔드포인트가 예외 없이 끝났을 때만 체험 1회를 소진시킨다
+        db.execute(
+            text(
+                """
+                INSERT INTO ai_trial_usage (user_id, feature)
+                SELECT :uid, :feature
+                WHERE (
+                    SELECT COUNT(*) FROM ai_trial_usage
+                    WHERE user_id = :uid AND feature = :feature AND used_at >= :since
+                ) < :limit
+                """
+            ),
+            {**params, "limit": limit},
+        )
+        db.commit()
 
     return _check
