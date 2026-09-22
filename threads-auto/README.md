@@ -55,9 +55,12 @@ python main.py
 
 ## 동작 원리
 
-1. **토큰**: `.token.json`에 유효 장기 토큰이 있으면 사용하고, 만료 5일 전부터
-   `refresh_access_token`으로 자동 갱신한다. 없으면 `ACCESS_TOKEN`(단기/장기)을
-   장기 토큰으로 교환해 저장한다.
+1. **토큰**: 저장된 유효 장기 토큰이 있으면 사용하고, 만료 5일 전부터
+   `refresh_access_token`으로 자동 갱신한다. 없으면 `ACCESS_TOKEN`을 장기 토큰으로
+   만들어 저장한다 — 단기면 교환하고, 이미 장기여서 교환이 거부되면 refresh로
+   만료를 연장해 저장한다. 저장소는 `DATABASE_URL`이 있으면 DB(`threads_token`
+   테이블), 없으면 파일(`.token.json`)이다. 한 번 저장되면 이후로는 스스로
+   갱신하므로 사람이 토큰을 다시 발급할 일이 없다.
 2. **발행**: Threads API는 2단계다. 컨테이너 생성(`/{user}/threads`) 후
    서버 처리 시간을 두고 발행(`/{user}/threads_publish`)한다. 미디어는 30초,
    텍스트는 5초 대기한다.
@@ -89,9 +92,12 @@ CONTENT_QUEUE_BACKEND=postgres DATABASE_URL="postgresql://..." \
   python main.py --add "오늘의 텐배거 인사이트 ..."
 ```
 
-> ⚠️ 토큰 파일(`.token.json`)은 아직 컨테이너 파일시스템에 저장되므로 재배포 시
-> 사라지고, 매 발행마다 `ACCESS_TOKEN`으로 다시 교환한다. 60일마다 `ACCESS_TOKEN`을
-> 새로 발급해 넣어야 한다. 토큰도 DB에 보관하는 것은 후속 작업.
+토큰도 같은 DB(`threads_token` 테이블)에 저장되므로 재배포해도 남고, 만료 5일
+전부터 스스로 갱신한다. `ACCESS_TOKEN`은 최초 한 번만 필요하고 그 뒤로는 손대지
+않아도 된다.
+
+> 갓 발급한 장기 토큰은 24시간이 지나야 갱신할 수 있어, 첫 실행에서는 저장되지 않고
+> 로그에 경고가 남을 수 있다. 다음 실행에서 자동으로 다시 시도하므로 그대로 두면 된다.
 
 ## 콘텐츠 품질 — `--facts`가 핵심이다
 
