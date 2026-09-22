@@ -13,10 +13,11 @@ import asyncio
 import base64
 import datetime
 import json
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import text
 from app.core.database import SessionLocal
 from app.core.config import settings
+from app.core.auth import require_subscription_or_trial
 
 # ── 트랙레코드 인메모리 캐시 (연산이 무거우므로 서버 재시작 전까지 유지) ──────
 _track_record_cache: dict = {}
@@ -656,7 +657,10 @@ async def portfolio_track_record(
 
 
 @router.post("/portfolio/parse-image")
-async def parse_portfolio_image(file: UploadFile = File(...)):
+async def parse_portfolio_image(
+    file: UploadFile = File(...),
+    _user: dict = Depends(require_subscription_or_trial("parse_image")),
+):
     """
     증권사 앱 보유주식 스크린샷 → GPT-4o Vision으로 종목/수량/평단가 자동 추출
     반환: {"holdings": [{"name": str, "qty": int, "avg_price": int}]}
@@ -723,7 +727,11 @@ async def parse_portfolio_image(file: UploadFile = File(...)):
             except (KeyError, ValueError, TypeError):
                 continue
 
-        return {"holdings": cleaned, "total": len(cleaned)}
+        out = {"holdings": cleaned, "total": len(cleaned)}
+        if _user.get("trial"):
+            out["trial_remaining"] = _user.get("trial_remaining", 0)
+            out["trial_weekly"] = _user.get("trial_weekly", False)
+        return out
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"이미지 분석 실패: {str(e)}")
