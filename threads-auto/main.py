@@ -10,6 +10,7 @@
   python main.py --add "본문 텍스트"   # 큐에 텍스트 아이템 추가
   python main.py --add "본문 텍스트" --images url1,url2,url3   # 캐러셀 아이템 추가
                                                                   # (2장 이상, 공개 접근 가능한 URL만 가능)
+  python main.py --list     # 대기 중인 콘텐츠를 순서대로 보기
 """
 from __future__ import annotations
 
@@ -56,6 +57,22 @@ def main() -> int:
             return 1
         queue.add(text, image_urls=image_urls or None)
         print(f"큐에 추가했습니다{'(캐러셀 ' + str(len(image_urls)) + '장)' if image_urls else ''}.")
+        return 0
+
+    if args and args[0] == "--list":
+        # 다음에 무엇이 나가는지 콘솔에서 바로 확인한다.
+        items = queue.pending_items(20)
+        if not items:
+            print("대기 중인 콘텐츠가 없습니다.")
+            return 0
+        print(f"대기 {queue.pending_count()}건 — 위에서부터 순서대로 발행됩니다.\n")
+        for n, item in enumerate(items, 1):
+            text = (item.get("text") or "").replace("\n", " ")
+            images = item.get("image_urls") or []
+            mark = f" [카드 {len(images)}장]" if images else ""
+            source = item.get("source_key") or ""
+            head = f"{n}. {text[:70]}{'…' if len(text) > 70 else ''}"
+            print(head + mark + (f"  ({source})" if source else ""))
         return 0
 
     if args and args[0] == "--check":
