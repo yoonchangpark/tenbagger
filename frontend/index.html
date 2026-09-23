@@ -627,13 +627,18 @@
       return d.getFullYear() + "년 " + (d.getMonth() + 1) + "월 " + d.getDate() + "일";
     }
     // 저장해 둔 분석을 비로그인에게 그대로 보여 줄 때 위에 붙이는 안내
-    function showSampleNotice(container, analyzedAt){
+    // reason "quota"는 로그인은 했지만 이번 기간 횟수를 다 쓴 사람이다
+    function showSampleNotice(container, analyzedAt, reason){
       const when = fmtAnalyzedAt(analyzedAt);
+      const byQuota = reason === "quota";
       const box = document.createElement("div");
       box.style.cssText = "margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(147,51,234,.10);border:1px solid rgba(147,51,234,.28);font-size:12px;color:#c4b5fd;";
       box.innerHTML = (when ? when + "에 " : "") + "저장해 둔 이 종목의 위원회 분석입니다. "
-        + "로그인하시면 오늘 데이터로 새로 돌려볼 수 있어요 — 무료 3회. "
-        + '<a href="login.html?redirect=' + encodeURIComponent(location.pathname + location.search) + '" style="color:#a78bfa;font-weight:700;white-space:nowrap;">로그인 →</a>';
+        + (byQuota
+            ? "지금은 새로 돌릴 횟수가 남아 있지 않아 저장된 결과를 보여 드립니다. "
+              + '<a href="pricing.html" style="color:#a78bfa;font-weight:700;white-space:nowrap;">구독 보기 →</a>'
+            : "로그인하시면 오늘 데이터로 새로 돌려볼 수 있어요 — 무료 3회. "
+              + '<a href="login.html?redirect=' + encodeURIComponent(location.pathname + location.search) + '" style="color:#a78bfa;font-weight:700;white-space:nowrap;">로그인 →</a>');
       container.insertBefore(box, container.firstChild);
     }
     function trialBtnLabel(doneLabel, remaining, weekly){
@@ -1625,9 +1630,14 @@
         renderCommittee(result);
         btn.disabled = false;
         if (result.sample) {
-          showSampleNotice(content, result.cached_at);
-          btn.textContent = "로그인하고 새로 분석";
-          btn.onclick = () => { location.href = "login.html?redirect=" + encodeURIComponent(location.pathname + location.search); };
+          showSampleNotice(content, result.cached_at, result.sample_reason);
+          if (result.sample_reason === "quota") {
+            btn.textContent = "구독하고 새로 분석";
+            btn.onclick = () => { location.href = "pricing.html"; };
+          } else {
+            btn.textContent = "로그인하고 새로 분석";
+            btn.onclick = () => { location.href = "login.html?redirect=" + encodeURIComponent(location.pathname + location.search); };
+          }
           return;
         }
         showTrialNotice(content, result.trial_remaining, result.trial_weekly);
