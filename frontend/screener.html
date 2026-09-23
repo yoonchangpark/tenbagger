@@ -33,7 +33,7 @@
     .nav-link:hover, .nav-link.active { border-color: var(--blue); color: #93c5fd; }
 
     /* Layout */
-    .layout { display: grid; grid-template-columns: 280px 1fr; gap: 24px; max-width: 1280px; margin: 32px auto; padding: 0 24px; }
+    .layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; max-width: 1280px; margin: 32px auto; padding: 0 24px; }
 
     /* Filter Panel */
     .filter-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow-y: auto; }
@@ -128,8 +128,8 @@
 
     /* 섹터 칩 & 태그 */
     .sector-chip { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 10px; font-weight: 700; background: rgba(139,92,246,.1); color: #a78bfa; }
-    .tag-growth { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(16,185,129,.15); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
-    .tag-cycle  { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
+    .tag-growth { display: inline-block; white-space: nowrap; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(16,185,129,.15); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
+    .tag-cycle  { display: inline-block; white-space: nowrap; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
     .macro-boost-badge { display: inline-block; padding: 1px 5px; border-radius: 4px; font-size: 9px; font-weight: 800; background: rgba(16,185,129,.15); color: #34d399; border: 1px solid rgba(16,185,129,.3); }
 
     /* 테이블 */
@@ -180,11 +180,29 @@
     .event-icon { font-size: 12px; cursor: default; }
 
     @media (max-width: 900px) {
-      .layout { grid-template-columns: 1fr; }
-      .filter-panel { position: static; }
+      .layout { grid-template-columns: minmax(0, 1fr); }
+      .filter-panel { position: static; max-height: none; }
       .summary-grid { grid-template-columns: repeat(2,1fr); }
     }
-    @media (max-width: 640px) { body { padding-bottom: 64px; } }
+    @media (max-width: 640px) {
+      body { padding-bottom: 64px; }
+      /* 하단 탭바가 있으므로 헤더 네비는 숨긴다 (index/dashboard와 동일) */
+      .nav-links { display: none; }
+      header { padding: 14px 16px; }
+      .layout { gap: 16px; margin: 16px auto; padding: 0 16px; }
+      /* 터치 목표 크기 확보 */
+      .toggle-btn { padding: 9px 14px; font-size: 12px; }
+      .filter-panel { padding: 18px 16px; }
+
+      /* 11칼럼 표는 폰 화면에서 가로로 983px까지 늘어난다.
+         핵심 3칼럼(종목명·종합점수·등급)만 남기고 나머지는 숨긴다.
+         행을 누르면 종목 상세로 가므로 나머지 지표는 거기서 본다. */
+      .table-wrap th:nth-child(n+4),
+      .table-wrap td:nth-child(n+4) { display: none; }
+      .table-wrap th, .table-wrap td { padding: 10px 10px; }
+      .table-wrap th { font-size: 11px; white-space: nowrap; }
+      .score-bar-bg { min-width: 24px; }
+    }
     .mobile-tab-bar { display: none; }
     @media (max-width: 640px) {
       .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: rgba(17,24,39,.97); border-top: 1px solid #374151; z-index: 200; backdrop-filter: blur(10px); padding-bottom: env(safe-area-inset-bottom,0px); }
