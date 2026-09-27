@@ -20,8 +20,16 @@
 - **`run-factor-eval.yml`**: 위 두 파라미터를 넘기고, 마지막에 프로토콜 판정을 출력한다.
   수동 실행 기본값은 `universe=sample`, `skip_existing=true`.
 
+- **`backtest.py`**: 과거 재무를 2015 사업연도 이전으로는 조회하지 않는다. DART 재무 API가
+  2015년부터만 제공해 그 앞 연도 호출은 빈 응답인데 쿼터를 썼다. 결과는 같고 백필 한 건당
+  DART 호출이 base_year 2017 기준 18회 → 9회로 준다.
+
+### 참고
+- 같은 이유로 base_year 2015·2016은 재무가 3년 미만이라 discovery·momentum이 계산되지 않는다.
+  설계 문서의 "2014~2020 코호트"는 이 두 점수에 대해 재현할 수 없고, 유효 코호트는 **2017~2021**이다.
+
 ### 변경 없음
-- `/api/*` v1 엔드포인트와 `calculate_tenbagger_score()`, 등급 기준은 그대로다.
+- `/api/*` v1 엔드포인트 시그니처·응답과 `calculate_tenbagger_score()`, 등급 기준은 그대로다.
 
 ---
 

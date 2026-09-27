@@ -167,8 +167,11 @@ async def run_backtest(
 
     ticker = resolved_ticker
 
-    # base_year 기준 과거 재무데이터 수집 (end_year 지정으로 해당 연도 기준 12년치)
-    historical_fins = await fetch_yearly_financials(corp_code, ticker, years=12, end_year=base_year)
+    # base_year 기준 과거 재무데이터 수집 (end_year 지정으로 해당 연도 기준 최대 12년치)
+    # DART 재무 API는 2015 사업연도부터만 제공 → 그 이전 연도 호출은 빈 응답으로 쿼터만 쓴다.
+    historical_fins = await fetch_yearly_financials(
+        corp_code, ticker, years=max(1, min(12, base_year - 2014)), end_year=base_year
+    )
 
     if not historical_fins:
         return {"error": f"{base_year}년 이전 재무 데이터가 없습니다."}
