@@ -1,11 +1,12 @@
 """
 v2 대시보드 API - DART 공시 목록 조회 + AI 공시 분석 + 분기 비교 분석
 """
-from fastapi import APIRouter, Query, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, Query, BackgroundTasks, Request
 from pydantic import BaseModel
 from typing import Optional
 from app.infra.clients.dart_client import _get
 from app.core.config import settings
+from app.core.auth import allow_cached_or_trial, require_subscription_or_trial
 from app.core.database import SessionLocal
 from sqlalchemy import text
 import asyncio
@@ -303,12 +304,16 @@ def _classify_disclosure(report_nm: str) -> str:
 
 
 @router.post("/disclosures/analyze")
-async def analyze_disclosure(body: DisclosureAnalyzeRequest):
+async def analyze_disclosure(
+    body: DisclosureAnalyzeRequest,
+    _user: dict = Depends(require_subscription_or_trial("disclosure_ai")),
+):
     """
     DART 공시 원문(document.json) + 회사 스코어 기반 GPT-4o 심층 분석.
     원문 접근 불가 시 bzSummary + 재무지표로 보완.
     """
     if not settings.openai_api_key:
+        _user["consume_trial"] = False
         return {"error": "OpenAI API 키가 설정되지 않았습니다."}
 
     from app.infra.clients.dart_client import fetch_document_text, get_corp_code
@@ -627,8 +632,12 @@ impact: POSITIVE=실적호전·자사주·배당증가 / NEGATIVE=실적악화·
         impact_emoji = {"POSITIVE": "✅", "NEGATIVE": "🔴", "CAUTION": "⚠️", "NEUTRAL": "ℹ️"}
         result["impact_emoji"] = impact_emoji.get(result.get("impact", "NEUTRAL"), "ℹ️")
 
+        if _user.get("trial"):
+            result["trial_remaining"] = _user.get("trial_remaining", 0)
+            result["trial_weekly"] = _user.get("trial_weekly", False)
         return result
     except Exception as e:
+        _user["consume_trial"] = False
         return {"error": f"분석 실패: {e}"}
 
 
@@ -689,16 +698,24 @@ async def get_quarter_compare(
     ticker: str,
     refresh: bool = Query(False, description="True이면 캐시 무시 후 재분석"),
     background_tasks: BackgroundTasks = None,
+    _user: dict = Depends(allow_cached_or_trial("quarter_compare")),
 ):
     """
     분기 비교 분석 조회.
-    - 캐시 있으면 즉시 반환
-    - 캐시 없거나 refresh=True이면 DART + GPT 실시간 분석 (10~20초)
+    - 캐시 있으면 즉시 반환. 저장된 분석을 보여 주는 데는 토큰 비용이 들지 않으므로
+      비로그인에게도 열어 둔다.
+    - 캐시 없거나 refresh=True이면 DART + GPT 실시간 분석 (10~20초).
+      이때만 로그인·체험 횟수를 요구한다.
     """
     if not refresh:
         cached = _load_compare_cache(ticker)
         if cached:
+            if not _user.get("user"):
+                cached["sample"] = True
             return cached
+
+    # 여기부터 GPT를 부른다
+    _user["require_run"]()
 
     try:
         from app.agents.dart_report_parser import fetch_quarter_compare
@@ -706,8 +723,13 @@ async def get_quarter_compare(
         _save_compare_cache(result)
         result["cached"] = False
         result["updated_at"] = datetime.datetime.utcnow().isoformat()
+        if _user.get("trial"):
+            result["trial_remaining"] = _user.get("trial_remaining", 0)
+            result["trial_weekly"] = _user.get("trial_weekly", False)
         return result
     except Exception as e:
+        # 200으로 실패를 알리는 경로 — 횟수를 깎지 않는다
+        _user["consume_trial"] = False
         return {"error": str(e), "ticker": ticker}
 
 
