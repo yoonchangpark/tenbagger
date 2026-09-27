@@ -125,6 +125,9 @@ async def run_backfill_endpoint(
     base_years: str = Query("2016", description="쉼표구분 연도 (기본 2016 → 하단 사례와 동일 창)"),
     hold_years: int = Query(10, ge=1, le=10),
     limit: int = Query(200, ge=1, le=1000, description="상위 N종목 (점수순)"),
+    universe: str = Query("top_score", regex="^(top_score|sample)$",
+                          description="top_score=현재 점수 상위(기존) | sample=점수 무관 고정 표본(팩터 검증용)"),
+    skip_existing: bool = Query(False, description="이미 채워진 (종목,연도)는 건너뛰고 이어서 실행"),
 ):
     """백필 실행 — (종목 × 연도) 점-인-타임 등급·수익률을 재구성해 저장. 백그라운드."""
     from app.domain.backfill import run_backfill
@@ -142,13 +145,15 @@ async def run_backfill_endpoint(
 
     async def _job():
         try:
-            await run_backfill(years, hold_years, limit, progress=_backfill_progress)
+            await run_backfill(years, hold_years, limit, progress=_backfill_progress,
+                               universe=universe, skip_existing=skip_existing)
         except Exception as e:
             _backfill_progress.update({"status": "error", "error": str(e)})
 
     background_tasks.add_task(_job)
     return {"message": "백필 시작 (백그라운드)", "base_years": years,
-            "hold_years": hold_years, "limit": limit}
+            "hold_years": hold_years, "limit": limit,
+            "universe": universe, "skip_existing": skip_existing}
 
 
 # ── 팩터 평가 (자율 검증용 — 밴드×코호트×시장) ──────────────────────────────
@@ -206,3 +211,11 @@ def factor_eval(
             for r in cohorts
         ],
     }
+
+
+@router.get("/protocol")
+def protocol_report(hold_years: int = Query(5, ge=1, le=10)):
+    """scoring_v2_design.md §5 검증 프로토콜 — Spearman·상위10%·승자 이동을 코호트별로 계산하고
+    discovery/momentum의 통과 여부를 판정한다. 읽기 전용."""
+    from app.domain.backfill import get_protocol_report
+    return get_protocol_report(hold_years=hold_years)

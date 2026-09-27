@@ -2,6 +2,47 @@
 
 ---
 
+## v7.8 — 스코어링 v2: 내러티브 체크리스트 + 검증 프로토콜 판정 (2026-09)
+
+### 배경
+`scoring_v2_design.md` §5는 발굴·모멘텀 점수를 제품에 반영하기 전에 세 가지를 확인하라고
+정해 뒀다: Spearman이 기존 점수보다 높은지, 상위 10%가 TENBAGGER 등급과 시장을 이기는지,
+실제 승자가 상위 분위로 올라오는지. 지금까지의 검증(`/api/v2/accuracy/factor-eval`)은
+밴드별 중간값만 봤고 이 세 가지는 한 번도 계산된 적이 없다. 또 백필 유니버스가
+"현재 점수 상위 N"이라 구 공식이 AVOID로 찍은 실제 승자가 표본에서 빠져 있었다.
+
+### 추가
+- **`GET /api/v2/accuracy/protocol?hold_years=5`**: `backfill_results`에서 quality·discovery·momentum
+  세 점수의 코호트별 Spearman, 상위 10% 중간수익률과 시장 대비 초과, 실제 승자(코호트 수익률
+  상위 5%)의 점수 백분위를 계산하고 discovery/momentum의 통과 여부를 판정한다. 읽기 전용.
+- **`POST /api/v2/accuracy/backfill`**: `universe=sample`(점수와 무관한 고정 해시 표본)과
+  `skip_existing=true`(이미 채워진 종목·연도는 건너뛰고 이어서 실행) 파라미터. 기본값은 기존 동작 그대로.
+- **`run-factor-eval.yml`**: 위 두 파라미터를 넘기고, 마지막에 프로토콜 판정을 출력한다.
+  수동 실행 기본값은 `universe=sample`, `skip_existing=true`.
+
+- **`backtest.py`**: 과거 재무를 2015 사업연도 이전으로는 조회하지 않는다. DART 재무 API가
+  2015년부터만 제공해 그 앞 연도는 연결·별도 두 번씩 빈 응답을 받으며 쿼터를 썼다. 결과는 같고 백필 한 건당
+  DART 호출이 base_year 2017 기준 약 27회 → 9회로 준다.
+
+### 참고
+- 같은 이유로 base_year 2015·2016은 재무가 3년 미만이라 discovery·momentum이 계산되지 않는다.
+  설계 문서의 "2014~2020 코호트"는 이 두 점수에 대해 재현할 수 없고, 유효 코호트는 **2017~2021**이다.
+
+- **`agent_prompts/narrative_thesis_structure.md`** (초안): "수요 폭발 → 독자성 → 진입장벽 → 수급 불균형 →
+  단가·마진 상승" 다섯 고리를 서술 판정(LLM, 근거 필수)과 숫자 확인(DART)으로 나눈 구조 정의.
+  종목이 이야기의 몇 번째 고리에 와 있는지(`stage`)를 함께 낸다. 코드 반영은 오너 확정 후.
+
+- **`GET /api/v2/company/{ticker}/thesis-checklist`** (`v2_thesis.py`, `domain/thesis_checklist.py`): 위 구조의
+  다섯 고리를 서술 항목 10개(리서치 근거 전까지 전부 `미확인`)와 숫자 항목 12개로 판정하고 `stage`를 낸다.
+  최신 사업보고서 1건(당기·전기·전전기)에서 매출총이익·재고·매출채권·계약부채·유형자산을 v2 전용으로
+  추출해 종목당 DART 호출은 1~2회, 결과는 하루 캐시. GPT 호출 없음.
+  제룡전기·HD현대일렉트릭·이마트 사업보고서 원자료로 점검해 규칙 두 개를 고쳤다(구조 문서 §7).
+
+### 변경 없음
+- `/api/*` v1 엔드포인트 시그니처·응답과 `calculate_tenbagger_score()`, 등급 기준은 그대로다.
+
+---
+
 ## v7.5 — 숏츠 전망편 후보 2종 추가 검증 (2026-09)
 
 ### 추가
