@@ -2,6 +2,29 @@
 
 ---
 
+## v7.6 — 스코어링 v2 검증 프로토콜 판정 엔드포인트 (2026-09)
+
+### 배경
+`scoring_v2_design.md` §5는 발굴·모멘텀 점수를 제품에 반영하기 전에 세 가지를 확인하라고
+정해 뒀다: Spearman이 기존 점수보다 높은지, 상위 10%가 TENBAGGER 등급과 시장을 이기는지,
+실제 승자가 상위 분위로 올라오는지. 지금까지의 검증(`/api/v2/accuracy/factor-eval`)은
+밴드별 중간값만 봤고 이 세 가지는 한 번도 계산된 적이 없다. 또 백필 유니버스가
+"현재 점수 상위 N"이라 구 공식이 AVOID로 찍은 실제 승자가 표본에서 빠져 있었다.
+
+### 추가
+- **`GET /api/v2/accuracy/protocol?hold_years=5`**: `backfill_results`에서 quality·discovery·momentum
+  세 점수의 코호트별 Spearman, 상위 10% 중간수익률과 시장 대비 초과, 실제 승자(코호트 수익률
+  상위 5%)의 점수 백분위를 계산하고 discovery/momentum의 통과 여부를 판정한다. 읽기 전용.
+- **`POST /api/v2/accuracy/backfill`**: `universe=sample`(점수와 무관한 고정 해시 표본)과
+  `skip_existing=true`(이미 채워진 종목·연도는 건너뛰고 이어서 실행) 파라미터. 기본값은 기존 동작 그대로.
+- **`run-factor-eval.yml`**: 위 두 파라미터를 넘기고, 마지막에 프로토콜 판정을 출력한다.
+  수동 실행 기본값은 `universe=sample`, `skip_existing=true`.
+
+### 변경 없음
+- `/api/*` v1 엔드포인트와 `calculate_tenbagger_score()`, 등급 기준은 그대로다.
+
+---
+
 ## v7.5 — 숏츠 전망편 후보 2종 추가 검증 (2026-09)
 
 ### 추가
