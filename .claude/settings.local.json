@@ -1,4 +1,5 @@
 {
+  "enabledMcpjsonServers": ["apify-instagram"],
   "permissions": {
     "allow": [
       "Bash(curl -s http://localhost:8000/api/company/005930)",
