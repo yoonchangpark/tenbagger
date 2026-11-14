@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 from app.core.database import SessionLocal
 from app.agents.committee import run_committee
-from app.core.auth import require_subscription, require_subscription_or_trial
+from app.core.auth import allow_cached_or_trial, require_subscription_or_trial
 
 
 router = APIRouter(prefix="/api/v2/committee", tags=["ai-committee"])
@@ -19,16 +19,20 @@ router = APIRouter(prefix="/api/v2/committee", tags=["ai-committee"])
 CACHE_HOURS = 24  # 24시간 이내 결과 재사용
 
 
-def _get_cached(ticker: str) -> dict | None:
-    """24시간 이내 캐시 조회"""
+def _get_cached(ticker: str, max_age_hours: int | None = CACHE_HOURS) -> dict | None:
+    """캐시 조회. max_age_hours=None이면 나이를 보지 않고 가장 최근 것을 돌려준다."""
+    age_clause = "AND analyzed_at >= NOW() - make_interval(hours => :hours)" if max_age_hours else ""
+    params: dict = {"t": ticker}
+    if max_age_hours:
+        params["hours"] = max_age_hours
     with SessionLocal() as session:
-        row = session.execute(text("""
+        row = session.execute(text(f"""
             SELECT result_json, analyzed_at, decision, confidence, consensus_score
             FROM committee_cache
             WHERE ticker = :t
-              AND analyzed_at >= NOW() - INTERVAL '%d hours'
+              {age_clause}
             ORDER BY analyzed_at DESC LIMIT 1
-        """ % CACHE_HOURS), {"t": ticker}).fetchone()
+        """), params).fetchone()
     if not row:
         return None
     result = row.result_json if isinstance(row.result_json, dict) else json.loads(row.result_json)
@@ -87,12 +91,15 @@ def list_recent_committee_v2(limit: int = Query(20, ge=1, le=100)):
 async def get_committee_analysis(
     ticker: str,
     force: bool = Query(False, description="True면 캐시 무시 강제 재분석"),
-    _user: dict = Depends(require_subscription_or_trial("committee")),
+    _user: dict = Depends(allow_cached_or_trial("committee")),
 ):
     """
     AI 투자위원회 분석 결과 조회.
-    - 24시간 이내 캐시 있으면 즉시 반환 (~0.1초)
-    - 없거나 force=True면 4개 에이전트 병렬 실행 (~15초, $0.04)
+    - 24시간 이내 캐시 있으면 즉시 반환 (~0.1초). 저장된 분석을 보여 주는 데는
+      토큰 비용이 들지 않으므로 비로그인에게도 열어 둔다 — 구독을 판단할 재료가 된다.
+    - 없거나 force=True면 4개 에이전트 병렬 실행 (~15초, $0.04). 이때만 로그인·횟수.
+    - 새로 돌릴 수 없는 사람(비로그인·체험 소진)에게는 24시간이 지난 결과라도
+      sample로 돌려준다. 아무것도 없을 때만 401/403.
     """
     import traceback
     ticker = ticker.upper().strip()
@@ -100,12 +107,28 @@ async def get_committee_analysis(
         try:
             cached = _get_cached(ticker)
             if cached:
-                # 캐시 히트는 AI를 부르지 않으므로 체험 횟수를 깎지 않는다
-                _user["consume_trial"] = False
+                if not _user.get("user"):
+                    # 비로그인에게는 맛보기임을 알려 준다 (프런트가 안내를 띄운다)
+                    cached["sample"] = True
                 return cached
         except Exception as e:
             print(f"[committee] 캐시 조회 오류 (계속 진행): {e}")
             traceback.print_exc()
+
+    # 여기부터는 실제로 AI를 부른다 — 로그인과 체험 횟수를 여기서 요구한다.
+    # 새로 돌릴 수 없는 사람에게는 24시간이 지난 결과라도 보여 준다. 저장된 분석을
+    # 내려주는 데는 토큰 비용이 0원인데, 어제 누가 돌린 종목만 열어 주면
+    # 대부분 종목에서 잠금 벽만 보게 된다.
+    try:
+        _user["require_run"]()
+    except HTTPException as e:
+        if not force and e.status_code in (401, 403):
+            stale = _get_cached(ticker, max_age_hours=None)
+            if stale:
+                stale["sample"] = True
+                stale["sample_reason"] = "login" if e.status_code == 401 else "quota"
+                return stale
+        raise
 
     # 신규 분석
     try:
@@ -135,9 +158,9 @@ async def get_committee_analysis(
 @router.post("/{ticker}/run")
 async def trigger_committee_analysis(
     ticker: str,
-    _user: dict = Depends(require_subscription("pro")),
+    _user: dict = Depends(require_subscription_or_trial("committee")),
 ):
-    """강제 재분석 트리거 (캐시 무시)"""
+    """강제 재분석 트리거 (캐시 무시) — 항상 AI를 부르므로 로그인·횟수가 필요하다"""
     import traceback
     ticker = ticker.upper().strip()
     try:
@@ -153,6 +176,9 @@ async def trigger_committee_analysis(
     except Exception as e:
         print(f"[committee] 캐시 저장 오류 (응답 정상): {e}")
         traceback.print_exc()
+    if _user.get("trial"):
+        result["trial_remaining"] = _user.get("trial_remaining", 0)
+        result["trial_weekly"] = _user.get("trial_weekly", False)
     return result
 
 
