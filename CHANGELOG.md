@@ -13,7 +13,7 @@
 ### 추가
 - **`OPERATIONS_MANUAL.md`** (초안): INTERVIEW → MANUAL → TOOLBOX → EXECUTE → VERIFY 다섯 단계로
   각 자동화 흐름의 빈 칸을 표로 정리하고, 작업을 맡길 때 쓰는 브리프 양식·영역 주인 표·완료 체크리스트를 담았다.
-  코드 변경은 없다.
+  업무별 매뉴얼 폴더(Process·Toolbox·Proof) 구조와 외부 증거로만 판정하는 체크 목록 초안도 담았다. 코드 변경은 없다.
 
 ---
 
