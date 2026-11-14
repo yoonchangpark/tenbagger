@@ -9,7 +9,7 @@
 
 ---
 
-> 작업을 시작하거나 맡기기 전에 `OPERATIONS_MANUAL.md`(5단계 위임 루프, 영역 주인 표, 완료 체크리스트)를 읽는다.
+> 작업을 시작하거나 맡기기 전에 `ops/delegation/SKILL.md`와 해당 업무의 `ops/<업무>/` 폴더를 읽는다. 전체 개념은 `OPERATIONS_MANUAL.md`.
 
 ## 시스템 구조
 

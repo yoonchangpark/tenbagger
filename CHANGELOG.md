@@ -11,9 +11,10 @@
 일도 반복됐다.
 
 ### 추가
-- **`OPERATIONS_MANUAL.md`** (초안): INTERVIEW → MANUAL → TOOLBOX → EXECUTE → VERIFY 다섯 단계로
-  각 자동화 흐름의 빈 칸을 표로 정리하고, 작업을 맡길 때 쓰는 브리프 양식·영역 주인 표·완료 체크리스트를 담았다.
-  업무별 매뉴얼 폴더(Process·Toolbox·Proof) 구조와 외부 증거로만 판정하는 체크 목록 초안도 담았다. 코드 변경은 없다.
+- **`OPERATIONS_MANUAL.md`**: INTERVIEW → MANUAL → TOOLBOX → EXECUTE → VERIFY 다섯 단계로 각 자동화 흐름의 빈 칸을 표로 정리했다.
+- **`ops/`**: 업무마다 매뉴얼 폴더 하나(숏츠·Threads·카드뉴스·구독·작업 위임). 폴더마다 절차(`SKILL.md`), 쓰는 파일 목록(`files/INDEX.md`),
+  외부 증거로만 판정하는 완료 체크(`proof.md`), 고친 이력(`notes.md`)을 둔다. 결과가 틀리면 결과물이 아니라 매뉴얼을 고친다.
+  지금 코드가 체크를 통과하지 못하는 곳은 각 `SKILL.md`의 "알려진 차이"에 적었다. 코드 변경은 없다.
 
 ---
 
