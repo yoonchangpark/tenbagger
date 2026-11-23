@@ -6,7 +6,7 @@ pydantic[email]
 pykrx
 finance-datareader
 openai>=1.30.0
-sqlalchemy
+sqlalchemy<2.1
 psycopg2-binary
 python-jose[cryptography]
 passlib[bcrypt]
