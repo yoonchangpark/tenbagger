@@ -361,3 +361,88 @@ CREATE TABLE IF NOT EXISTS threads_token (
     updated_at   TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT threads_token_single_row CHECK (id = 1)
 );
+
+-- ── 제품 흐름 v2 (찾는다 → 확인한다 → 그려 본다) ─────────────────────────────
+-- 원본은 저장소의 content/product/*.json. 기동 시 domain/product_seed.py가 이 테이블로 옮긴다.
+-- 테마: 시대 흐름 내러티브 + 버핏·멍거 4필터. 오너(또는 오너 위임 AI)가 승인한다.
+CREATE TABLE IF NOT EXISTS product_themes (
+    id           VARCHAR(40) PRIMARY KEY,
+    name         VARCHAR(100) NOT NULL,
+    line         TEXT NOT NULL,
+    competence   TEXT NOT NULL,
+    money        TEXT NOT NULL,
+    invert       TEXT NOT NULL,
+    safety       TEXT NOT NULL,
+    sources      JSONB NOT NULL DEFAULT '[]',
+    status       VARCHAR(20) NOT NULL DEFAULT 'draft',
+    approved_by  VARCHAR(40),
+    approved_at  DATE,
+    updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 테마별 후보와 제외 종목. 5고리 단계(1~5) 순으로 보여 준다.
+CREATE TABLE IF NOT EXISTS product_theme_candidates (
+    theme_id        VARCHAR(40) NOT NULL REFERENCES product_themes(id) ON DELETE CASCADE,
+    ticker          VARCHAR(10) NOT NULL,
+    name            VARCHAR(100) NOT NULL,
+    stage           SMALLINT,
+    survival_pass   BOOLEAN,
+    excluded_reason TEXT,
+    PRIMARY KEY (theme_id, ticker)
+);
+
+-- 5고리 근거. 출처 링크가 없는 주장은 '미확인'으로 둔다.
+CREATE TABLE IF NOT EXISTS product_link_evidence (
+    id          SERIAL PRIMARY KEY,
+    ticker      VARCHAR(10) NOT NULL,
+    link        SMALLINT NOT NULL CHECK (link BETWEEN 1 AND 5),
+    status      VARCHAR(10) NOT NULL,
+    claim       TEXT NOT NULL,
+    source_url  TEXT,
+    source_type VARCHAR(20),
+    checked_at  DATE,
+    UNIQUE (ticker, link, claim)
+);
+CREATE INDEX IF NOT EXISTS idx_product_link_evidence_ticker ON product_link_evidence(ticker, link);
+
+-- 승인 스냅샷(검증 일지). 한 번 쓰면 고치지 않는다. 바뀌면 새 버전 행으로만 쌓는다.
+CREATE TABLE IF NOT EXISTS product_snapshots (
+    id           VARCHAR(20) PRIMARY KEY,
+    ticker       VARCHAR(10) NOT NULL,
+    name         VARCHAR(100) NOT NULL,
+    theme_id     VARCHAR(40),
+    version      SMALLINT NOT NULL DEFAULT 1,
+    approved_by  VARCHAR(40) NOT NULL,
+    approved_at  DATE NOT NULL,
+    price_at     INTEGER,
+    notion_url   TEXT,
+    payload      JSONB NOT NULL,
+    content_hash CHAR(64) NOT NULL,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (ticker, version)
+);
+
+CREATE OR REPLACE FUNCTION product_snapshots_immutable() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'product_snapshots rows are immutable; add a new version instead';
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_product_snapshots_immutable ON product_snapshots;
+CREATE TRIGGER trg_product_snapshots_immutable
+    BEFORE UPDATE OR DELETE ON product_snapshots
+    FOR EACH ROW EXECUTE FUNCTION product_snapshots_immutable();
+
+-- 분기 점검: 스냅샷이 주장한 고리가 실제로 진척됐는지 DART 숫자로 판정한 기록.
+CREATE TABLE IF NOT EXISTS product_quarterly_checks (
+    id           SERIAL PRIMARY KEY,
+    snapshot_id  VARCHAR(20) NOT NULL REFERENCES product_snapshots(id),
+    quarter      VARCHAR(7) NOT NULL,
+    link         SMALLINT NOT NULL,
+    stage_before SMALLINT,
+    stage_after  SMALLINT,
+    verdict      VARCHAR(10) NOT NULL,
+    evidence_url TEXT,
+    note         TEXT,
+    checked_at   DATE DEFAULT CURRENT_DATE,
+    UNIQUE (snapshot_id, quarter, link)
+);
