@@ -12,3 +12,4 @@
 | `agent_prompts/scoring_postmortem.md` | 재무 점수가 10배 종목을 놓친 이유 (백테스트) |
 | `/mnt/project-files/ops-interview/system-improvement.md` | 오너 인터뷰 원문 |
 | `/mnt/project-files/ops-interview/feature-keep-fix-drop.md` | 기능별 판정 초안 |
+| Notion "텐배거 검증 일지" https://app.notion.com/p/422efb16573781168846cead80957091 | 승인 스냅샷 DB (data source `collection://422efb16-5737-81ac-886f-000b2129b756`). 필드: 테마·5고리 단계·승인 시 주가·누가 돈을 버나·뒤집어 보기·안전마진·10년 시나리오·시장 반영·상태·다음 점검일·근거 출처·스냅샷 해시 |
