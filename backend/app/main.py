@@ -32,6 +32,7 @@ from app.api.v2_track_record import router as track_record_router
 from app.api.v2_shorts_feed import router as shorts_feed_router
 from app.api.factor_engine import router as factor_router
 from app.api.v2_thesis import router as thesis_router
+from app.api.v2_product import router as product_router
 from app.core.database import check_db, SessionLocal
 
 
@@ -50,6 +51,17 @@ def init_db():
         print("✅ DB 초기화 완료")
     except Exception as e:
         print(f"⚠️ DB 초기화 중 오류 (이미 존재할 수 있음): {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+    # 제품 흐름 v2: 저장소의 테마·스냅샷 원본을 DB로 옮긴다
+    db = SessionLocal()
+    try:
+        from app.domain.product_seed import sync_product_seed
+        print(f"✅ 제품 원본 동기화: {sync_product_seed(db)}")
+    except Exception as e:
+        print(f"⚠️ 제품 원본 동기화 오류: {e}")
         db.rollback()
     finally:
         db.close()
@@ -382,6 +394,7 @@ app.include_router(track_record_router)
 app.include_router(shorts_feed_router)
 app.include_router(factor_router)
 app.include_router(thesis_router)
+app.include_router(product_router)
 
 
 @app.get("/api/health")

@@ -2,6 +2,23 @@
 
 ---
 
+## v8.5 — 제품 흐름 v2 1단계: 테마·검증 일지 테이블과 API (2026-11)
+
+### 배경
+`ops/product/` 방향(찾는다 → 확인한다 → 그려 본다)을 실제 데이터로 옮기는 첫 단계. 세션은 운영 DB에 닿지 못하므로
+테마와 승인 스냅샷의 원본을 저장소 파일로 두고, 기동할 때 DB로 옮긴다. 기존 `/api/*`와 기존 테이블은 그대로다.
+
+### 추가
+- **`scripts/init.sql`**: `product_themes`, `product_theme_candidates`, `product_link_evidence`, `product_snapshots`,
+  `product_quarterly_checks`. 스냅샷은 트리거로 수정·삭제를 막는다(바뀌면 새 버전 행).
+- **`backend/app/domain/product_seed.py`**: `content/product/` JSON → DB 동기화. 4필터가 빈 테마는 올리지 않고,
+  출처 링크 없는 근거는 `미확인`으로 저장한다. 이미 들어간 스냅샷과 내용이 다르면 경고만 남긴다.
+- **`backend/app/api/v2_product.py`**: `GET /api/v2/themes`, `/api/v2/themes/{id}`, `/api/v2/snapshots`,
+  `/api/v2/snapshots/{id}`. 초안 테마는 공개하지 않는다.
+- **`content/product/README.md`**: 원본 파일 형식.
+
+---
+
 ## v8.4 — 제품 방향 매뉴얼: 찾는다 → 확인한다 → 그려 본다 (2026-11)
 
 ### 배경
