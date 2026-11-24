@@ -2,6 +2,18 @@
 
 ---
 
+## v8.3 — 보안: /api/health가 OpenAI 키 앞자리를 노출하지 않게 (2026-11)
+
+### 배경
+`/api/health`는 Railway 헬스체크용 공개 엔드포인트인데, 응답의 `openai_key_preview`·`env_openai`에
+OpenAI API 키 앞 10자리가 그대로 담겨 누구나 볼 수 있었다.
+
+### 수정
+- **`backend/app/main.py`**: 두 필드는 v1 응답 호환을 위해 남기고 값만 바꿨다. `openai_key_preview`는 `SET`/`EMPTY`,
+  `env_openai`는 `IN_ENV`/`NOT_IN_ENV`. 키 문자는 내보내지 않는다. 키 교체는 하지 않았다(오너 결정).
+
+---
+
 ## v8.2 — 배포 재발 방지: 백엔드 의존성 전부 정확한 버전으로 고정 (2026-11)
 
 ### 배경

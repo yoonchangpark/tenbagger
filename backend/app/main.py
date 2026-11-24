@@ -388,9 +388,9 @@ app.include_router(thesis_router)
 def health():
     db_ok = check_db()
     from app.core.config import settings
-    openai_preview = (settings.openai_api_key[:10] + "...") if settings.openai_api_key else "EMPTY"
-    env_openai = os.environ.get("OPENAI_API_KEY", "")
-    env_preview = (env_openai[:10] + "...") if env_openai else "NOT_IN_ENV"
+    # 키 값은 한 글자도 내보내지 않는다. 응답 필드는 v1 호환을 위해 유지하고 설정 여부만 표시한다.
+    openai_preview = "SET" if settings.openai_api_key else "EMPTY"
+    env_preview = "IN_ENV" if os.environ.get("OPENAI_API_KEY") else "NOT_IN_ENV"
     return {
         "status": "ok",
         "db": "connected" if db_ok else "disconnected",
