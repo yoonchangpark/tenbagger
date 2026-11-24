@@ -2,6 +2,21 @@
 
 ---
 
+## v8.2 — 배포 재발 방지: 백엔드 의존성 전부 정확한 버전으로 고정 (2026-11)
+
+### 배경
+v8.1에서 `sqlalchemy`만 2.1 미만으로 묶었지만, 나머지 15개 패키지도 버전 없이(또는 하한만) 적혀 있어
+Railway가 빌드할 때마다 최신판을 받는다. `openai`는 `>=1.30.0`이라 이미 3.x가 설치되고 있었고,
+`fastapi`·`bcrypt`·`pydantic` 중 하나만 큰 버전이 올라가도 같은 식으로 헬스체크 실패가 다시 날 수 있다.
+
+### 변경
+- **`backend/requirements.txt`**: 직접 의존성 16개를 `==`로 고정하고, `passlib`이 쓰는 `bcrypt`도 명시했다.
+  값은 Python 3.11 새 가상환경에 지금 main의 requirements를 설치해 나온 버전 그대로다(= v8.1 빌드가 받는 버전).
+  고정본으로 다시 설치해 `pip check` 통과, `pip freeze`가 고정 전과 완전히 같음, `uvicorn app.main:app` 기동 후
+  `/api/health` 200, `passlib` bcrypt 해시·검증 통과를 확인했다. 코드 변경은 없다.
+
+---
+
 ## v8.1 — 배포 복구: SQLAlchemy 2.1 미만으로 고정 (2026-11)
 
 ### 배경

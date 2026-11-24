@@ -1,16 +1,20 @@
-fastapi
-uvicorn
-httpx
-pydantic-settings
-pydantic[email]
-pykrx
-finance-datareader
-openai>=1.30.0
-sqlalchemy<2.1
-psycopg2-binary
-python-jose[cryptography]
-passlib[bcrypt]
-python-multipart
-apscheduler
-requests
-beautifulsoup4
+# 모든 직접 의존성은 정확한 버전으로 고정한다 (v8.2).
+# 버전 없이 두면 Railway가 빌드할 때마다 최신판을 받아, sqlalchemy 2.1처럼 예고 없이 배포가 깨진다.
+# 올릴 때는 로컬에서 설치 → uvicorn 기동 → /api/health 200 을 확인한 뒤 한 줄씩 바꾼다.
+fastapi==0.165.0
+uvicorn==0.54.0
+httpx==0.28.1
+pydantic-settings==2.16.3
+pydantic[email]==2.14.4
+pykrx==1.2.9
+finance-datareader==0.9.202
+openai==3.58.0
+sqlalchemy==2.0.58
+psycopg2-binary==2.9.13
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.9.5
+bcrypt==5.0.0
+python-multipart==0.0.34
+apscheduler==3.11.3
+requests==2.34.2
+beautifulsoup4==4.15.0
