@@ -5,12 +5,17 @@ GET /api/v2/themes               승인된 테마 목록 (후보 수 포함)
 GET /api/v2/themes/{id}          내러티브 + 4필터 + 후보(5고리 단계순) + 제외 종목
 GET /api/v2/snapshots            검증 일지 (최신순)
 GET /api/v2/snapshots/{id}       스냅샷 한 건 (승인 당시 내용 그대로 + 분기 점검)
+GET /api/v2/candidates/{ticker}  종목 화면: 5고리 근거 + 재무 3년 + 시장 반영 1년
 
 원본은 content/product/*.json, 기동 시 domain/product_seed.py가 DB로 옮긴다.
 초안(draft) 테마는 공개하지 않는다.
 """
+import time
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
+
+from app.domain.candidate_view import build_candidate
 
 from app.core.database import SessionLocal
 
@@ -105,3 +110,21 @@ def get_snapshot(snapshot_id: str):
         return snap
     finally:
         db.close()
+
+
+# DART·주가·수급 호출이 묶여 있으므로 6시간 캐시. 근거(DB)는 테마 동기화 때만 바뀐다.
+_CAND_CACHE: dict[str, tuple[float, dict]] = {}
+_CAND_TTL = 6 * 3600
+
+
+@router.get("/candidates/{ticker}")
+async def get_candidate(ticker: str):
+    hit = _CAND_CACHE.get(ticker)
+    if hit and time.time() - hit[0] < _CAND_TTL:
+        return hit[1]
+    data = await build_candidate(ticker)
+    if not data.get("found"):
+        raise HTTPException(status_code=404, detail="DART에서 종목을 찾을 수 없습니다")
+    if data.get("financials"):
+        _CAND_CACHE[ticker] = (time.time(), data)
+    return data
