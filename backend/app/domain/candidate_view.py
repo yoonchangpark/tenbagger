@@ -9,6 +9,7 @@
 """
 import asyncio
 import datetime
+import re
 
 from sqlalchemy import text
 
@@ -33,9 +34,87 @@ def market_label(price_change_pct, smart_net) -> str:
     return "반영 시작"
 
 
+_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+       "Referer": "https://finance.naver.com"}
+
+
+def _num(txt: str):
+    t = re.sub(r"[^0-9.\-]", "", txt.replace(",", ""))
+    if t in ("", "-", "."):
+        return None
+    return float(t) if "." in t else int(t)
+
+
+def _flow_naver_frgn(ticker: str, pages: int = 13) -> dict | None:
+    """네이버 금융 '외국인·기관 순매매' 페이지(20거래일/쪽). 13쪽 ≈ 1년. 외국인 보유율도 같이 온다."""
+    import requests
+    from bs4 import BeautifulSoup
+    rows, seen = [], set()
+    for page in range(1, pages + 1):
+        r = requests.get("https://finance.naver.com/item/frgn.naver",
+                         params={"code": ticker, "page": page}, headers=_UA, timeout=10)
+        r.encoding = "euc-kr"
+        got = 0
+        for tr in BeautifulSoup(r.text, "html.parser").select("table.type2 tr"):
+            tds = [td.get_text(strip=True) for td in tr.find_all("td")]
+            if len(tds) < 9 or not re.match(r"\d{4}\.\d{2}\.\d{2}", tds[0]):
+                continue
+            if tds[0] in seen:  # 범위를 넘긴 쪽 번호는 마지막 쪽을 다시 줄 수 있다
+                continue
+            seen.add(tds[0])
+            rows.append({"date": tds[0], "institution": _num(tds[5]) or 0,
+                         "foreign": _num(tds[6]) or 0, "foreign_ratio": _num(tds[8])})
+            got += 1
+        if got == 0:
+            break
+    if not rows:
+        return None
+    rows.sort(key=lambda x: x["date"])
+    return {"dates": [x["date"] for x in rows], "foreign": [x["foreign"] for x in rows],
+            "institution": [x["institution"] for x in rows],
+            "foreign_ratio": (rows[0]["foreign_ratio"], rows[-1]["foreign_ratio"])}
+
+
+def _flow_pykrx(ticker: str) -> dict | None:
+    """KRX 투자자별 순매수 거래량 (pykrx)."""
+    from pykrx import stock
+    end = datetime.date.today()
+    df = stock.get_market_trading_volume_by_date(
+        (end - datetime.timedelta(days=365)).strftime("%Y%m%d"), end.strftime("%Y%m%d"), ticker)
+    if df is None or df.empty or "외국인합계" not in df.columns:
+        return None
+    return {"dates": [d.strftime("%Y.%m.%d") for d in df.index],
+            "foreign": [int(v) for v in df["외국인합계"]], "institution": [int(v) for v in df["기관합계"]]}
+
+
+def _flow_1y(ticker: str) -> dict:
+    """1년 외국인·기관 누적 순매수. 소스를 차례로 시도하고, 어느 소스가 쓰였는지·실패 이유를 함께 남긴다."""
+    from app.api.v2_flow import _fetch_flow_naver
+    out = {"foreign": None, "institution": None, "days": 0, "from": None, "to": None,
+           "foreign_ratio_from": None, "foreign_ratio_to": None, "source": None, "errors": []}
+    for name, fn in (("naver_frgn", _flow_naver_frgn), ("pykrx", _flow_pykrx),
+                     ("naver_investors", lambda t: _fetch_flow_naver(t, 250))):
+        try:
+            f = fn(ticker)
+        except Exception as e:
+            out["errors"].append(f"{name}: {type(e).__name__}: {str(e)[:120]}")
+            continue
+        if not f or not f.get("dates"):
+            out["errors"].append(f"{name}: 빈 응답")
+            continue
+        # 응답이 1년보다 짧을 수 있으므로 실제 받은 기간을 함께 보여 준다
+        out.update(foreign=sum(f["foreign"]), institution=sum(f["institution"]),
+                   days=len(f["dates"]), source=name, **{"from": f["dates"][0], "to": f["dates"][-1]})
+        if f.get("foreign_ratio"):
+            out["foreign_ratio_from"], out["foreign_ratio_to"] = f["foreign_ratio"]
+        break
+    return out
+
+
+
 def _market(ticker: str) -> dict:
     """동기 함수 — 기존 주가 캐시(pykrx)와 네이버 수급 스크래퍼를 재사용한다."""
-    from app.api.v2_flow import _fetch_flow_naver
     from app.api.v2_portfolio import get_price_history
 
     price = {"now": None, "year_ago": None, "change_pct": None, "from": None, "to": None}
@@ -48,15 +127,7 @@ def _market(ticker: str) -> dict:
     except Exception as e:
         print(f"[CANDIDATE] {ticker} 주가 조회 실패: {e}")
 
-    flow = {"foreign": None, "institution": None, "days": 0, "from": None, "to": None}
-    try:
-        f = _fetch_flow_naver(ticker, 250)
-        if f and f.get("dates"):
-            # 응답이 1년보다 짧을 수 있으므로 실제 받은 기간을 함께 보여 준다
-            flow.update(foreign=sum(f["foreign"]), institution=sum(f["institution"]),
-                        days=len(f["dates"]), **{"from": f["dates"][0], "to": f["dates"][-1]})
-    except Exception as e:
-        print(f"[CANDIDATE] {ticker} 수급 조회 실패: {e}")
+    flow = _flow_1y(ticker)
 
     smart = None if flow["foreign"] is None else flow["foreign"] + flow["institution"]
     return {"price": price, "flow": flow, "smart_net_shares": smart,
@@ -128,6 +199,6 @@ async def build_candidate(ticker: str) -> dict:
         "report_year": report_year,
         "market": market,
         "sources": {"financials": "DART 사업보고서", "price": "KRX(pykrx) 일별 종가",
-                    "flow": "네이버 금융 투자자별 매매동향"},
+                    "flow": "네이버 금융 외국인·기관 순매매 (실패 시 KRX)"},
         "as_of": datetime.date.today().isoformat(),
     }
