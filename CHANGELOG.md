@@ -2,6 +2,19 @@
 
 ---
 
+## v8.7 — 제품 흐름 v2 3단계: 내 돈 그려보기 API (2026-11)
+
+### 추가
+- **`GET /api/v2/simulate?ticker=&amount=&mode=lump|monthly&years=10`** (`backend/app/domain/money_sim.py`):
+  약세·기본·강세 연 성장률과 연도별 평가액, 그리고 가정의 출처(`assumptions.basis`, `assumptions.rule`).
+  - 가정 = 회사 최근 2년 매출 CAGR(DART) + `backfill_results`에 쌓인 과거 사례의 연환산 수익률 분포.
+    약세는 사례 하위 25%, 기본은 중앙값, 강세는 회사 CAGR과 사례 상위 10% 중 작은 값. 사례가 5개 미만이면 회사 실적만 쓴다.
+  - 연 -20%~+30%로 제한. 등급별 고정 기대수익은 쓰지 않는다 (proof #6). 배당은 넣지 않았다.
+  - 5고리 단계별 사례가 아직 없어서 비교 사례는 전체 표본이고, 응답에 그렇게 적는다.
+- 기존 `/api/v2/portfolio/simulate`와 `simulator.py`는 그대로 둔다 (새 화면이 대체한 뒤 정리).
+
+---
+
 ## v8.6 — 제품 흐름 v2 2단계: 종목 화면 API (2026-11)
 
 ### 추가
