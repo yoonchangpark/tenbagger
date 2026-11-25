@@ -9,6 +9,7 @@
 """
 import asyncio
 import datetime
+import os
 import re
 
 from sqlalchemy import text
@@ -69,12 +70,47 @@ def _flow_naver_frgn(ticker: str, pages: int = 13) -> dict | None:
         if got == 0:
             break
     if not rows:
-        return None
+        raise RuntimeError(f"표 없음 (HTTP {r.status_code}, {len(r.text)}자, 앞부분: {r.text[:60]!r})")
     rows.sort(key=lambda x: x["date"])
     return {"dates": [x["date"] for x in rows], "foreign": [x["foreign"] for x in rows],
             "institution": [x["institution"] for x in rows],
             "foreign_ratio": (rows[0]["foreign_ratio"], rows[-1]["foreign_ratio"])}
 
+
+
+def _flow_naver_mobile(ticker: str) -> dict | None:
+    """네이버 증권 모바일 JSON (일별 외국인·기관 순매수와 외국인 보유율). bizdate로 과거로 넘겨 가며 1년치를 모은다."""
+    import requests
+    rows, seen = [], set()
+    bizdate = datetime.date.today().strftime("%Y%m%d")
+    stop = (datetime.date.today() - datetime.timedelta(days=365)).strftime("%Y%m%d")
+    for _ in range(15):
+        r = requests.get(f"https://m.stock.naver.com/api/stock/{ticker}/trend",
+                         params={"pageSize": 60, "bizdate": bizdate}, headers=_UA, timeout=10)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}, 앞부분: {r.text[:60]!r}")
+        items = r.json()
+        if not isinstance(items, list) or not items:
+            break
+        for it in items:
+            d = str(it.get("bizdate", ""))
+            if not d or d in seen or d < stop:
+                continue
+            seen.add(d)
+            rows.append({"date": f"{d[:4]}.{d[4:6]}.{d[6:8]}",
+                         "foreign": _num(str(it.get("foreignerPureBuyQuant", "0"))) or 0,
+                         "institution": _num(str(it.get("organPureBuyQuant", "0"))) or 0,
+                         "foreign_ratio": _num(str(it.get("foreignerHoldRatio", "")))})
+        oldest = min(str(it.get("bizdate", "")) for it in items)
+        if not oldest or oldest <= stop:
+            break
+        bizdate = (datetime.datetime.strptime(oldest, "%Y%m%d") - datetime.timedelta(days=1)).strftime("%Y%m%d")
+    if not rows:
+        return None
+    rows.sort(key=lambda x: x["date"])
+    return {"dates": [x["date"] for x in rows], "foreign": [x["foreign"] for x in rows],
+            "institution": [x["institution"] for x in rows],
+            "foreign_ratio": (rows[0]["foreign_ratio"], rows[-1]["foreign_ratio"])}
 
 def _flow_pykrx(ticker: str) -> dict | None:
     """KRX 투자자별 순매수 거래량 (pykrx)."""
@@ -83,6 +119,8 @@ def _flow_pykrx(ticker: str) -> dict | None:
     df = stock.get_market_trading_volume_by_date(
         (end - datetime.timedelta(days=365)).strftime("%Y%m%d"), end.strftime("%Y%m%d"), ticker)
     if df is None or df.empty or "외국인합계" not in df.columns:
+        if not os.environ.get("KRX_ID"):
+            raise RuntimeError("KRX 로그인 정보(KRX_ID/KRX_PW)가 없어 투자자별 데이터를 받지 못함")
         return None
     return {"dates": [d.strftime("%Y.%m.%d") for d in df.index],
             "foreign": [int(v) for v in df["외국인합계"]], "institution": [int(v) for v in df["기관합계"]]}
@@ -93,7 +131,8 @@ def _flow_1y(ticker: str) -> dict:
     from app.api.v2_flow import _fetch_flow_naver
     out = {"foreign": None, "institution": None, "days": 0, "from": None, "to": None,
            "foreign_ratio_from": None, "foreign_ratio_to": None, "source": None, "errors": []}
-    for name, fn in (("naver_frgn", _flow_naver_frgn), ("pykrx", _flow_pykrx),
+    for name, fn in (("naver_mobile", _flow_naver_mobile), ("naver_frgn", _flow_naver_frgn),
+                     ("pykrx", _flow_pykrx),
                      ("naver_investors", lambda t: _fetch_flow_naver(t, 250))):
         try:
             f = fn(ticker)
