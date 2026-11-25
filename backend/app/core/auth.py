@@ -235,6 +235,77 @@ def require_subscription(tier: str = "pro"):
     return _check
 
 
+def _trial_state(current_user: dict, db: Session, feature: str, tier: str) -> dict:
+    """
+    등급과 이번 기간 사용량을 보고 통과 여부를 판정한다.
+    tier 이상이면 무제한, 아니면 남은 체험 횟수를 계산하고, 다 썼으면 403.
+    반환값의 params/limit은 나중에 _consume_trial에 그대로 넘긴다(무제한이면 None).
+    """
+    from sqlalchemy import text
+
+    user_tier = resolve_tier(current_user, db)
+    base = {"subscription_tier": user_tier}
+
+    if TIER_RANK.get(user_tier, 0) >= TIER_RANK.get(tier, 0):
+        return {**base, "trial": False, "params": None, "limit": None}
+
+    weekly = user_tier == "basic"
+    limit = BASIC_TRIAL_LIMIT if weekly else FREE_TRIAL_LIMIT
+    # 무료는 전체 기록을, 기본 플랜은 이번 주 기록만 센다
+    since = current_week_start_utc() if weekly else datetime.min
+    params = {"uid": current_user["id"], "feature": feature, "since": since}
+
+    used = db.execute(
+        text(
+            """
+            SELECT COUNT(*) FROM ai_trial_usage
+            WHERE user_id = :uid AND feature = :feature AND used_at >= :since
+            """
+        ),
+        params,
+    ).scalar() or 0
+
+    if used >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"이번 주 체험 {limit}회를 모두 사용하셨습니다. 다음 주 월요일에 다시 {limit}회가 주어집니다. "
+                f"지금 바로 이용하시려면 {tier.capitalize()} 구독이 필요합니다."
+                if weekly else
+                f"무료 체험 {limit}회를 모두 사용하셨습니다. 계속 이용하시려면 {tier.capitalize()} 구독이 필요합니다."
+            ),
+        )
+
+    return {
+        **base,
+        "trial": True,
+        "trial_remaining": limit - used - 1,
+        "trial_weekly": weekly,
+        "params": params,
+        "limit": limit,
+    }
+
+
+def _consume_trial(db: Session, params: dict, limit: int) -> None:
+    """체험 1회를 기록한다. 한도를 넘는 기록은 조건부 INSERT가 막는다."""
+    from sqlalchemy import text
+
+    db.execute(
+        text(
+            """
+            INSERT INTO ai_trial_usage (user_id, feature)
+            SELECT :uid, :feature
+            WHERE (
+                SELECT COUNT(*) FROM ai_trial_usage
+                WHERE user_id = :uid AND feature = :feature AND used_at >= :since
+            ) < :limit
+            """
+        ),
+        {**params, "limit": limit},
+    )
+    db.commit()
+
+
 def require_subscription_or_trial(feature: str, tier: str = "pro"):
     """
     tier 이상이면 통과. 그 아래 등급은 feature당 정해진 횟수만큼 체험할 수 있다.
@@ -248,70 +319,66 @@ def require_subscription_or_trial(feature: str, tier: str = "pro"):
         current_user: dict = Depends(get_current_user),
         db: Session = Depends(get_db),
     ):
-        from sqlalchemy import text
+        st = _trial_state(current_user, db, feature, tier)
+        ctx = {
+            **current_user,
+            **{k: v for k, v in st.items() if k not in ("params", "limit")},
+        }
 
-        user_tier = resolve_tier(current_user, db)
-        ctx = {**current_user, "subscription_tier": user_tier}
-
-        if TIER_RANK.get(user_tier, 0) >= TIER_RANK.get(tier, 0):
-            yield {**ctx, "trial": False}
+        if not st["trial"]:
+            yield ctx
             return
-
-        weekly = user_tier == "basic"
-        limit = BASIC_TRIAL_LIMIT if weekly else FREE_TRIAL_LIMIT
-        # 무료는 전체 기록을, 기본 플랜은 이번 주 기록만 센다
-        since = current_week_start_utc() if weekly else datetime.min
-        params = {"uid": current_user["id"], "feature": feature, "since": since}
-
-        used = db.execute(
-            text(
-                """
-                SELECT COUNT(*) FROM ai_trial_usage
-                WHERE user_id = :uid AND feature = :feature AND used_at >= :since
-                """
-            ),
-            params,
-        ).scalar() or 0
-
-        if used >= limit:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"이번 주 체험 {limit}회를 모두 사용하셨습니다. 다음 주 월요일에 다시 {limit}회가 주어집니다. "
-                    f"지금 바로 이용하시려면 {tier} 구독이 필요합니다."
-                    if weekly else
-                    f"무료 체험 {limit}회를 모두 사용하셨습니다. 계속 이용하시려면 {tier} 구독이 필요합니다."
-                ),
-            )
 
         # 엔드포인트는 이 dict를 그대로 받는다. 캐시된 결과를 돌려주는 등
         # AI 호출이 실제로 일어나지 않은 경우 consume_trial을 False로 바꾸면 차감하지 않는다.
-        trial_ctx = {
-            **ctx,
-            "trial": True,
-            "trial_remaining": limit - used - 1,
-            "trial_weekly": weekly,
-            "consume_trial": True,
-        }
+        trial_ctx = {**ctx, "consume_trial": True}
         yield trial_ctx
 
         if not trial_ctx.get("consume_trial", True):
             return
 
         # 엔드포인트가 예외 없이 끝났을 때만 체험 1회를 소진시킨다
-        db.execute(
-            text(
-                """
-                INSERT INTO ai_trial_usage (user_id, feature)
-                SELECT :uid, :feature
-                WHERE (
-                    SELECT COUNT(*) FROM ai_trial_usage
-                    WHERE user_id = :uid AND feature = :feature AND used_at >= :since
-                ) < :limit
-                """
-            ),
-            {**params, "limit": limit},
-        )
-        db.commit()
+        _consume_trial(db, st["params"], st["limit"])
+
+    return _check
+
+
+def allow_cached_or_trial(feature: str, tier: str = "pro"):
+    """
+    이미 만들어 둔 결과를 돌려주는 경로는 비로그인에게도 열어 두고, AI를 **새로**
+    부르는 경로에서만 로그인과 체험 횟수를 요구한다.
+
+    저장된 분석을 맛보기로 보여 주는 것이 구독을 판단할 재료가 되고, 그걸 보여 주는
+    데는 토큰 비용이 들지 않는다. 비용이 드는 것은 새로 돌릴 때뿐이다.
+
+    엔드포인트는 AI를 부르기 직전에 ctx["require_run"]()을 부른다. 부르지 않으면
+    아무 횟수도 깎이지 않는다.
+    """
+
+    def _check(
+        user: Optional[dict] = Depends(get_optional_user),
+        db: Session = Depends(get_db),
+    ):
+        ctx: dict = {"user": user, "consume_trial": False}
+        state: dict = {}
+
+        def require_run():
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="새로 분석하려면 로그인이 필요합니다. 로그인하시면 무료로 체험할 수 있습니다.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            st = _trial_state(user, db, feature, tier)
+            state.update(st)
+            ctx.update({k: v for k, v in st.items() if k not in ("params", "limit")})
+            ctx["consume_trial"] = st["trial"]
+            return st
+
+        ctx["require_run"] = require_run
+        yield ctx
+
+        if ctx.get("consume_trial") and state.get("params"):
+            _consume_trial(db, state["params"], state["limit"])
 
     return _check

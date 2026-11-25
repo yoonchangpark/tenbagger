@@ -4,9 +4,10 @@ GET /api/backtest/{ticker}?base_year=2015&hold_years=5
 GET /api/backtest/market?base_year=2015
 POST /api/v2/backtest/explain  ← 신규: AI 백테스트 결과 설명
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.domain.backtest import run_backtest, run_market_backtest, generate_backtest_explanation
+from app.core.auth import require_subscription_or_trial
 
 router = APIRouter(prefix="/api/backtest", tags=["Backtest"])
 
@@ -48,7 +49,10 @@ class ExplainRequest(BaseModel):
 
 
 @router.post("/explain")
-async def backtest_explain(req: ExplainRequest):
+async def backtest_explain(
+    req: ExplainRequest,
+    _user: dict = Depends(require_subscription_or_trial("backtest_explain")),
+):
     """AI가 백테스트 결과(적중/빗나감)를 분석하여 설명 제공"""
     result = await generate_backtest_explanation(
         ticker=req.ticker,
@@ -61,4 +65,10 @@ async def backtest_explain(req: ExplainRequest):
         score_detail=req.score_detail,
         prediction_correct=req.prediction_correct,
     )
+    if result.get("ok") is False:
+        # GPT를 부르지 못했거나 실패한 경우 — 체험 횟수를 깎지 않는다
+        _user["consume_trial"] = False
+    elif _user.get("trial"):
+        result["trial_remaining"] = _user.get("trial_remaining", 0)
+        result["trial_weekly"] = _user.get("trial_weekly", False)
     return result
