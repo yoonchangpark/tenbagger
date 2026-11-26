@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>텐배거 헌터 — 찾는다 · 확인한다 · 그려 본다</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one app shell — sticky tab bar, one view at a time (hash routed), cards stacked in a 760px column.
+   Deliberately single dark theme, matching the live site and the shorts template (navy ground, high-contrast type for readability). */
+:root{
+  color-scheme:dark;
+  --bg:#0b1222; --panel:#121b2e; --panel2:#1a2540; --line:#2a3757;
+  --fg:#f2f5fb; --muted:#a3afc6; --faint:#6f7c97;
+  --s1:#4ea1ff; --s2:#b08cff; --s3:#2fd3b8;
+  --good:#34d17a; --warn:#f5b941; --bad:#ff6b6b; --accent:#ffd54a;
+  --sans:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.6;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+a{color:var(--s1)}
+button{font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.banner{background:var(--accent);color:#1b1400;font-weight:700;font-size:13px;text-align:center;padding:6px max(16px,env(safe-area-inset-right,0px)) 6px max(16px,env(safe-area-inset-left,0px))}
+header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.bar-in{max-width:820px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:17px;white-space:nowrap}
+.brand small{color:var(--muted);font-weight:500;font-size:12px;margin-left:6px}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;min-width:0;flex:1}
+nav.tabs::-webkit-scrollbar{display:none}
+@media (max-width:640px){.brand small{display:none} nav.tabs{flex-basis:100%}}
+nav.tabs a{text-decoration:none;color:var(--muted);font-weight:600;font-size:14px;padding:7px 12px;border-radius:999px;white-space:nowrap}
+nav.tabs a.on{background:var(--panel2);color:var(--fg)}
+nav.tabs a .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+main{max-width:820px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 64px;display:grid;gap:18px}
+h1{font-size:26px;line-height:1.3;margin:0;text-wrap:balance}
+h2{font-size:19px;margin:0;text-wrap:balance}
+h3{font-size:16px;margin:0}
+p{margin:0}
+.muted{color:var(--muted)}
+.faint{color:var(--faint);font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px;min-width:0}
+.step{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13px;letter-spacing:.02em;padding:4px 10px;border-radius:6px;color:#081020;justify-self:start}
+.st1{background:var(--s1)} .st2{background:var(--s2)} .st3{background:var(--s3)}
+.chip{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.c-good{color:var(--good)} .c-warn{color:var(--warn)} .c-bad{color:var(--bad)} .c-muted{color:var(--muted)} .c-s1{color:var(--s1)} .c-s2{color:var(--s2)}
+.ex{font-size:11px;font-weight:700;color:#1b1400;background:var(--accent);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:2px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.theme{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:8px;text-align:left;color:var(--fg)}
+.theme:hover{border-color:var(--s1)}
+.theme b{font-size:16px}
+.rows{display:grid;gap:8px}
+.row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--fg);text-align:left;width:100%}
+.row:hover{border-color:var(--s1)}
+.row .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.stage{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.stage span{font-size:11.5px;text-align:center;padding:5px 2px;border-radius:5px;background:var(--panel2);color:var(--faint);line-height:1.3}
+.stage span.on{background:var(--s2);color:#100822;font-weight:700}
+.mini{display:inline-grid;grid-template-columns:repeat(5,10px);gap:3px;vertical-align:middle}
+.mini i{height:10px;border-radius:2px;background:var(--line)}
+.mini i.on{background:var(--s2)}
+.filters{display:grid;gap:8px}
+.filter{display:grid;grid-template-columns:130px 1fr;gap:10px;font-size:14px;border-top:1px solid var(--line);padding-top:8px}
+.filter dt{color:var(--muted);font-weight:600}
+.filter dd{margin:0}
+@media (max-width:560px){.filter{grid-template-columns:1fr;gap:2px}}
+.link-item{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:6px}
+.link-item.off{opacity:.7;border-style:dashed}
+.link-head{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.src{font-size:12.5px;color:var(--muted)}
+.src a{color:var(--s1)}
+.news{font-size:13px;color:var(--fg);background:var(--panel2);border-radius:6px;padding:6px 9px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--panel2);border-radius:10px;padding:10px 12px}
+.kpi .v{font-size:22px;font-weight:700}
+.kpi .l{font-size:12.5px;color:var(--muted)}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:10px;padding:9px 14px;font-weight:600}
+.btn.primary{background:var(--s1);border-color:var(--s1);color:#06122a}
+.btn:disabled{opacity:.55;cursor:default}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);font-weight:600;padding:10px 16px;border-radius:10px;font-size:14px;max-width:calc(100% - 32px);z-index:20}
+.search{display:flex;gap:8px}
+.search input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:11px 12px;font:inherit}
+.sim-ctl{display:grid;gap:10px}
+.sim-ctl label{display:grid;grid-template-columns:70px 1fr 64px;gap:10px;align-items:center;font-size:14px}
+.sim-ctl input[type=range]{width:100%}
+.amount{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.amount input,.amount select{background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:8px 10px;font:inherit;width:150px}
+.bars{display:grid;gap:10px}
+.bar-row{display:grid;grid-template-columns:44px 1fr 110px;gap:10px;align-items:center;font-size:14px}
+.bar-track{height:16px;background:var(--panel2);border-radius:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:8px}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:12.5px}
+.note{border-left:3px solid var(--accent);padding:6px 12px;font-size:13.5px;color:var(--muted)}
+details summary{cursor:pointer;color:var(--muted);font-size:14px}
+svg text{font-family:var(--sans)}
+.vcard{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;text-decoration:none;color:var(--fg)}
+.vthumb{aspect-ratio:9/16;max-width:100%;border-radius:8px;background:linear-gradient(160deg,#1d2b4f,#0d1424);display:grid;place-items:center;position:relative;font-size:30px}
+.vthumb .sb{position:absolute;top:6px;left:6px;font-size:10px;font-weight:700;background:#ff0033;color:#fff;border-radius:4px;padding:1px 5px}
+.vthumb .du{position:absolute;bottom:6px;right:6px;font-size:11px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;padding:0 5px}
+.case{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:6px}
+.case .m{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.case .m div{background:var(--bg);border-radius:8px;padding:6px;text-align:center}
+.case .m b{display:block;font-size:18px;color:var(--good)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:999px;padding:5px 12px;font-size:13.5px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{background:transparent;border:0;color:var(--muted);padding:7px 12px;font-weight:600}
+.seg button.on{background:var(--panel2);color:var(--fg)}
+footer.disc{max-width:820px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 24px;font-size:12.5px;color:var(--faint);display:grid;gap:4px}
+nav.bottom{display:none}
+@media (max-width:640px){
+ header.bar nav.tabs{display:none}
+ nav.bottom{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--panel);border-top:1px solid var(--line);padding:6px max(4px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(4px,env(safe-area-inset-left,0px))}
+ nav.bottom a{display:grid;justify-items:center;gap:2px;text-decoration:none;color:var(--muted);font-size:11.5px;font-weight:600;padding:4px 0}
+ nav.bottom a i{font-style:normal;font-size:18px;line-height:1}
+ nav.bottom a.on{color:var(--fg)}
+ main{padding-bottom:90px}
+ .card>*{min-width:0}
+ main h1{font-size:23px}
+ footer.disc{padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}
+ .toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+}
+@media (prefers-reduced-motion:no-preference){.bar-fill{transition:width .25s}}
+a.row,a.theme,a.btn{color:inherit;text-decoration:none}
+.link-head span .chip{margin-left:4px}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <div class="brand">텐배거 헌터<small>찾는다 → 확인한다 → 그려 본다</small></div>
+  <nav class="tabs" aria-label="화면">
+    <a href="#home" data-v="home">첫 화면</a>
+    <a href="#find" data-v="find"><span class="dot" style="background:var(--s1)"></span>① 후보 찾기</a>
+    <a href="#watch" data-v="watch"><span class="dot" style="background:var(--s2)"></span>② 관심종목</a>
+    <a href="#money" data-v="money"><span class="dot" style="background:var(--s3)"></span>③ 내 돈 그려보기</a>
+    <a href="#log" data-v="log">검증 일지</a>
+  </nav>
+</div></header>
+<main id="app" aria-live="polite"></main>
+<footer class="disc"><b>투자 유의사항</b><p>이 서비스는 근거와 시나리오를 보여 주는 정보 제공 목적이며, 특정 종목의 매수·매도를 권유하지 않습니다. 시나리오는 과거 데이터에 기반한 가정이고 실제 결과와 다를 수 있습니다. 투자 판단과 그 결과의 책임은 투자자 본인에게 있습니다. 재무 출처: DART 전자공시.</p></footer>
+<nav class="bottom" aria-label="화면 (휴대폰)">
+ <a href="#home" data-v="home"><i>⌂</i>홈</a>
+ <a href="#find" data-v="find"><i style="color:var(--s1)">①</i>후보 찾기</a>
+ <a href="#watch" data-v="watch"><i style="color:var(--s2)">②</i>관심종목</a>
+ <a href="#money" data-v="money"><i style="color:var(--s3)">③</i>내 돈</a>
+ <a href="#log" data-v="log"><i>✓</i>일지</a>
+</nav>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* v2 화면: 프로토타입 v2의 배치를 그대로 쓰고 데이터는 /api/v2/* 에서 받는다.
+   예시 데이터 없음. 받지 못한 값은 '미확인'으로 보여 준다. */
+const API="";
+const LINKS=['수요 폭발','독자성','진입장벽','공급 부족','마진 상승'];
+const SHORTS=[{title:'2019년의 에코프로비엠, 모두가 환호할 때 데이터는 식고 있었다',url:'https://youtube.com/shorts/uhdzXnq_y1g',dur:'0:57',kind:'회고편'}];
+const CASES=[
+ {name:'한미반도체',sector:'AI 반도체 · HBM',thesis:'AI 데이터 폭증 → HBM 수요 → HBM 본딩 장비(TC본더) 사실상 독점',period:'2023 → 2024',m:[['매출','3.5배'],['영업이익','7.4배'],['영업이익률','46%']],detail:'매출 1,590억→5,589억, 영업이익 346억→2,554억'},
+ {name:'한화에어로스페이스',sector:'방산 · 지정학',thesis:'지정학 긴장 → 유럽 재무장 → K-방산(자주포·장갑차) 수출 과점',period:'2022 → 2024',m:[['매출','1.6배'],['영업이익','4.3배'],['영업이익률','15%']],detail:'매출 7.1조→11.2조, 영업이익 4,003억→1조7,319억'},
+ {name:'제룡전기',sector:'AI 전력 · 변압기',thesis:'AI 데이터센터 전력폭증 + 美 송전망 교체 → 변압기 공급부족 → 가격결정력',period:'2022 → 2024',m:[['매출','3.0배'],['순이익','6.4배'],['영업이익률','37%']],detail:'매출 861억→2,627억, 순이익 125억→799억'}];
+
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const won=n=>Math.round(n).toLocaleString('ko-KR');
+const man=n=>(Math.abs(n)>=1e8?(n/1e8).toFixed(Math.abs(n)>=1e9?1:2)+'억':won(n/1e4)+'만')+'원';
+const eok=n=>n==null?'—':won(n/1e8)+'억';
+const signed=n=>n==null?'—':(n>0?'+':'')+won(n);
+const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:null;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2600);}
+async function api(path){
+ const res=await fetch(API+path);
+ let body=null;try{body=await res.json();}catch(e){}
+ if(!res.ok)throw new Error((body&&body.detail)||('서버 응답 '+res.status));
+ return body;
+}
+const loading=t=>`<p class="muted" role="status">${esc(t||'불러오는 중…')}</p>`;
+const failed=(e,retry)=>`<p class="c-bad" role="alert">불러오지 못했습니다: ${esc(e.message)}</p>${retry?`<button class="btn" onclick="${retry}">다시 시도</button>`:''}`;
+
+/* 관심종목: 이 브라우저에만 저장 (로그인 연동 전) */
+function loadWatch(){try{return JSON.parse(localStorage.getItem('tb_watch')||'[]').filter(x=>x&&x.ticker);}catch(e){return [];}}
+let watch=loadWatch();
+function saveWatch(){try{localStorage.setItem('tb_watch',JSON.stringify(watch));}catch(e){}}
+const inWatch=t=>watch.some(w=>w.ticker===t);
+
+function mini(stage){const s=stage||0;return '<span class="mini" aria-label="5고리 중 '+s+'고리">'+LINKS.map((_,i)=>'<i class="'+(i<s?'on':'')+'"></i>').join('')+'</span>';}
+function stageBar(stage){const s=stage||0;return '<div class="stage">'+LINKS.map((l,i)=>'<span class="'+(i<s?'on':'')+'">'+(i+1)+' '+l+'</span>').join('')+'</div>';}
+function mchip(m){const c={'아직 덜 알려짐':'c-good','반영 시작':'c-warn','가격에 반영 중':'c-warn'}[m]||'c-muted';return '<span class="chip '+c+'">'+esc(m||'미확인')+'</span>';}
+function stChip(s){const c={'확인':'c-good','반증':'c-bad'}[s]||'c-muted';return '<span class="chip '+c+'">'+esc(s||'미확인')+'</span>';}
+function vcard(v){return `<a class="vcard" href="${v.url}" target="_blank" rel="noopener"><div class="vthumb"><span class="sb">SHORTS</span>▶<span class="du">${v.dur}</span></div><div><div class="faint">${v.kind}</div><b>${v.title}</b><div class="faint" style="margin-top:4px">YouTube에서 보기 →</div></div></a>`;}
+function casesHtml(){return `<div class="card"><h2>과거의 W 사례 · 텐배거는 이렇게 나왔다</h2><p class="muted" style="font-size:14px">거시 흐름 → 산업 독점 → 실적 폭발. 아래 숫자는 DART 사업보고서 실제 값입니다. 과거 예측 적중을 주장하는 목록이 아니라, 찾는 방식을 보여 주는 사례입니다.</p><div class="grid2">${CASES.map(c=>`<div class="case"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${c.name}</b><span class="chip c-s1">${c.sector}</span></div><div style="font-size:14px">${c.thesis}</div><div class="m">${c.m.map(x=>`<div><b class="num">${x[1]}</b><span class="faint">${x[0]}</span></div>`).join('')}</div><div class="faint">${c.period} · ${c.detail}</div></div>`).join('')}</div></div>`;}
+
+/* ── 검색 ── */
+function searchForm(){return `<form class="search" onsubmit="event.preventDefault();searchGo()">
+   <input id="q" placeholder="종목명 또는 6자리 코드 (예: 제룡전기)" aria-label="종목 검색" autocomplete="off" enterkeyhint="search">
+   <button class="btn primary" type="submit" id="qbtn">찾기</button>
+  </form><div id="sres"></div>`;}
+async function searchGo(){
+ const q=($('#q').value||'').trim();const out=$('#sres');const b=$('#qbtn');
+ if(!q){toast('종목명이나 코드를 입력해 주세요');return;}
+ if(/^\d{6}$/.test(q)){location.hash='stock-'+q;return;}
+ b.disabled=true;b.textContent='찾는 중…';out.innerHTML='';
+ try{
+  const list=await api('/api/search?q='+encodeURIComponent(q));
+  if(!Array.isArray(list)||!list.length){out.innerHTML='<p class="muted">"'+esc(q)+'"에 맞는 종목이 없습니다. 이름을 줄이거나 6자리 코드로 찾아 보세요.</p>';return;}
+  if(list.length===1){location.hash='stock-'+encodeURIComponent(list[0].ticker);return;}
+  out.innerHTML='<div class="rows" style="margin-top:8px">'+list.map(r=>`<a class="row" href="#stock-${encodeURIComponent(r.ticker)}"><div><b>${esc(r.name)}</b> <span class="faint num">${esc(r.ticker)} ${esc(r.market)}</span></div><span class="faint">근거 보기 →</span></a>`).join('')+'</div>';
+ }catch(e){out.innerHTML=failed(e);}
+ finally{b.disabled=false;b.textContent='찾기';}
+}
+
+/* ── 첫 화면 ── */
+function vHome(){
+ setTimeout(()=>{loadThemes('#home-themes');loadLogRows('#home-log',2);},0);
+ return `<div class="card" style="gap:14px">
+  <h1>시장은 삼전·하이닉스만 봅니다.<br><span style="color:var(--accent)">나머지가 기회입니다</span></h1>
+  <p class="muted">시대 흐름에서 실제로 돈을 버는 회사를 찾아 공시 근거로 확인하고, 샀을 때 내 돈이 10년 뒤 어떻게 될지 그려 봅니다.</p>
+  ${searchForm()}
+ </div>
+ <div class="card"><div class="step st1">① 이번 달 시대 흐름</div><div id="home-themes">${loading()}</div></div>
+ <div class="card"><h2>최신 숏츠</h2>${SHORTS.map(vcard).join('')}<p class="faint">숏츠에서 본 종목을 여기서 근거와 함께 이어 봅니다.</p></div>
+ <div class="card"><h2>검증 일지 최근 기록</h2>
+  <p class="muted" style="font-size:14px">승인한 날의 판단을 고치지 않고 남겨, 분기마다 맞았는지 확인합니다. 틀린 것도 그대로 공개합니다.</p>
+  <div id="home-log">${loading()}</div>
+ </div>`;
+}
+let themesCache=null;
+async function getThemes(){if(!themesCache)themesCache=(await api('/api/v2/themes')).themes||[];return themesCache;}
+async function loadThemes(sel){
+ const el=$(sel);if(!el)return;
+ try{
+  const ts=await getThemes();if(!$(sel))return;
+  el.innerHTML=ts.length?`<div class="grid2">${ts.map(t=>`<a class="theme" href="#find-${encodeURIComponent(t.id)}"><b>${esc(t.name)}</b><span class="muted" style="font-size:14px">${esc(t.line)}</span><span class="faint">후보 ${t.candidate_count}개 →</span></a>`).join('')}</div>`
+   :'<p class="muted">첫 테마를 준비하고 있습니다. 근거를 갖춰 승인되면 여기에 올라옵니다. 그동안 위 검색으로 아무 종목이나 5고리 근거를 확인해 볼 수 있습니다.</p>';
+ }catch(e){el.innerHTML=failed(e,`themesCache=null;loadThemes('${sel}')`);}
+}
+
+/* ── ① 후보 찾기 ── */
+function vFind(themeId){
+ setTimeout(()=>loadFind(themeId),0);
+ return casesHtml()+`<div class="card"><div class="step st1">① 후보 찾기</div><div id="find-tabs">${loading()}</div></div><div id="find-body"></div>`;
+}
+async function loadFind(themeId){
+ const tabs=$('#find-tabs');
+ try{
+  const ts=await getThemes();
+  if(!ts.length){tabs.innerHTML='<p class="muted">아직 승인된 테마가 없습니다. 첫 테마 3개를 근거와 함께 준비 중입니다. 그동안 종목을 직접 찾아 5고리 근거를 볼 수 있습니다.</p>'+searchForm();return;}
+  const cur=ts.find(t=>t.id===themeId)||ts[0];
+  tabs.innerHTML=`<div class="btns" role="tablist">${ts.map(x=>`<a class="btn ${x.id===cur.id?'primary':''}" role="tab" aria-selected="${x.id===cur.id}" href="#find-${encodeURIComponent(x.id)}">${esc(x.name)}</a>`).join('')}</div>`;
+  const body=$('#find-body');body.innerHTML=`<div class="card">${loading()}</div>`;
+  const t=await api('/api/v2/themes/'+encodeURIComponent(cur.id));
+  const src=(t.sources||[]).map(s=>{const u=safeUrl(s.url||s);return u?`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(s.title||u)}</a>`:esc(s.title||s);}).join(' · ');
+  body.innerHTML=`<div class="card"><h2>${esc(t.name)}</h2><p>${esc(t.line)}</p>
+   <dl class="filters">
+    <div class="filter"><dt>능력 범위</dt><dd>${esc(t.competence)}</dd></div>
+    <div class="filter"><dt>누가 돈을 버나</dt><dd>${esc(t.money)}</dd></div>
+    <div class="filter"><dt>뒤집어 보기</dt><dd>${esc(t.invert)}</dd></div>
+    <div class="filter"><dt>안전마진</dt><dd>${esc(t.safety)}</dd></div>
+   </dl>
+   ${src?`<p class="faint">출처: ${src}</p>`:''}
+   <p class="faint">${t.approved_by==='ai-delegated'?'AI가 초안을 쓰고 오너 위임으로 승인한 테마입니다':'AI가 초안을 쓰고 오너가 승인한 테마입니다'}${t.approved_at?' · '+esc(t.approved_at.slice(0,10)):''}</p>
+  </div>
+  <div class="card"><h2>수혜 후보 · 5고리 단계순</h2>
+   ${t.candidates.length?`<div class="rows">${t.candidates.map(c=>`<a class="row" href="#stock-${encodeURIComponent(c.ticker)}"><div><b>${esc(c.name)}</b>${mini(c.stage)} <span class="faint">5고리 중 ${c.stage??'—'}고리</span></div><span class="faint">근거 보기 →</span></a>`).join('')}</div>`:'<p class="muted">아직 생존 기준을 통과한 후보가 없습니다.</p>'}
+   ${t.excluded.length?`<details><summary>생존 기준 미달로 뺀 회사 ${t.excluded.length}개</summary><div class="rows" style="margin-top:8px">${t.excluded.map(e=>`<div class="row" style="cursor:default"><div><b>${esc(e.name)}</b><div class="faint">${esc(e.excluded_reason)}</div></div></div>`).join('')}</div></details>`:''}
+   <p class="faint">생존 기준: 부채비율 200% 이하, 적자라면 보유 현금으로 2년 이상 버팀. 흑자 여부는 따지지 않습니다.</p>
+  </div>`;
+ }catch(e){const tg=$('#find-tabs')&&$('#find-tabs').querySelector('[role=tablist]')?$('#find-body'):$('#find-tabs');if(tg)tg.innerHTML=failed(e,'render()');}
+}
+
+/* ── ② 종목 확인 ── */
+function vStock(ticker){
+ setTimeout(()=>loadStock(ticker),0);
+ return `<div id="stock">${'<div class="card">'+loading('공시·주가·수급을 모으는 중… (처음엔 10초쯤 걸릴 수 있습니다)')+'</div>'}</div>`;
+}
+async function nameOf(ticker){
+ const w=watch.find(x=>x.ticker===ticker);if(w&&w.name)return w.name;
+ try{const l=await api('/api/search?q='+encodeURIComponent(ticker));const hit=(l||[]).find(r=>r.ticker===ticker);return hit?hit.name:null;}catch(e){return null;}
+}
+function fmtVal(v){if(v==null)return '데이터 없음';if(Array.isArray(v))return v.map(x=>x==null?'—':x).join(' → ');return typeof v==='number'?v.toLocaleString('ko-KR'):esc(v);}
+function checkRow(c){const r=c.result===true?'<span class="c-good">통과</span>':c.result===false?'<span class="c-bad">미달</span>':'<span class="faint">판정 불가</span>';
+ return `<li>${r} · ${esc(c.label)} <span class="faint num">(값 ${fmtVal(c.value)}${c.rule?', 기준 '+esc(c.rule):''})</span></li>`;}
+function linkHtml(l){
+ const ok=l.number_status==='확인'||l.evidence_status==='확인';
+ const ev=l.evidence.length?l.evidence.map(e=>{const u=safeUrl(e.source_url);return `<div>${stChip(e.status)} ${esc(e.claim)}${u?`<div class="src">출처: <a href="${esc(u)}" target="_blank" rel="noopener">${esc(e.source_type||'원문')}</a>${e.checked_at?' · '+esc(e.checked_at.slice(0,10))+' 확인':''}</div>`:'<div class="src">출처 링크 없음 → 미확인으로 둠</div>'}</div>`;}).join('')
+  :`<div class="src">서술 근거 아직 없음${l.evidence_needed.length?' · 필요한 근거: '+l.evidence_needed.map(esc).join(' / '):''}</div>`;
+ return `<div class="link-item ${ok?'':'off'}"><div class="link-head"><b>${l.no}. ${esc(l.name)}</b><span>숫자 ${stChip(l.number_status)} 근거 ${stChip(l.evidence_status)}</span></div>
+  ${l.number_checks.length?`<ul style="margin:0;padding-left:18px;font-size:14px">${l.number_checks.map(checkRow).join('')}</ul>`:''}${ev}</div>`;
+}
+function finChart(fin){
+ const rows=fin.filter(r=>r.revenue!=null);if(!rows.length)return '<p class="muted">재무 데이터를 받지 못했습니다.</p>';
+ const W=560,H=190,pl=52,pb=26,pt=12,n=rows.length;const vals=rows.flatMap(r=>[r.revenue,r.operating_profit??0]);
+ const max=Math.max(...vals,1),min=Math.min(0,...vals);const y=v=>pt+(H-pt-pb)*(1-(v-min)/(max-min));const bw=(W-pl-12)/n;
+ let g='';rows.forEach((r,i)=>{const x=pl+i*bw+bw*0.15,w=bw*0.32;g+=`<rect x="${x}" y="${y(r.revenue)}" width="${w}" height="${y(0)-y(r.revenue)}" fill="#4ea1ff" rx="3"/>`;
+  const v=r.operating_profit;if(v!=null)g+=`<rect x="${x+w+4}" y="${Math.min(y(v),y(0))}" width="${w}" height="${Math.max(1,Math.abs(y(v)-y(0)))}" fill="${v<0?'#ff6b6b':'#2fd3b8'}" rx="3"/>`;
+  g+=`<text x="${pl+i*bw+bw/2}" y="${H-8}" text-anchor="middle" font-size="12" fill="#a3afc6">${esc(r.year)}</text>`;});
+ g+=`<line x1="${pl}" x2="${W-6}" y1="${y(0)}" y2="${y(0)}" stroke="#2a3757"/><text x="${pl-6}" y="${y(max)+4}" text-anchor="end" font-size="11" fill="#6f7c97">${eok(max)}</text><text x="${pl-6}" y="${y(0)+4}" text-anchor="end" font-size="11" fill="#6f7c97">0</text>`;
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="매출과 영업이익 추이">${g}</svg><div class="faint"><span style="color:#4ea1ff">■</span> 매출 <span style="color:#2fd3b8;margin-left:10px">■</span> 영업이익 · ${rows.map(r=>esc(r.year)+' 매출 '+eok(r.revenue)+' / 영업이익 '+eok(r.operating_profit)).join(', ')}</div>`;
+}
+function marketHtml(m){
+ const p=m.price||{},f=m.flow||{};
+ const priceTxt=p.change_pct==null?'주가 1년 변화 미확인':`1년 주가 <b class="num">${p.change_pct>0?'+':''}${p.change_pct}%</b> <span class="faint">(${esc(p.from)} ${won(p.year_ago)}원 → ${esc(p.to)} ${won(p.now)}원)</span>`;
+ const flowTxt=f.foreign==null?`외국인·기관 순매수 미확인${f.errors&&f.errors.length?' <span class="faint">('+esc(f.errors[0])+')</span>':''}`
+  :`외국인 <b class="num">${signed(f.foreign)}</b>주 · 기관 <b class="num">${signed(f.institution)}</b>주 <span class="faint">(${esc(f.from)}~${esc(f.to)}, ${f.days}거래일)</span>${f.foreign_ratio_from!=null?`<div class="faint">외국인 보유율 ${f.foreign_ratio_from}% → ${f.foreign_ratio_to}%</div>`:''}`;
+ return `<div style="display:grid;gap:6px"><div>${mchip(m.label)}</div><div>${priceTxt}</div><div>${flowTxt}</div>
+  <div class="faint">판정 규칙: ${esc(m.rule)}. 판단 근거가 아니라 확인 신호입니다.</div></div>`;
+}
+async function loadStock(ticker){
+ const box=$('#stock');
+ let d,name;
+ try{[d,name]=await Promise.all([api('/api/v2/candidates/'+encodeURIComponent(ticker)),nameOf(ticker)]);}
+ catch(e){if($('#stock'))box.innerHTML=`<div class="card">${failed(e,'render()')}<p class="faint"><a href="#home">첫 화면에서 다시 찾기</a></p></div>`;return;}
+ if(!$('#stock'))return;
+ const t=d.ticker;name=name||t;
+ const themeTxt=d.themes.length?'테마: '+d.themes.map(x=>`<a href="#find-${encodeURIComponent(x.id)}">${esc(x.name)}</a>`).join(', '):'아직 승인된 테마에 들지 않은 종목';
+ box.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+   <div><h1>${esc(name)} <span class="faint num" style="font-size:15px">${esc(t)}</span></h1><div class="faint">${themeTxt}${d.market.price.now?' · 현재가 <span class="num">'+won(d.market.price.now)+'</span>원':''}</div></div>
+   <div class="btns"><button class="btn" id="wbtn" onclick="toggleWatch('${esc(t)}')">${inWatch(t)?'★ 관심종목 해제':'☆ 관심종목 담기'}</button></div></div>
+ </div>
+ <div class="card"><div class="step st1">① 왜 후보인가</div>
+  <h2>5고리 중 ${d.stage??'—'}고리${d.stage_label?' · '+esc(d.stage_label):''}</h2>${stageBar(d.stage)}
+  ${d.stage_warning?`<p class="c-warn" style="font-size:14px">⚠ ${esc(d.stage_warning)}</p>`:''}
+  <p class="faint">단계는 숫자 판정(${esc(d.report_year||'최근')} 사업보고서 기준)으로 셉니다. 1고리(수요 폭발)가 숫자로 확인돼야 다음 고리를 셉니다.</p>
+ </div>
+ <div class="card"><div class="step st2">② 근거 확인</div>
+  <h2>내러티브 5고리 체크리스트</h2>
+  <p class="faint">숫자 = DART 공시로 자동 판정. 근거 = 출처 링크가 있는 공시·기사만 "확인"으로 셉니다.</p>
+  ${d.links.map(linkHtml).join('')}
+  <h3 style="margin-top:6px">매출·영업이익 ${d.financials.length}년</h3>${finChart(d.financials)}
+  <h3>시장은 아직 모르나?</h3>${marketHtml(d.market)}
+  <p class="faint">출처: 재무 ${esc(d.sources.financials)} · 주가 ${esc(d.sources.price)} · 수급 ${esc(d.market.flow.source||d.sources.flow)} · ${esc(d.as_of)} 기준</p>
+ </div>
+ <div class="card" id="simcard"><div class="step st3">③ 내 돈 그려 보기</div>
+  <h2>이 종목을 샀다면 10년 뒤</h2>
+  ${simControls('s')}
+  <div id="s-out">${loading()}</div>
+  <p class="faint">근거와 시나리오를 보여 드릴 뿐, 매수를 권하지 않습니다.</p>
+ </div>`;
+ runSim('s',t);
+}
+function toggleWatch(t){
+ if(inWatch(t)){watch=watch.filter(w=>w.ticker!==t);toast('관심종목에서 뺐습니다');}
+ else{const h=$('#stock h1');watch.push({ticker:t,name:h?h.firstChild.textContent.trim():t});toast('관심종목에 담았습니다 (이 브라우저에 저장)');}
+ saveWatch();const b=$('#wbtn');if(b)b.textContent=inWatch(t)?'★ 관심종목 해제':'☆ 관심종목 담기';
+}
+
+/* ── ③ 시뮬레이션 (서버 /api/v2/simulate) ── */
+const AMTS={lump:[[5e6,'500만 원'],[1e7,'1,000만 원'],[3e7,'3,000만 원'],[5e7,'5,000만 원']],monthly:[[3e5,'월 30만 원'],[5e5,'월 50만 원'],[1e6,'월 100만 원']]};
+const simMode={s:'lump',m:'lump'};
+function amtOpts(mode){const def=mode==='lump'?1e7:5e5;return AMTS[mode].map(([v,l])=>`<option value="${v}" ${v===def?'selected':''}>${l}</option>`).join('');}
+function simControls(p){simMode[p]='lump';return `<div class="seg" role="group" aria-label="넣는 방식"><button id="${p}-lump" class="on" onclick="setMode('${p}','lump')">한 번에</button><button id="${p}-monthly" onclick="setMode('${p}','monthly')">매달 나눠서</button></div>
+  <div class="amount"><label for="${p}-amt" id="${p}-amtl">넣을 돈</label><select id="${p}-amt" onchange="runSim('${p}')">${amtOpts('lump')}</select></div>`;}
+function setMode(p,m){simMode[p]=m;$('#'+p+'-lump').classList.toggle('on',m==='lump');$('#'+p+'-monthly').classList.toggle('on',m==='monthly');$('#'+p+'-amt').innerHTML=amtOpts(m);$('#'+p+'-amtl').textContent=m==='lump'?'넣을 돈':'매달';runSim(p);}
+let simSeq=0;
+async function runSim(p,ticker){
+ if(ticker!==undefined)runSim['t'+p]=ticker;const t=runSim['t'+p];
+ const out=$('#'+p+'-out');if(!out)return;const seq=++simSeq;
+ const amt=+$('#'+p+'-amt').value,mode=simMode[p];
+ out.innerHTML=loading('계산 중…');
+ try{
+  const r=await api(`/api/v2/simulate?amount=${amt}&mode=${mode}&years=10${t?'&ticker='+encodeURIComponent(t):''}`);
+  if(seq!==simSeq||!$('#'+p+'-out'))return;
+  const a=r.assumptions||{};
+  if(!a.available){out.innerHTML=`<p class="muted">시나리오를 그릴 수 없습니다: ${esc(a.reason||'가정 데이터 없음')}</p>`;return;}
+  const col={bear:'var(--bad)',base:'var(--s3)',bull:'var(--good)'},lab={bear:'약세',base:'기본',bull:'강세'};
+  const max=Math.max(r.final.bear,r.final.base,r.final.bull,r.invested);
+  out.innerHTML=`<div class="bars">${['bear','base','bull'].map(k=>`<div class="bar-row"><span>${lab[k]}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(2,r.final[k]/max*100)}%;background:${col[k]}"></div></div><span class="num" style="text-align:right">${man(r.final[k])}<br><span class="faint" style="font-size:12px">연 ${a[k]}%</span></span></div>`).join('')}</div>
+   <div class="faint">넣은 돈 ${man(r.invested)} 기준 · ${r.years}년 뒤 · 배당 제외</div>
+   <div class="note"><b>가정은 어디서 왔나</b><br>${esc(a.basis)}${a.company_cagr!=null?` · 이 회사 최근 2년 매출 CAGR ${a.company_cagr}%`:t?' · 이 회사 매출 성장률은 받지 못함':''}<br><span class="faint">${esc(a.rule)}</span>${/전체 표본/.test(a.basis||'')?'<br><span class="faint">지금은 같은 5고리 단계의 사례가 아직 쌓이지 않아 전체 종목 기준입니다. 그래서 기본 시나리오가 낮게 나올 수 있습니다. 사례가 쌓이면 좁힙니다.</span>':''}</div>`;
+ }catch(e){if(seq===simSeq&&$('#'+p+'-out'))out.innerHTML=failed(e,`runSim('${p}')`);}
+}
+
+/* ── ② 관심종목 ── */
+function vWatch(){
+ return `<div class="card"><div class="step st2">② 관심종목 확인</div><h2>담아 둔 종목</h2>
+  ${watch.length?`<div class="rows">${watch.map(w=>`<a class="row" href="#stock-${encodeURIComponent(w.ticker)}"><div><b>${esc(w.name)}</b> <span class="faint num">${esc(w.ticker)}</span></div><span class="faint">근거 →</span></a>`).join('')}</div>
+   <p class="faint">이 브라우저에만 저장됩니다. 종목을 열면 최신 공시 기준으로 고리를 다시 셉니다.</p>`
+  :`<p class="muted">아직 담은 종목이 없습니다. <a href="#home">첫 화면</a>에서 종목을 찾아 열고 "관심종목 담기"를 누르세요.</p>`}
+ </div>`;
+}
+
+/* ── ③ 내 돈 그려보기 ── */
+function vMoney(){
+ const opts=`<option value="">특정 종목 없이 (비교 사례만)</option>`+watch.map(w=>`<option value="${esc(w.ticker)}">${esc(w.name)}</option>`).join('');
+ setTimeout(()=>runSim('m',$('#m-tk').value),0);
+ return `<div class="card"><div class="step st3">③ 내 돈 그려보기</div><h2>10년 뒤 내 돈은</h2>
+  <div class="amount"><label for="m-tk">종목</label><select id="m-tk" onchange="runSim('m',this.value)">${opts}</select></div>
+  ${simControls('m')}
+  ${watch.length?'':'<p class="faint">관심종목을 담으면 그 회사의 매출 성장률을 강세 시나리오에 반영합니다.</p>'}
+  <div id="m-out">${loading()}</div>
+  <p class="faint">"매달 나눠서"는 10년간 매달 넣는 적립식입니다. 근거와 시나리오를 보여 드릴 뿐, 매수를 권하지 않습니다.</p>
+ </div>`;
+}
+
+/* ── 검증 일지 ── */
+async function loadLogRows(sel,limit){
+ const el=$(sel);if(!el)return;
+ try{
+  const r=await api('/api/v2/snapshots?limit='+(limit||50));if(!$(sel))return;const s=r.snapshots||[];
+  if(!s.length){el.innerHTML='<p class="muted">아직 기록이 없습니다. 첫 테마의 후보가 승인되면 그날의 판단이 여기에 고정됩니다.</p>';return;}
+  el.innerHTML=limit?`<div class="rows">${s.map(x=>`<a class="row" href="#stock-${encodeURIComponent(x.ticker)}"><div><b>${esc(x.name)}</b> <span class="faint">${esc(x.approved_at.slice(0,10))} 승인</span><div class="meta">${mini(+x.stage||0)} <span class="faint">${x.stage??'—'}고리</span></div></div><span class="faint">근거 →</span></a>`).join('')}</div>`
+  :`<div class="tbl-wrap"><table><thead><tr><th>승인일</th><th>종목</th><th>승인 시 단계</th><th>승인 시 주가</th><th>승인</th><th>Notion</th></tr></thead><tbody>
+   ${s.map(x=>{const n=safeUrl(x.notion_url);return `<tr><td class="num">${esc(x.approved_at.slice(0,10))}</td><td><a href="#stock-${encodeURIComponent(x.ticker)}">${esc(x.name)}</a></td><td>${mini(+x.stage||0)} ${x.stage??'—'}고리</td><td class="num">${x.price_at?won(x.price_at):'—'}</td><td>${x.approved_by==='ai-delegated'?'AI(오너 위임)':esc(x.approved_by)}</td><td>${n?`<a href="${esc(n)}" target="_blank" rel="noopener">열기</a>`:'—'}</td></tr>`;}).join('')}
+   </tbody></table></div>`;
+ }catch(e){el.innerHTML=failed(e,`loadLogRows('${sel}',${limit||0})`);}
+}
+function vLog(){
+ setTimeout(()=>loadLogRows('#log-rows'),0);
+ return `<div class="card"><h2>검증 일지</h2>
+  <p class="muted" style="font-size:14px">승인한 날의 판단(내러티브·5고리·주가·시나리오)을 고치지 않고 남깁니다. 분기 공시가 나올 때마다 고리가 실제로 진척됐는지 확인합니다. 같은 기록이 Notion에도 남고 카드뉴스로 공개됩니다.</p>
+  <div id="log-rows">${loading()}</div>
+  <p class="faint">1년·2년이 지나면 그날의 시나리오 범위와 실제 결과, KOSPI를 나란히 기록합니다.</p>
+ </div>`;
+}
+
+function render(){
+ const h=decodeURIComponent((location.hash||'#home').slice(1));const app=$('#app');
+ let view=h.split('-')[0];
+ document.querySelectorAll('nav.tabs a, nav.bottom a').forEach(a=>a.classList.toggle('on',a.dataset.v===(view==='stock'?'find':view)));
+ if(view==='find')app.innerHTML=vFind(h.slice(5));
+ else if(view==='stock')app.innerHTML=vStock(h.slice(6));
+ else if(view==='watch')app.innerHTML=vWatch();
+ else if(view==='money')app.innerHTML=vMoney();
+ else if(view==='log')app.innerHTML=vLog();
+ else app.innerHTML=vHome();
+ window.scrollTo(0,0);
+}
+window.addEventListener('hashchange',render);
+render();
+</script>
+</body>
+</html>
